@@ -149,15 +149,11 @@ module.exports = React.createClass({
 
     render: function() {
         const RoomAvatar = sdk.getComponent("avatars.RoomAvatar");
-        const ChangeAvatar = sdk.getComponent("settings.ChangeAvatar");
         const TintableSvg = sdk.getComponent("elements.TintableSvg");
         const EmojiText = sdk.getComponent('elements.EmojiText');
 
-        let name = null;
         let searchStatus = null;
-        let topicElement = null;
         let cancelButton = null;
-        let spinner = null;
         let settingsButton = null;
         let pinnedEventsButton = null;
 
@@ -195,7 +191,7 @@ module.exports = React.createClass({
         }
 
         const emojiTextClasses = classNames('mx_RoomHeader_nametext', { mx_RoomHeader_settingsHint: settingsHint });
-        name =
+        const name =
             <div className="mx_RoomHeader_name" onClick={this.props.onSettingsClick}>
                 <EmojiText dir="auto" element="div" className={emojiTextClasses} title={roomName}>{ roomName }</EmojiText>
                 { searchStatus }
@@ -208,7 +204,7 @@ module.exports = React.createClass({
                 topic = ev.getContent().topic;
             }
         }
-        topicElement =
+        const topicElement =
             <div className="mx_RoomHeader_topic" ref="topic" title={topic} dir="auto">{ topic }</div>;
         const avatarSize = 28;
         let roomAvatar = (
@@ -294,7 +290,6 @@ module.exports = React.createClass({
                     <div className="mx_RoomHeader_avatar">{ roomAvatar }</div>
                     { name }
                     { topicElement }
-                    { spinner }
                     { cancelButton }
                     { rightRow }
                     <RoomHeaderButtons collapsedRhs={this.props.collapsedRhs} />
