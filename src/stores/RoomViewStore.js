@@ -45,8 +45,6 @@ const INITIAL_STATE = {
     forwardingEvent: null,
 
     quotingEvent: null,
-
-    isEditingSettings: false,
 };
 
 /**
@@ -120,26 +118,10 @@ class RoomViewStore extends Store {
                 });
                 break;
             case 'open_room_settings':
-                if (SettingsStore.isFeatureEnabled("feature_tabbed_settings")) {
-                    const RoomSettingsDialog = sdk.getComponent("dialogs.RoomSettingsDialog");
-                    Modal.createTrackedDialog('Room settings', '', RoomSettingsDialog, {
-                        roomId: this._state.roomId,
-                    }, 'mx_SettingsDialog');
-                } else {
-                    this._setState({
-                        isEditingSettings: true,
-                    });
-                }
-                break;
-            case 'open_old_room_settings':
-                this._setState({
-                    isEditingSettings: true,
-                });
-                break;
-            case 'close_settings':
-                this._setState({
-                    isEditingSettings: false,
-                });
+                const RoomSettingsDialog = sdk.getComponent("dialogs.RoomSettingsDialog");
+                Modal.createTrackedDialog('Room settings', '', RoomSettingsDialog, {
+                    roomId: this._state.roomId,
+                }, 'mx_SettingsDialog');
                 break;
         }
     }
@@ -337,10 +319,6 @@ class RoomViewStore extends Store {
     // The mxEvent if one is currently being replied to/quoted
     getQuotingEvent() {
         return this._state.replyingToEvent;
-    }
-
-    isEditingSettings() {
-        return this._state.isEditingSettings;
     }
 
     shouldPeek() {
