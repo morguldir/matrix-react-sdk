@@ -246,6 +246,12 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         default: false,
         controller: new PseudonymousAnalyticsController(),
     },
+    "feature_show_shared_rooms": {
+        supportedLevels: LEVELS_FEATURE,
+        displayName: _td('Show rooms in common with another user in the member info panel'),
+        default: false,
+        isFeature: true,
+    },
     "doNotDisturb": {
         supportedLevels: [SettingLevel.DEVICE],
         default: false,
