@@ -27,7 +27,7 @@ import { Action } from '../../../dispatcher/actions';
 import { RightPanelPhases } from '../../../stores/RightPanelStorePhases';
 import { aboveLeftOf, ContextMenu, ContextMenuTooltipButton, useContextMenu } from '../../structures/ContextMenu';
 import { isContentActionable, canEditContent } from '../../../utils/EventUtils';
-import RoomContext from "../../../contexts/RoomContext";
+import RoomContext, { TimelineRenderingType } from "../../../contexts/RoomContext";
 import Toolbar from "../../../accessibility/Toolbar";
 import { RovingAccessibleTooltipButton, useRovingTabIndex } from "../../../accessibility/RovingTabIndex";
 import { replaceableComponent } from "../../../utils/replaceableComponent";
@@ -41,19 +41,19 @@ import classNames from 'classnames';
 
 import SettingsStore from '../../../settings/SettingsStore';
 import { RoomPermalinkCreator } from '../../../utils/permalinks/Permalinks';
-import ReplyThread from '../elements/ReplyThread';
+import ReplyChain from '../elements/ReplyChain';
 
 interface IOptionsButtonProps {
     mxEvent: MatrixEvent;
     // TODO: Types
     getTile: () => any | null;
-    getReplyThread: () => ReplyThread;
+    getReplyChain: () => ReplyChain;
     permalinkCreator: RoomPermalinkCreator;
     onFocusChange: (menuDisplayed: boolean) => void;
 }
 
 const OptionsButton: React.FC<IOptionsButtonProps> =
-    ({ mxEvent, getTile, getReplyThread, permalinkCreator, onFocusChange }) => {
+    ({ mxEvent, getTile, getReplyChain, permalinkCreator, onFocusChange }) => {
         const [menuDisplayed, button, openMenu, closeMenu] = useContextMenu();
         const [onFocus, isActive, ref] = useRovingTabIndex(button);
         useEffect(() => {
@@ -63,7 +63,7 @@ const OptionsButton: React.FC<IOptionsButtonProps> =
         let contextMenu;
         if (menuDisplayed) {
             const tile = getTile && getTile();
-            const replyThread = getReplyThread && getReplyThread();
+            const replyChain = getReplyChain && getReplyChain();
 
             const buttonRect = button.current.getBoundingClientRect();
             contextMenu = <MessageContextMenu
@@ -71,7 +71,7 @@ const OptionsButton: React.FC<IOptionsButtonProps> =
                 mxEvent={mxEvent}
                 permalinkCreator={permalinkCreator}
                 eventTileOps={tile && tile.getEventTileOps ? tile.getEventTileOps() : undefined}
-                collapseReplyThread={replyThread && replyThread.canCollapse() ? replyThread.collapse : undefined}
+                collapseReplyChain={replyChain && replyChain.canCollapse() ? replyChain.collapse : undefined}
                 onFinished={closeMenu}
             />;
         }
@@ -133,11 +133,11 @@ interface IMessageActionBarProps {
     reactions?: Relations;
     // TODO: Types
     getTile: () => any | null;
-    getReplyThread: () => ReplyThread | undefined;
+    getReplyChain: () => ReplyChain | undefined;
     permalinkCreator?: RoomPermalinkCreator;
-    onFocusChange: (menuDisplayed: boolean) => void;
-    isQuoteExpanded?: boolean;
+    onFocusChange?: (menuDisplayed: boolean) => void;
     toggleThreadExpanded: () => void;
+    isQuoteExpanded?: boolean;
 }
 
 @replaceableComponent("views.messages.MessageActionBar")
@@ -191,6 +191,7 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
         dis.dispatch({
             action: 'reply_to_event',
             event: this.props.mxEvent,
+            context: this.context.timelineRenderingType,
         });
     };
 
@@ -207,8 +208,9 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
 
     private onEditClick = (ev: React.MouseEvent): void => {
         dis.dispatch({
-            action: 'edit_event',
+            action: Action.EditEvent,
             event: this.props.mxEvent,
+            timelineRenderingType: this.context.timelineRenderingType,
         });
     };
 
@@ -296,7 +298,8 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
                             onClick={this.onReplyClick}
                             key="reply"
                         />
-                        { SettingsStore.getValue("feature_thread") && (
+                        { (SettingsStore.getValue("feature_thread")
+                            && this.context.timelineRenderingType !== TimelineRenderingType.Thread) && (
                             <RovingAccessibleTooltipButton
                                 className="mx_MessageActionBar_maskButton mx_MessageActionBar_threadButton"
                                 title={_t("Thread")}
@@ -324,12 +327,25 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
                     />);
                 }
             }
+            // Show thread icon even for deleted messages, but only within main timeline
+            if (this.context.timelineRenderingType === TimelineRenderingType.Room &&
+                SettingsStore.getValue("feature_thread") &&
+                this.props.mxEvent.getThread() &&
+                !isContentActionable(this.props.mxEvent)
+            ) {
+                toolbarOpts.unshift(<RovingAccessibleTooltipButton
+                    className="mx_MessageActionBar_maskButton mx_MessageActionBar_threadButton"
+                    title={_t("Thread")}
+                    onClick={this.onThreadClick}
+                    key="thread"
+                />);
+            }
 
             if (allowCancel) {
                 toolbarOpts.push(cancelSendingButton);
             }
 
-            if (this.props.isQuoteExpanded !== undefined && ReplyThread.hasThreadReply(this.props.mxEvent)) {
+            if (this.props.isQuoteExpanded !== undefined && ReplyChain.hasReply(this.props.mxEvent)) {
                 const expandClassName = classNames({
                     'mx_MessageActionBar_maskButton': true,
                     'mx_MessageActionBar_expandMessageButton': !this.props.isQuoteExpanded,
@@ -346,7 +362,7 @@ export default class MessageActionBar extends React.PureComponent<IMessageAction
             // The menu button should be last, so dump it there.
             toolbarOpts.push(<OptionsButton
                 mxEvent={this.props.mxEvent}
-                getReplyThread={this.props.getReplyThread}
+                getReplyChain={this.props.getReplyChain}
                 getTile={this.props.getTile}
                 permalinkCreator={this.props.permalinkCreator}
                 onFocusChange={this.onFocusChange}

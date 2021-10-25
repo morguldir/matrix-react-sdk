@@ -252,6 +252,12 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         default: false,
         isFeature: true,
     },
+    "feature_polls": {
+        isFeature: true,
+        supportedLevels: LEVELS_FEATURE,
+        displayName: _td("Polls (under active development)"),
+        default: false,
+    },
     "doNotDisturb": {
         supportedLevels: [SettingLevel.DEVICE],
         default: false,
@@ -756,6 +762,11 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         default: false,
         controller: new ReloadOnChangeController(),
+    },
+    "developerMode": {
+        displayName: _td("Developer mode"),
+        supportedLevels: LEVELS_ACCOUNT_SETTINGS,
+        default: false,
     },
     [UIFeature.RoomHistorySettings]: {
         supportedLevels: LEVELS_UI_FEATURE,

@@ -37,6 +37,7 @@ import InviteReason from "../elements/InviteReason";
 import { IOOBData } from "../../../stores/ThreepidInviteStore";
 import Spinner from "../elements/Spinner";
 import AccessibleButton from "../elements/AccessibleButton";
+import { UIFeature } from "../../../settings/UIFeature";
 
 const MemberEventHtmlReasonField = "io.element.html_reason";
 
@@ -342,8 +343,10 @@ export default class RoomPreviewBar extends React.Component<IProps, IState> {
             }
             case MessageCase.NotLoggedIn: {
                 title = _t("Join the conversation with an account");
-                primaryActionLabel = _t("Sign Up");
-                primaryActionHandler = this.onRegisterClick;
+                if (SettingsStore.getValue(UIFeature.Registration)) {
+                    primaryActionLabel = _t("Sign Up");
+                    primaryActionHandler = this.onRegisterClick;
+                }
                 secondaryActionLabel = _t("Sign In");
                 secondaryActionHandler = this.onLoginClick;
                 if (this.props.previewLoading) {
