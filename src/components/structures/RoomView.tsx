@@ -88,12 +88,13 @@ import RoomStatusBar from "./RoomStatusBar";
 import MessageComposer from '../views/rooms/MessageComposer';
 import JumpToBottomButton from "../views/rooms/JumpToBottomButton";
 import TopUnreadMessagesBar from "../views/rooms/TopUnreadMessagesBar";
-import SpaceStore from "../../stores/SpaceStore";
+import SpaceStore from "../../stores/spaces/SpaceStore";
 
 import { logger } from "matrix-js-sdk/src/logger";
 import { EventTimeline } from 'matrix-js-sdk/src/models/event-timeline';
 import { dispatchShowThreadEvent } from '../../dispatcher/dispatch-actions/threads';
 import { fetchInitialEvent } from "../../utils/EventUtils";
+import { ComposerType } from "../../dispatcher/payloads/ComposerInsertPayload";
 
 const DEBUG = false;
 let debuglog = function(msg: string) {};
@@ -785,7 +786,7 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
                 break;
             case 'picture_snapshot':
                 ContentMessages.sharedInstance().sendContentListToRoom(
-                    [payload.file], this.state.room.roomId, this.context);
+                    [payload.file], this.state.room.roomId, null, this.context);
                 break;
             case 'notifier_enabled':
             case Action.UploadStarted:
@@ -864,10 +865,11 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
             }
 
             case Action.ComposerInsert: {
+                if (payload.composerType) break;
                 // re-dispatch to the correct composer
                 dis.dispatch({
                     ...payload,
-                    action: this.state.editState ? "edit_composer_insert" : "send_composer_insert",
+                    composerType: this.state.editState ? ComposerType.Edit : ComposerType.Send,
                 });
                 break;
             }
@@ -1290,7 +1292,7 @@ export class RoomView extends React.Component<IRoomProps, IRoomState> {
         ev.stopPropagation();
         ev.preventDefault();
         ContentMessages.sharedInstance().sendContentListToRoom(
-            ev.dataTransfer.files, this.state.room.roomId, this.context,
+            ev.dataTransfer.files, this.state.room.roomId, null, this.context,
         );
         dis.fire(Action.FocusSendMessageComposer);
 

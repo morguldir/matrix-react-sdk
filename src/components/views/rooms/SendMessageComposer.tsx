@@ -58,6 +58,7 @@ import { ActionPayload } from "../../../dispatcher/payloads";
 import { decorateStartSendingTime, sendRoundTripMetric } from "../../../sendTimePerformanceMetrics";
 import RoomContext from '../../../contexts/RoomContext';
 import DocumentPosition from "../../../editor/position";
+import { ComposerType } from "../../../dispatcher/payloads/ComposerInsertPayload";
 
 function addReplyToMessageContent(
     content: IContent,
@@ -591,7 +592,10 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
                     this.editorRef.current?.focus();
                 }
                 break;
-            case "send_composer_insert":
+            case Action.ComposerInsert:
+                if (payload.timelineRenderingType !== this.context.timelineRenderingType) break;
+                if (payload.composerType !== ComposerType.Send) break;
+
                 if (payload.userId) {
                     this.editorRef.current?.insertMention(payload.userId);
                 } else if (payload.event) {
@@ -611,7 +615,7 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
         // it puts the filename in as text/plain which we want to ignore.
         if (clipboardData.files.length && !clipboardData.types.includes("text/rtf")) {
             ContentMessages.sharedInstance().sendContentListToRoom(
-                Array.from(clipboardData.files), this.props.room.roomId, this.props.mxClient,
+                Array.from(clipboardData.files), this.props.room.roomId, this.props.relation, this.props.mxClient,
             );
             return true; // to skip internal onPaste handler
         }
