@@ -17,7 +17,7 @@ limitations under the License.
 
 import React, { createRef } from 'react';
 import classNames from "classnames";
-import { EventType } from "matrix-js-sdk/src/@types/event";
+import { EventType, MsgType } from "matrix-js-sdk/src/@types/event";
 import { EventStatus, MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { Relations } from "matrix-js-sdk/src/models/relations";
 import { RoomMember } from "matrix-js-sdk/src/models/room-member";
@@ -28,7 +28,7 @@ import { _t } from '../../../languageHandler';
 import { hasText } from "../../../TextForEvent";
 import * as sdk from "../../../index";
 import dis from '../../../dispatcher/dispatcher';
-import { Layout } from "../../../settings/Layout";
+import { Layout } from "../../../settings/enums/Layout";
 import { formatTime } from "../../../DateUtils";
 import { MatrixClientPeg } from '../../../MatrixClientPeg';
 import { ALL_RULE_TYPES } from "../../../mjolnir/BanList";
@@ -130,7 +130,7 @@ export function getHandlerTile(ev) {
     // not even when showing hidden events
     if (type === "m.room.message") {
         const content = ev.getContent();
-        if (content && content.msgtype === "m.key.verification.request") {
+        if (content && content.msgtype === MsgType.KeyVerificationRequest) {
             const client = MatrixClientPeg.get();
             const me = client && client.getUserId();
             if (ev.getSender() !== me && content.to !== me) {
@@ -919,7 +919,7 @@ export default class EventTile extends React.Component<IProps, IState> {
         // matrix.to, but also for it to enable routing within Element when clicked.
         e.preventDefault();
         dis.dispatch({
-            action: 'view_room',
+            action: Action.ViewRoom,
             event_id: this.props.mxEvent.getId(),
             highlighted: true,
             room_id: this.props.mxEvent.getRoomId(),
@@ -990,7 +990,7 @@ export default class EventTile extends React.Component<IProps, IState> {
         return this.props.getRelationsForEvent(eventId, "m.annotation", "m.reaction");
     };
 
-    private onReactionsCreated = (relationType, eventType) => {
+    private onReactionsCreated = (relationType: string, eventType: string) => {
         if (relationType !== "m.annotation" || eventType !== "m.reaction") {
             return;
         }
@@ -1165,12 +1165,15 @@ export default class EventTile extends React.Component<IProps, IState> {
             || this.state.hover
             || this.state.actionBarFocused);
 
+        const room = MatrixClientPeg.get().getRoom(this.props.mxEvent.getRoomId());
+        const thread = room?.findThreadForEvent?.(this.props.mxEvent);
+
         // Thread panel shows the timestamp of the last reply in that thread
         const ts = this.props.tileShape !== TileShape.ThreadPanel
             ? this.props.mxEvent.getTs()
-            : this.props.mxEvent.getThread().lastReply.getTs();
+            : thread?.lastReply.getTs();
 
-        const timestamp = showTimestamp ?
+        const timestamp = showTimestamp && ts ?
             <MessageTimestamp
                 showRelative={this.props.tileShape === TileShape.ThreadPanel}
                 showTwelveHour={this.props.isTwelveHour}
@@ -1283,6 +1286,7 @@ export default class EventTile extends React.Component<IProps, IState> {
                             onHeightChanged={this.props.onHeightChanged}
                             tileShape={this.props.tileShape}
                             editState={this.props.editState}
+                            getRelationsForEvent={this.props.getRelationsForEvent}
                         />
                     </div>,
                 ]);
@@ -1290,6 +1294,7 @@ export default class EventTile extends React.Component<IProps, IState> {
             case TileShape.Thread: {
                 const room = this.context.getRoom(this.props.mxEvent.getRoomId());
                 return React.createElement(this.props.as || "li", {
+                    "ref": this.ref,
                     "className": classes,
                     "aria-live": ariaLive,
                     "aria-atomic": true,
@@ -1321,6 +1326,7 @@ export default class EventTile extends React.Component<IProps, IState> {
                             tileShape={this.props.tileShape}
                             editState={this.props.editState}
                             replacingEventId={this.props.replacingEventId}
+                            getRelationsForEvent={this.props.getRelationsForEvent}
                         />
                         { actionBar }
                         { timestamp }
@@ -1357,21 +1363,9 @@ export default class EventTile extends React.Component<IProps, IState> {
                         >
                             { linkedTimestamp }
                             { this.renderE2EPadlock() }
-                            { replyChain }
-                            <EventTileType ref={this.tile}
-                                mxEvent={this.props.mxEvent}
-                                forExport={this.props.forExport}
-                                replacingEventId={this.props.replacingEventId}
-                                editState={this.props.editState}
-                                highlights={this.props.highlights}
-                                highlightLink={this.props.highlightLink}
-                                showUrlPreview={this.props.showUrlPreview}
-                                permalinkCreator={this.props.permalinkCreator}
-                                onHeightChanged={this.props.onHeightChanged}
-                                callEventGrouper={this.props.callEventGrouper}
-                                tileShape={this.props.tileShape}
-                            />
-                            { keyRequestInfo }
+                            <div className="mx_EventTile_body">
+                                { MessagePreviewStore.instance.generatePreviewForEvent(this.props.mxEvent) }
+                            </div>
                             { this.renderThreadPanelSummary() }
                         </div>
                         <Toolbar className="mx_MessageActionBar" aria-label={_t("Message Actions")} aria-live="off">
@@ -1407,6 +1401,7 @@ export default class EventTile extends React.Component<IProps, IState> {
                             tileShape={this.props.tileShape}
                             onHeightChanged={this.props.onHeightChanged}
                             editState={this.props.editState}
+                            getRelationsForEvent={this.props.getRelationsForEvent}
                         />
                     </div>,
                     <a
@@ -1460,6 +1455,7 @@ export default class EventTile extends React.Component<IProps, IState> {
                                 permalinkCreator={this.props.permalinkCreator}
                                 onHeightChanged={this.props.onHeightChanged}
                                 callEventGrouper={this.props.callEventGrouper}
+                                getRelationsForEvent={this.props.getRelationsForEvent}
                             />
                             { keyRequestInfo }
                             { actionBar }
@@ -1506,25 +1502,25 @@ export function haveTileForEvent(e: MatrixEvent, showHiddenEvents?: boolean) {
 
 function E2ePadlockUndecryptable(props) {
     return (
-        <E2ePadlock title={_t("This message cannot be decrypted")} icon="warning" {...props} />
+        <E2ePadlock title={_t("This message cannot be decrypted")} icon={E2ePadlockIcon.Warning} {...props} />
     );
 }
 
 function E2ePadlockUnverified(props) {
     return (
-        <E2ePadlock title={_t("Encrypted by an unverified session")} icon="warning" {...props} />
+        <E2ePadlock title={_t("Encrypted by an unverified session")} icon={E2ePadlockIcon.Warning} {...props} />
     );
 }
 
 function E2ePadlockUnencrypted(props) {
     return (
-        <E2ePadlock title={_t("Unencrypted")} icon="warning" {...props} />
+        <E2ePadlock title={_t("Unencrypted")} icon={E2ePadlockIcon.Warning} {...props} />
     );
 }
 
 function E2ePadlockUnknown(props) {
     return (
-        <E2ePadlock title={_t("Encrypted by a deleted session")} icon="normal" {...props} />
+        <E2ePadlock title={_t("Encrypted by a deleted session")} icon={E2ePadlockIcon.Normal} {...props} />
     );
 }
 
@@ -1532,14 +1528,19 @@ function E2ePadlockUnauthenticated(props) {
     return (
         <E2ePadlock
             title={_t("The authenticity of this encrypted message can't be guaranteed on this device.")}
-            icon="unauthenticated"
+            icon={E2ePadlockIcon.Normal}
             {...props}
         />
     );
 }
 
+enum E2ePadlockIcon {
+    Normal = "normal",
+    Warning = "warning",
+}
+
 interface IE2ePadlockProps {
-    icon: string;
+    icon: E2ePadlockIcon;
     title: string;
 }
 
@@ -1548,7 +1549,7 @@ interface IE2ePadlockState {
 }
 
 class E2ePadlock extends React.Component<IE2ePadlockProps, IE2ePadlockState> {
-    constructor(props) {
+    constructor(props: IE2ePadlockProps) {
         super(props);
 
         this.state = {
@@ -1556,15 +1557,15 @@ class E2ePadlock extends React.Component<IE2ePadlockProps, IE2ePadlockState> {
         };
     }
 
-    onHoverStart = () => {
+    private onHoverStart = (): void => {
         this.setState({ hover: true });
     };
 
-    onHoverEnd = () => {
+    private onHoverEnd = (): void => {
         this.setState({ hover: false });
     };
 
-    render() {
+    public render(): JSX.Element {
         let tooltip = null;
         if (this.state.hover) {
             tooltip = <Tooltip className="mx_EventTile_e2eIcon_tooltip" label={this.props.title} />;

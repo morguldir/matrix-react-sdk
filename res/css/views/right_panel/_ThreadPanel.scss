@@ -120,7 +120,7 @@ limitations under the License.
             &:hover {
                 background-color: $event-selected-color;
             }
-            &[aria-selected="true"] {
+            &[aria-checked="true"] {
                 :first-child {
                     margin-left: -20px;
                 }
@@ -184,7 +184,6 @@ limitations under the License.
 
     .mx_EventTile, .mx_EventListSummary {
         // Account for scrollbar when hovering
-        margin: 0 2px;
         padding-top: 0;
 
         .mx_ThreadInfo {
