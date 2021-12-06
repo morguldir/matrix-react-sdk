@@ -40,7 +40,6 @@ import { OrderedMultiController } from "./controllers/OrderedMultiController";
 import { Layout } from "./enums/Layout";
 import ReducedMotionController from './controllers/ReducedMotionController';
 import IncompatibleController from "./controllers/IncompatibleController";
-import PseudonymousAnalyticsController from './controllers/PseudonymousAnalyticsController';
 import NewLayoutSwitcherController from './controllers/NewLayoutSwitcherController';
 import { ImageSize } from "./enums/ImageSize";
 import { MetaSpace } from "../stores/spaces";
@@ -301,13 +300,12 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         supportedLevels: LEVELS_FEATURE,
         default: false,
     },
-    "feature_pseudonymous_analytics_opt_in": {
+    "feature_polls": {
         isFeature: true,
-        labsGroup: LabGroup.Analytics,
+        labsGroup: LabGroup.Messaging,
         supportedLevels: LEVELS_FEATURE,
-        displayName: _td('Send pseudonymous analytics data'),
+        displayName: _td("Polls (under active development)"),
         default: false,
-        controller: new PseudonymousAnalyticsController(),
     },
     "feature_show_shared_rooms": {
         supportedLevels: LEVELS_FEATURE,
@@ -316,11 +314,11 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         isFeature: true,
         labsGroup: LabGroup.Profile,
     },
-    "feature_polls": {
+    "feature_location_share": {
         isFeature: true,
         labsGroup: LabGroup.Messaging,
         supportedLevels: LEVELS_FEATURE,
-        displayName: _td("Polls (under active development)"),
+        displayName: _td("Location sharing (under active development)"),
         default: false,
     },
     "doNotDisturb": {
@@ -627,6 +625,11 @@ export const SETTINGS: {[setting: string]: ISetting} = {
     "showCookieBar": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         default: true,
+    },
+    "pseudonymousAnalyticsOptIn": {
+        supportedLevels: [SettingLevel.ACCOUNT],
+        displayName: _td('Send analytics data'),
+        default: null,
     },
     "autocompleteDelay": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
