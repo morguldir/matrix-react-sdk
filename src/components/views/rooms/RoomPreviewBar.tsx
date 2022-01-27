@@ -27,7 +27,6 @@ import dis from '../../../dispatcher/dispatcher';
 import { _t } from '../../../languageHandler';
 import SdkConfig from "../../../SdkConfig";
 import IdentityAuthClient from '../../../IdentityAuthClient';
-import SettingsStore from '../../../settings/SettingsStore';
 import UserInfoSharedRooms from '../right_panel/UserInfoSharedRooms';
 import { CommunityPrototypeStore } from "../../../stores/CommunityPrototypeStore";
 import { UPDATE_EVENT } from "../../../stores/AsyncStore";
@@ -36,8 +35,9 @@ import InviteReason from "../elements/InviteReason";
 import { IOOBData } from "../../../stores/ThreepidInviteStore";
 import Spinner from "../elements/Spinner";
 import AccessibleButton from "../elements/AccessibleButton";
-import { UIFeature } from "../../../settings/UIFeature";
 import RoomAvatar from "../avatars/RoomAvatar";
+import SettingsStore from "../../../settings/SettingsStore";
+import { UIFeature } from "../../../settings/UIFeature";
 
 const MemberEventHtmlReasonField = "io.element.html_reason";
 

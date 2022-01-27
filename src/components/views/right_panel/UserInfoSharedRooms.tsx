@@ -20,7 +20,7 @@ import Spinner from "../elements/Spinner";
 import { _t } from '../../../languageHandler';
 import Pill from '../../views/elements/Pill';
 import AccessibleButton from '../../views/elements/AccessibleButton';
-import SpecPermalinkConstructor from '../../../utils/permalinks/SpecPermalinkConstructor';
+import MatrixToPermalinkConstructor from '../../../utils/permalinks/MatrixToPermalinkConstructor';
 import UserInfoRoomTile from "../elements/UserInfoRoomTile";
 import { RecentAlgorithm } from '../../../stores/room-list/algorithms/tag-sorting/RecentAlgorithm';
 import { Room } from "matrix-js-sdk/src/models/room";
@@ -111,7 +111,7 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
                 key={room.roomId}
                 type={Pill.TYPE_ROOM_MENTION}
                 room={room}
-                url={new SpecPermalinkConstructor().forRoom(alias, [])}
+                url={new MatrixToPermalinkConstructor().forRoom(alias, [])}
                 inMessage={false}
                 shouldShowPillAvatar={true}
             /></a>;

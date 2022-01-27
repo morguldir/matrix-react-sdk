@@ -160,7 +160,11 @@ class UploadButton extends React.Component<IUploadButtonProps> {
         }
 
         ContentMessages.sharedInstance().sendContentListToRoom(
-            tfiles, this.props.roomId, this.props.relation, MatrixClientPeg.get(),
+            tfiles,
+            this.props.roomId,
+            this.props.relation,
+            MatrixClientPeg.get(),
+            this.context.timelineRenderingType,
         );
 
         // This is the onChange handler for a file form control, but we're
@@ -253,7 +257,6 @@ interface IState {
     isMenuOpen: boolean;
     showStickers: boolean;
     showStickersButton: boolean;
-    showPollsButton: boolean;
     showLocationButton: boolean;
 }
 
@@ -285,15 +288,16 @@ export default class MessageComposer extends React.Component<IProps, IState> {
             isMenuOpen: false,
             showStickers: false,
             showStickersButton: SettingsStore.getValue("MessageComposerInput.showStickersButton"),
-            showPollsButton: SettingsStore.getValue("feature_polls"),
-            showLocationButton: SettingsStore.getValue("MessageComposerInput.showLocationButton"),
+            showLocationButton: (
+                !window.electron &&
+                SettingsStore.getValue("MessageComposerInput.showLocationButton")
+            ),
         };
 
         this.instanceId = instanceCount++;
 
         SettingsStore.monitorSetting("MessageComposerInput.showStickersButton", null);
         SettingsStore.monitorSetting("MessageComposerInput.showLocationButton", null);
-        SettingsStore.monitorSetting("feature_polls", null);
         SettingsStore.monitorSetting("feature_location_share", null);
     }
 
@@ -341,18 +345,12 @@ export default class MessageComposer extends React.Component<IProps, IState> {
                         break;
                     }
 
-                    case "feature_polls": {
-                        const showPollsButton = SettingsStore.getValue("feature_polls");
-                        if (this.state.showPollsButton !== showPollsButton) {
-                            this.setState({ showPollsButton });
-                        }
-                        break;
-                    }
-
                     case "MessageComposerInput.showLocationButton":
                     case "feature_location_share": {
-                        const showLocationButton = SettingsStore.getValue(
-                            "MessageComposerInput.showLocationButton");
+                        const showLocationButton = (
+                            !window.electron &&
+                            SettingsStore.getValue("MessageComposerInput.showLocationButton")
+                        );
 
                         if (this.state.showLocationButton !== showLocationButton) {
                             this.setState({ showLocationButton });
@@ -519,11 +517,13 @@ export default class MessageComposer extends React.Component<IProps, IState> {
         let uploadButtonIndex = 0;
         const buttons: JSX.Element[] = [];
         if (!this.state.haveRecording) {
-            if (this.state.showPollsButton) {
-                buttons.push(
-                    <PollButton key="polls" room={this.props.room} narrowMode={this.state.narrowMode} />,
-                );
-            }
+            buttons.push(
+                <PollButton
+                    key="polls"
+                    room={this.props.room}
+                    narrowMode={this.state.narrowMode}
+                />,
+            );
             uploadButtonIndex = buttons.length;
             buttons.push(
                 <UploadButton key="controls_upload" roomId={this.props.room.roomId} relation={this.props.relation} />,
