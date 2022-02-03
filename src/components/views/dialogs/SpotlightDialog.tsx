@@ -189,21 +189,20 @@ const SpotlightDialog: React.FC<IProps> = ({ initialText = "", onFinished }) => 
     const setQuery = (e: ChangeEvent<HTMLInputElement>): void => {
         const newQuery = e.currentTarget.value;
         _setQuery(newQuery);
-        if (!query !== !newQuery) {
-            setImmediate(() => {
-                // reset the activeRef when we start/stop querying as the view changes
-                const ref = rovingContext.state.refs[0];
-                if (ref) {
-                    rovingContext.dispatch({
-                        type: Type.SetFocus,
-                        payload: { ref },
-                    });
-                    ref.current?.scrollIntoView({
-                        block: "nearest",
-                    });
-                }
-            });
-        }
+
+        setImmediate(() => {
+            // reset the activeRef when we change query for best usability
+            const ref = rovingContext.state.refs[0];
+            if (ref) {
+                rovingContext.dispatch({
+                    type: Type.SetFocus,
+                    payload: { ref },
+                });
+                ref.current?.scrollIntoView({
+                    block: "nearest",
+                });
+            }
+        });
     };
 
     const viewRoom = (roomId: string, persist = false) => {

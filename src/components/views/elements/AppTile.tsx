@@ -39,7 +39,7 @@ import PersistedElement, { getPersistKey } from "./PersistedElement";
 import { WidgetType } from "../../../widgets/WidgetType";
 import { StopGapWidget } from "../../../stores/widgets/StopGapWidget";
 import { ElementWidgetActions } from "../../../stores/widgets/ElementWidgetActions";
-import RoomWidgetContextMenu from "../context_menus/WidgetContextMenu";
+import WidgetContextMenu from "../context_menus/WidgetContextMenu";
 import WidgetAvatar from "../avatars/WidgetAvatar";
 import { replaceableComponent } from "../../../utils/replaceableComponent";
 import CallHandler from '../../../CallHandler';
@@ -179,7 +179,8 @@ export default class AppTile extends React.Component<IProps, IState> {
         if (this.props.room.roomId == RoomViewStore.getRoomId()) return;
         const app = this.props.app;
         const isActiveWidget = ActiveWidgetStore.instance.getWidgetPersistence(app.id);
-        if (!isActiveWidget) {
+        // Stop the widget if it's not the active (persistent) widget and it's not a user widget
+        if (!isActiveWidget && !this.props.userWidget) {
             ActiveWidgetStore.instance.destroyPersistentWidget(app.id);
             PersistedElement.destroyElement(this.persistKey);
             this.sgWidget?.stopMessaging();
@@ -243,7 +244,11 @@ export default class AppTile extends React.Component<IProps, IState> {
         }
         this.watchUserReady();
 
-        WidgetLayoutStore.instance.on(WidgetLayoutStore.emissionForRoom(this.props.room), this.onWidgetLayoutChange);
+        if (this.props.room) {
+            const emitEvent = WidgetLayoutStore.emissionForRoom(this.props.room);
+            WidgetLayoutStore.instance.on(emitEvent, this.onWidgetLayoutChange);
+        }
+
         this.roomStoreToken = RoomViewStore.addListener(this.onRoomViewStoreUpdate);
         this.allowedWidgetsWatchRef = SettingsStore.watchSetting("allowedWidgets", null, this.onAllowedWidgetsChange);
         // Widget action listeners
@@ -254,7 +259,11 @@ export default class AppTile extends React.Component<IProps, IState> {
         // Widget action listeners
         if (this.dispatcherRef) dis.unregister(this.dispatcherRef);
 
-        WidgetLayoutStore.instance.off(WidgetLayoutStore.emissionForRoom(this.props.room), this.onWidgetLayoutChange);
+        if (this.props.room) {
+            const emitEvent = WidgetLayoutStore.emissionForRoom(this.props.room);
+            WidgetLayoutStore.instance.off(emitEvent, this.onWidgetLayoutChange);
+        }
+
         this.roomStoreToken?.remove();
         SettingsStore.unwatchSetting(this.allowedWidgetsWatchRef);
         OwnProfileStore.instance.removeListener(UPDATE_EVENT, this.onUserReady);
@@ -573,7 +582,7 @@ export default class AppTile extends React.Component<IProps, IState> {
         let contextMenu;
         if (this.state.menuDisplayed) {
             contextMenu = (
-                <RoomWidgetContextMenu
+                <WidgetContextMenu
                     {...aboveLeftOf(this.contextMenuButton.current.getBoundingClientRect(), null)}
                     app={this.props.app}
                     onFinished={this.closeContextMenu}
