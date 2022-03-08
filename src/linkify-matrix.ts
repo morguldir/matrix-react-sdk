@@ -15,11 +15,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import * as linkifyjs from '@matrix-org/linkifyjs';
-import linkifyElement from '@matrix-org/linkify-element';
-import linkifyString from '@matrix-org/linkify-string';
+import * as linkifyjs from 'linkifyjs';
+import { registerCustomProtocol, registerPlugin } from 'linkifyjs';
+import linkifyElement from 'linkify-element';
+import linkifyString from 'linkify-string';
 import { RoomMember } from 'matrix-js-sdk/src/models/room-member';
-import { registerCustomProtocol, registerPlugin } from '@matrix-org/linkifyjs';
 
 import { baseUrl } from "./utils/permalinks/MatrixToPermalinkConstructor";
 import {
@@ -30,6 +30,7 @@ import {
 import dis from './dispatcher/dispatcher';
 import { Action } from './dispatcher/actions';
 import { ViewUserPayload } from './dispatcher/payloads/ViewUserPayload';
+import { ViewRoomPayload } from "./dispatcher/payloads/ViewRoomPayload";
 
 export enum Type {
     URL = "url",
@@ -116,9 +117,11 @@ function onUserClick(event: MouseEvent, userId: string) {
 
 function onAliasClick(event: MouseEvent, roomAlias: string) {
     event.preventDefault();
-    dis.dispatch({
+    dis.dispatch<ViewRoomPayload>({
         action: Action.ViewRoom,
         room_alias: roomAlias,
+        metricsTrigger: "Timeline",
+        metricsViaKeyboard: false,
     });
 }
 
