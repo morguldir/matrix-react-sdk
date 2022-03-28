@@ -22,7 +22,6 @@ import { Room } from "matrix-js-sdk/src/models/room";
 import classNames from "classnames";
 import AccessibleButton from "../../views/elements/AccessibleButton";
 import ActiveRoomObserver from "../../../ActiveRoomObserver";
-import { DefaultTagID } from "../../../stores/room-list/models";
 import DecoratedRoomAvatar from "../avatars/DecoratedRoomAvatar";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import dis from '../../../dispatcher/dispatcher';
