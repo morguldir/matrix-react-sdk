@@ -83,6 +83,7 @@ interface IProps extends IPosition {
 
 interface IState {
     canRedact: boolean;
+    canViewRedacted: boolean;
     canPin: boolean;
 }
 
@@ -92,6 +93,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
     state = {
         canRedact: false,
+        canViewRedacted: false,
         canPin: false,
     };
 
@@ -118,11 +120,15 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             && this.props.mxEvent.getType() !== EventType.RoomServerAcl
             && this.props.mxEvent.getType() !== EventType.RoomEncryption;
         let canPin = room.currentState.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli);
+        // TODO check for server support first
+        // TODO allow if isSynapseAdmin too
+        const canViewRedacted = room.currentState.hasSufficientPowerLevelFor(
+            'redact', room.currentState.getMember(cli.credentials.userId)?.powerLevel ?? 0);
 
         // HACK: Intentionally say we can't pin if the user doesn't want to use the functionality
         if (!SettingsStore.getValue("feature_pinning")) canPin = false;
 
-        this.setState({ canRedact, canPin });
+        this.setState({ canRedact, canViewRedacted, canPin });
     };
 
     private isPinned(): boolean {
@@ -150,6 +156,22 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             Resend.resend(reaction);
         }
         this.closeMenu();
+    };
+
+    private onViewRedactedClick = (): void => {
+        MatrixClientPeg.get().unstableFetchRedactedRoomEventContent(
+            this.props.mxEvent.getRoomId(),
+            this.props.mxEvent.getId(),
+        ).then(
+            unredactedEvt => {
+                console.log("Fetched redacted event content:", unredactedEvt);
+                this.closeMenu();
+                this.props.mxEvent.showRedactedContent(unredactedEvt);
+            },
+            err => {
+                console.error("Failed to fetch redacted event content:", err);
+            }
+        );
     };
 
     private onReportEventClick = (): void => {
@@ -284,6 +306,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         let endPollButton: JSX.Element;
         let resendReactionsButton: JSX.Element;
         let redactButton: JSX.Element;
+        let viewRedactedButton: JSX.Element;
         let forwardButton: JSX.Element;
         let pinButton: JSX.Element;
         let unhidePreviewButton: JSX.Element;
@@ -304,6 +327,16 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                     />
                 );
             }
+        }
+
+        if (mxEvent.isRedacted() && this.state.canViewRedacted) {
+            viewRedactedButton = (
+                <IconizedContextMenuOption
+                    iconClassName=""
+                    label={_t('View content')}
+                    onClick={this.onViewRedactedClick}
+                />
+            )
         }
 
         if (isSent && this.state.canRedact) {
@@ -489,6 +522,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                 { externalURLButton }
                 { unhidePreviewButton }
                 { viewSourceButton }
+                { viewRedactedButton }
                 { resendReactionsButton }
                 { collapseReplyChain }
             </IconizedContextMenuOptionList>

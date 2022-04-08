@@ -852,6 +852,11 @@ export class UnwrappedEventTile extends React.Component<IProps, IState> {
     private renderE2EPadlock() {
         const ev = this.props.mxEvent;
 
+        if (ev.viewingRedactedContent) {
+            // Not actually an e2ee thing, but we reuse the same slot in the UI.
+            return <E2ePadlock title={_t("This is a deleted message")} icon={E2ePadlockIcon.Redacted} />
+        }
+
         // event could not be decrypted
         if (ev.getContent().msgtype === 'm.bad.encrypted') {
             return <E2ePadlockUndecryptable />;
@@ -1513,6 +1518,7 @@ function E2ePadlockUnauthenticated(props) {
 enum E2ePadlockIcon {
     Normal = "normal",
     Warning = "warning",
+    Redacted = "viewingRedacted",
 }
 
 interface IE2ePadlockProps {
