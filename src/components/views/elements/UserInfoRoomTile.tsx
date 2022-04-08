@@ -81,8 +81,8 @@ export default class UserInfoRoomTile extends React.PureComponent<IProps, IState
         name = name.replace(":", ":\u200b"); // add a zero-width space to allow linewrapping after the colon
 
         const nameContainer = (
-            <div className="mx_RoomTile_nameContainer">
-                <div title={name} className={"mx_RoomTile_name"} tabIndex={-1} dir="auto">
+            <div className="mx_RoomTile_titleContainer">
+                <div title={name} className={"mx_RoomTile_title"} tabIndex={-1} dir="auto">
                     {name}
                 </div>
             </div>
