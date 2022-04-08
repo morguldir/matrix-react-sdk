@@ -21,7 +21,7 @@ import React from "react";
 import { Room } from "matrix-js-sdk/src/models/room";
 import classNames from "classnames";
 import AccessibleButton from "../../views/elements/AccessibleButton";
-import ActiveRoomObserver from "../../../ActiveRoomObserver";
+import { RoomViewStore } from "../../../stores/RoomViewStore";
 import DecoratedRoomAvatar from "../avatars/DecoratedRoomAvatar";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import dis from '../../../dispatcher/dispatcher';
@@ -45,7 +45,7 @@ export default class UserInfoRoomTile extends React.PureComponent<IProps, IState
         super(props);
 
         this.state = {
-            selected: ActiveRoomObserver.activeRoomId === this.props.room.roomId,
+            selected: RoomViewStore.instance.getRoomId() === this.props.room.roomId,
             notificationsMenuPosition: null,
             generalMenuPosition: null,
         };
