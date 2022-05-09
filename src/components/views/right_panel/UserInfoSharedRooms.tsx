@@ -18,7 +18,7 @@ import React from 'react';
 import { MatrixClientPeg } from '../../../MatrixClientPeg';
 import Spinner from "../elements/Spinner";
 import { _t } from '../../../languageHandler';
-import Pill from '../../views/elements/Pill';
+import Pill, { PillType } from '../../views/elements/Pill';
 import AccessibleButton from '../../views/elements/AccessibleButton';
 import MatrixToPermalinkConstructor from '../../../utils/permalinks/MatrixToPermalinkConstructor';
 import UserInfoRoomTile from "../elements/UserInfoRoomTile";
@@ -109,7 +109,7 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
             }
             return <a href={`#/room/${alias}`}><Pill
                 key={room.roomId}
-                type={Pill.TYPE_ROOM_MENTION}
+                type={PillType.RoomMention}
                 room={room}
                 url={new MatrixToPermalinkConstructor().forRoom(alias, [])}
                 inMessage={false}
