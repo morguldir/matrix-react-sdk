@@ -43,7 +43,7 @@ limitations under the License.
         .mx_CallEvent_type {
             font-size: $font-12px;
             line-height: $font-15px;
-            color: $tertiary-fg-color;
+            color: $tertiary-content;
 
             margin-top: 4px;
             margin-bottom: 6px;
@@ -62,7 +62,7 @@ limitations under the License.
                     position: absolute;
                     height: inherit;
                     width: inherit;
-                    background-color: $tertiary-fg-color;
+                    background-color: $tertiary-content;
                     mask-repeat: no-repeat;
                     mask-size: contain;
                 }
@@ -90,27 +90,14 @@ limitations under the License.
             gap: 12px;
 
             .mx_IncomingCallToast_button {
-                height: 24px;
+                @mixin CallButton;
                 padding: 0px 8px;
                 flex-shrink: 0;
                 flex-grow: 1;
-                margin-right: 0;
                 font-size: $font-15px;
-                line-height: $font-24px;
 
                 span {
                     padding: 8px 0;
-                    display: flex;
-                    align-items: center;
-
-                    &::before {
-                        content: '';
-                        display: inline-block;
-                        background-color: $button-fg-color;
-                        mask-position: center;
-                        mask-repeat: no-repeat;
-                        margin-right: 8px;
-                    }
                 }
 
                 &.mx_IncomingCallToast_button_accept span::before {
@@ -139,7 +126,7 @@ limitations under the License.
 
             height: inherit;
             width: inherit;
-            background-color: $tertiary-fg-color;
+            background-color: $tertiary-content;
             mask-repeat: no-repeat;
             mask-size: contain;
             mask-position: center;
