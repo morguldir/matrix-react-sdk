@@ -15,17 +15,16 @@ limitations under the License.
 */
 
 import EventEmitter from "events";
+import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
 import { ClientWidgetApi, IWidgetApiRequest } from "matrix-widget-api";
 
+import SettingsStore from "../settings/SettingsStore";
+import { SettingLevel } from "../settings/SettingLevel";
 import defaultDispatcher from "../dispatcher/dispatcher";
 import { ActionPayload } from "../dispatcher/payloads";
 import { ElementWidgetActions } from "./widgets/ElementWidgetActions";
 import { WidgetMessagingStore, WidgetMessagingStoreEvent } from "./widgets/WidgetMessagingStore";
-import {
-    VIDEO_CHANNEL_MEMBER,
-    IVideoChannelMemberContent,
-    getVideoChannel,
-} from "../utils/VideoChannelUtils";
+import { getVideoChannel, addOurDevice, removeOurDevice } from "../utils/VideoChannelUtils";
 import { timeout } from "../utils/promise";
 import WidgetUtils from "../utils/WidgetUtils";
 import { AsyncStoreWithClient } from "./AsyncStoreWithClient";
@@ -82,9 +81,13 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
 
     private activeChannel: ClientWidgetApi;
 
-    private _roomId: string;
-    public get roomId(): string { return this._roomId; }
-    private set roomId(value: string) { this._roomId = value; }
+    // This is persisted to settings so we can detect unclean disconnects
+    public get roomId(): string | null { return SettingsStore.getValue("videoChannelRoomId"); }
+    private set roomId(value: string | null) {
+        SettingsStore.setValue("videoChannelRoomId", null, SettingLevel.DEVICE, value);
+    }
+
+    private get room(): Room { return this.matrixClient.getRoom(this.roomId); }
 
     private _connected = false;
     public get connected(): boolean { return this._connected; }
@@ -93,6 +96,16 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
     private _participants: IJitsiParticipant[] = [];
     public get participants(): IJitsiParticipant[] { return this._participants; }
     private set participants(value: IJitsiParticipant[]) { this._participants = value; }
+
+    public get audioMuted(): boolean { return SettingsStore.getValue("audioInputMuted"); }
+    public set audioMuted(value: boolean) {
+        SettingsStore.setValue("audioInputMuted", null, SettingLevel.DEVICE, value);
+    }
+
+    public get videoMuted(): boolean { return SettingsStore.getValue("videoInputMuted"); }
+    public set videoMuted(value: boolean) {
+        SettingsStore.setValue("videoInputMuted", null, SettingLevel.DEVICE, value);
+    }
 
     public connect = async (roomId: string, audioDevice: MediaDeviceInfo, videoDevice: MediaDeviceInfo) => {
         if (this.activeChannel) await this.disconnect();
@@ -123,23 +136,57 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
             }
         }
 
+        // Now that we got the messaging, we need a way to ensure that it doesn't get stopped
+        const dontStopMessaging = new Promise<void>((resolve, reject) => {
+            const listener = (uid: string) => {
+                if (uid === jitsiUid) {
+                    cleanup();
+                    reject(new Error("Messaging stopped"));
+                }
+            };
+            const done = () => {
+                cleanup();
+                resolve();
+            };
+            const cleanup = () => {
+                messagingStore.off(WidgetMessagingStoreEvent.StopMessaging, listener);
+                this.off(VideoChannelEvent.Connect, done);
+                this.off(VideoChannelEvent.Disconnect, done);
+            };
+
+            messagingStore.on(WidgetMessagingStoreEvent.StopMessaging, listener);
+            this.on(VideoChannelEvent.Connect, done);
+            this.on(VideoChannelEvent.Disconnect, done);
+        });
+
         if (!messagingStore.isWidgetReady(jitsiUid)) {
             // Wait for the widget to be ready to receive our join event
             try {
-                await waitForEvent(
-                    messagingStore,
-                    WidgetMessagingStoreEvent.WidgetReady,
-                    (uid: string) => uid === jitsiUid,
-                );
+                await Promise.race([
+                    waitForEvent(
+                        messagingStore,
+                        WidgetMessagingStoreEvent.WidgetReady,
+                        (uid: string) => uid === jitsiUid,
+                    ),
+                    dontStopMessaging,
+                ]);
             } catch (e) {
                 throw new Error(`Video channel in room ${roomId} never became ready: ${e}`);
             }
         }
 
+        // Participant data and mute state will come down the event pipeline quickly, so prepare in advance
         this.activeChannel = messaging;
         this.roomId = roomId;
-        // Participant data will come down the event pipeline quickly, so prepare in advance
         messaging.on(`action:${ElementWidgetActions.CallParticipants}`, this.onParticipants);
+        messaging.on(`action:${ElementWidgetActions.MuteAudio}`, this.onMuteAudio);
+        messaging.on(`action:${ElementWidgetActions.UnmuteAudio}`, this.onUnmuteAudio);
+        messaging.on(`action:${ElementWidgetActions.MuteVideo}`, this.onMuteVideo);
+        messaging.on(`action:${ElementWidgetActions.UnmuteVideo}`, this.onUnmuteVideo);
+        // Empirically, it's possible for Jitsi Meet to crash instantly at startup,
+        // sending a hangup event that races with the rest of this method, so we also
+        // need to add the hangup listener now rather than later
+        messaging.once(`action:${ElementWidgetActions.HangupCall}`, this.onHangup);
 
         this.emit(VideoChannelEvent.StartConnect, roomId);
 
@@ -157,12 +204,23 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
             videoDevice: videoDevice?.label,
         });
         try {
-            await waitForJoin;
+            await Promise.race([waitForJoin, dontStopMessaging]);
         } catch (e) {
             // If it timed out, clean up our advance preparations
             this.activeChannel = null;
             this.roomId = null;
+
             messaging.off(`action:${ElementWidgetActions.CallParticipants}`, this.onParticipants);
+            messaging.off(`action:${ElementWidgetActions.MuteAudio}`, this.onMuteAudio);
+            messaging.off(`action:${ElementWidgetActions.UnmuteAudio}`, this.onUnmuteAudio);
+            messaging.off(`action:${ElementWidgetActions.MuteVideo}`, this.onMuteVideo);
+            messaging.off(`action:${ElementWidgetActions.UnmuteVideo}`, this.onUnmuteVideo);
+            messaging.off(`action:${ElementWidgetActions.HangupCall}`, this.onHangup);
+
+            if (messaging.transport.ready) {
+                // The messaging still exists, which means Jitsi might still be going in the background
+                messaging.transport.send(ElementWidgetActions.ForceHangupCall, {});
+            }
 
             this.emit(VideoChannelEvent.Disconnect, roomId);
 
@@ -170,13 +228,13 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
         }
 
         this.connected = true;
-        messaging.once(`action:${ElementWidgetActions.HangupCall}`, this.onHangup);
+        this.room.on(RoomEvent.MyMembership, this.onMyMembership);
         window.addEventListener("beforeunload", this.setDisconnected);
 
         this.emit(VideoChannelEvent.Connect, roomId);
 
         // Tell others that we're connected, by adding our device to room state
-        this.updateDevices(roomId, devices => Array.from(new Set(devices).add(this.matrixClient.getDeviceId())));
+        await addOurDevice(this.room);
     };
 
     public disconnect = async () => {
@@ -192,11 +250,14 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
     };
 
     public setDisconnected = async () => {
+        const roomId = this.roomId;
+        const room = this.room;
+
         this.activeChannel.off(`action:${ElementWidgetActions.HangupCall}`, this.onHangup);
         this.activeChannel.off(`action:${ElementWidgetActions.CallParticipants}`, this.onParticipants);
+        room.off(RoomEvent.MyMembership, this.onMyMembership);
         window.removeEventListener("beforeunload", this.setDisconnected);
 
-        const roomId = this.roomId;
         this.activeChannel = null;
         this.roomId = null;
         this.connected = false;
@@ -205,11 +266,7 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
         this.emit(VideoChannelEvent.Disconnect, roomId);
 
         // Tell others that we're disconnected, by removing our device from room state
-        await this.updateDevices(roomId, devices => {
-            const devicesSet = new Set(devices);
-            devicesSet.delete(this.matrixClient.getDeviceId());
-            return Array.from(devicesSet);
-        });
+        await removeOurDevice(room);
     };
 
     private ack = (ev: CustomEvent<IWidgetApiRequest>) => {
@@ -218,18 +275,11 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
         this.activeChannel.transport.reply(ev.detail, {});
     };
 
-    private updateDevices = async (roomId: string, fn: (devices: string[]) => string[]) => {
-        const room = this.matrixClient.getRoom(roomId);
-        const devicesState = room.currentState.getStateEvents(VIDEO_CHANNEL_MEMBER, this.matrixClient.getUserId());
-        const devices = devicesState?.getContent<IVideoChannelMemberContent>()?.devices ?? [];
-
-        await this.matrixClient.sendStateEvent(
-            roomId, VIDEO_CHANNEL_MEMBER, { devices: fn(devices) }, this.matrixClient.getUserId(),
-        );
-    };
-
     private onHangup = async (ev: CustomEvent<IWidgetApiRequest>) => {
         this.ack(ev);
+        // In case this hangup is caused by Jitsi Meet crashing at startup,
+        // wait for the connection event in order to avoid racing
+        if (!this.connected) await waitForEvent(this, VideoChannelEvent.Connect);
         await this.setDisconnected();
     };
 
@@ -237,5 +287,29 @@ export default class VideoChannelStore extends AsyncStoreWithClient<null> {
         this.participants = ev.detail.data.participants as IJitsiParticipant[];
         this.emit(VideoChannelEvent.Participants, this.roomId, ev.detail.data.participants);
         this.ack(ev);
+    };
+
+    private onMuteAudio = (ev: CustomEvent<IWidgetApiRequest>) => {
+        this.audioMuted = true;
+        this.ack(ev);
+    };
+
+    private onUnmuteAudio = (ev: CustomEvent<IWidgetApiRequest>) => {
+        this.audioMuted = false;
+        this.ack(ev);
+    };
+
+    private onMuteVideo = (ev: CustomEvent<IWidgetApiRequest>) => {
+        this.videoMuted = true;
+        this.ack(ev);
+    };
+
+    private onUnmuteVideo = (ev: CustomEvent<IWidgetApiRequest>) => {
+        this.videoMuted = false;
+        this.ack(ev);
+    };
+
+    private onMyMembership = (room: Room, membership: string) => {
+        if (membership !== "join") this.setDisconnected();
     };
 }

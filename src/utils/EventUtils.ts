@@ -20,6 +20,7 @@ import { MatrixClient } from 'matrix-js-sdk/src/client';
 import { logger } from 'matrix-js-sdk/src/logger';
 import { M_POLL_START } from "matrix-events-sdk";
 import { M_LOCATION } from "matrix-js-sdk/src/@types/location";
+import { M_BEACON_INFO } from 'matrix-js-sdk/src/@types/beacon';
 
 import { MatrixClientPeg } from '../MatrixClientPeg';
 import shouldHideEvent from "../shouldHideEvent";
@@ -52,7 +53,8 @@ export function isContentActionable(mxEvent: MatrixEvent): boolean {
             }
         } else if (
             mxEvent.getType() === 'm.sticker' ||
-            M_POLL_START.matches(mxEvent.getType())
+            M_POLL_START.matches(mxEvent.getType()) ||
+            M_BEACON_INFO.matches(mxEvent.getType())
         ) {
             return true;
         }
@@ -82,7 +84,7 @@ export function canEditContent(mxEvent: MatrixEvent): boolean {
         M_POLL_START.matches(mxEvent.getType()) ||
         (
             (msgtype === MsgType.Text || msgtype === MsgType.Emote) &&
-            body &&
+            !!body &&
             typeof body === 'string'
         )
     );
@@ -217,7 +219,8 @@ export function isVoiceMessage(mxEvent: MatrixEvent): boolean {
 export async function fetchInitialEvent(
     client: MatrixClient,
     roomId: string,
-    eventId: string): Promise<MatrixEvent | null> {
+    eventId: string,
+): Promise<MatrixEvent | null> {
     let initialEvent: MatrixEvent;
 
     try {
@@ -228,14 +231,13 @@ export async function fetchInitialEvent(
         initialEvent = null;
     }
 
-    if (initialEvent?.isThreadRelation && client.supportsExperimentalThreads()) {
+    if (initialEvent?.isThreadRelation && client.supportsExperimentalThreads() && !initialEvent.getThread()) {
+        const threadId = initialEvent.threadRootId;
+        const room = client.getRoom(roomId);
         try {
-            const rootEventData = await client.fetchRoomEvent(roomId, initialEvent.threadRootId);
-            const rootEvent = new MatrixEvent(rootEventData);
-            const room = client.getRoom(roomId);
-            room.createThread(rootEvent, [rootEvent], true);
+            room.createThread(threadId, room.findEventById(threadId), [initialEvent], true);
         } catch (e) {
-            logger.warn("Could not find root event: " + initialEvent.threadRootId);
+            logger.warn("Could not find root event: " + threadId);
         }
     }
 
@@ -277,7 +279,12 @@ export const isLocationEvent = (event: MatrixEvent): boolean => {
 
 export function canForward(event: MatrixEvent): boolean {
     return !(
-        isLocationEvent(event) ||
-        M_POLL_START.matches(event.getType())
+        M_POLL_START.matches(event.getType()) ||
+        // disallow forwarding until psf-1044
+        M_BEACON_INFO.matches(event.getType())
     );
+}
+
+export function hasThreadSummary(event: MatrixEvent): boolean {
+    return event.isThreadRoot && event.getThread()?.length && !!event.getThread().replyToEvent;
 }

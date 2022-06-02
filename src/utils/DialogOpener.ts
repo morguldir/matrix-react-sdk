@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import classnames from "classnames";
+
 import defaultDispatcher from "../dispatcher/dispatcher";
 import { ActionPayload } from "../dispatcher/payloads";
 import Modal from "../Modal";
@@ -23,7 +25,6 @@ import ForwardDialog from "../components/views/dialogs/ForwardDialog";
 import { MatrixClientPeg } from "../MatrixClientPeg";
 import { Action } from "../dispatcher/actions";
 import ReportEventDialog from "../components/views/dialogs/ReportEventDialog";
-import TabbedIntegrationManagerDialog from "../components/views/dialogs/TabbedIntegrationManagerDialog";
 import SpacePreferencesDialog from "../components/views/dialogs/SpacePreferencesDialog";
 import SpaceSettingsDialog from "../components/views/dialogs/SpaceSettingsDialog";
 import InviteDialog from "../components/views/dialogs/InviteDialog";
@@ -73,17 +74,6 @@ export class DialogOpener {
                     mxEvent: payload.event,
                 }, 'mx_Dialog_reportEvent');
                 break;
-            case Action.OpenTabbedIntegrationManagerDialog:
-                Modal.createTrackedDialog(
-                    'Tabbed Integration Manager', '', TabbedIntegrationManagerDialog,
-                    {
-                        room: payload.room,
-                        screen: payload.screen,
-                        integrationId: payload.integrationId,
-                    },
-                    'mx_TabbedIntegrationManagerDialog',
-                );
-                break;
             case Action.OpenSpacePreferences:
                 Modal.createTrackedDialog("Space preferences", "", SpacePreferencesDialog, {
                     initialTabId: payload.initalTabId,
@@ -101,9 +91,10 @@ export class DialogOpener {
                     kind: payload.kind,
                     call: payload.call,
                     roomId: payload.roomId,
-                }, payload.className, false, true).finished.then((results) => {
-                    payload.onFinishedCallback?.(results);
-                });
+                }, classnames("mx_InviteDialog_flexWrapper", payload.className), false, true).finished
+                    .then((results) => {
+                        payload.onFinishedCallback?.(results);
+                    });
                 break;
             case Action.OpenAddToExistingSpaceDialog: {
                 const space = payload.space;

@@ -948,7 +948,7 @@ export default class CallHandler extends EventEmitter {
     ): Promise<void> {
         if (consultFirst) {
             // if we're consulting, we just start by placing a call to the transfer
-            // target (passing the transferee so the actual tranfer can happen later)
+            // target (passing the transferee so the actual transfer can happen later)
             this.dialNumber(destination, call);
             return;
         }
@@ -1035,8 +1035,7 @@ export default class CallHandler extends EventEmitter {
         }
 
         try {
-            const userId = client.credentials.userId;
-            await WidgetUtils.addJitsiWidget(roomId, type, 'Jitsi', `jitsi_${userId}_${Date.now()}`);
+            await WidgetUtils.addJitsiWidget(roomId, type, 'Jitsi', false);
             logger.log('Jitsi widget added');
         } catch (e) {
             if (e.errcode === 'M_FORBIDDEN') {

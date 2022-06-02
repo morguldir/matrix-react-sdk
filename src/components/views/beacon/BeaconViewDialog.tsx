@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MatrixClient } from 'matrix-js-sdk/src/client';
 import {
     Beacon,
@@ -32,11 +32,12 @@ import ZoomButtons from '../location/ZoomButtons';
 import BeaconMarker from './BeaconMarker';
 import { Bounds, getBeaconBounds } from '../../../utils/beacon/bounds';
 import { getGeoUri } from '../../../utils/beacon';
-import { Icon as LocationIcon } from '../../../../res/img/element-icons/location.svg';
 import { _t } from '../../../languageHandler';
 import AccessibleButton from '../elements/AccessibleButton';
 import DialogSidebar from './DialogSidebar';
 import DialogOwnBeaconStatus from './DialogOwnBeaconStatus';
+import BeaconStatusTooltip from './BeaconStatusTooltip';
+import MapFallback from '../location/MapFallback';
 
 interface IProps extends IDialogProps {
     roomId: Room['roomId'];
@@ -56,6 +57,17 @@ const getBoundsCenter = (bounds: Bounds): string | undefined => {
     });
 };
 
+const useInitialMapPosition = (liveBeacons: Beacon[], focusBeacon?: Beacon): {
+    bounds?: Bounds; centerGeoUri: string;
+} => {
+    const bounds = useRef<Bounds | undefined>(getBeaconBounds(liveBeacons));
+    const centerGeoUri = useRef<string>(
+        focusBeacon?.latestLocationState?.uri ||
+        getBoundsCenter(bounds.current),
+    );
+    return { bounds: bounds.current, centerGeoUri: centerGeoUri.current };
+};
+
 /**
  * Dialog to view live beacons maximised
  */
@@ -69,8 +81,7 @@ const BeaconViewDialog: React.FC<IProps> = ({
 
     const [isSidebarOpen, setSidebarOpen] = useState(false);
 
-    const bounds = getBeaconBounds(liveBeacons);
-    const centerGeoUri = focusBeacon?.latestLocationState?.uri || getBoundsCenter(bounds);
+    const { bounds, centerGeoUri } = useInitialMapPosition(liveBeacons, focusBeacon);
 
     return (
         <BaseDialog
@@ -79,7 +90,7 @@ const BeaconViewDialog: React.FC<IProps> = ({
             fixedWidth={false}
         >
             <MatrixClientContext.Provider value={matrixClient}>
-                { !!bounds ? <Map
+                { !!liveBeacons?.length ? <Map
                     id='mx_BeaconViewDialog'
                     bounds={bounds}
                     centerGeoUri={centerGeoUri}
@@ -93,16 +104,16 @@ const BeaconViewDialog: React.FC<IProps> = ({
                                     key={beacon.identifier}
                                     map={map}
                                     beacon={beacon}
+                                    tooltip={<BeaconStatusTooltip beacon={beacon} />}
                                 />) }
                                 <ZoomButtons map={map} />
                             </>
                     }
                 </Map> :
-                    <div
+                    <MapFallback
                         data-test-id='beacon-view-dialog-map-fallback'
-                        className='mx_BeaconViewDialog_map mx_BeaconViewDialog_mapFallback'
+                        className='mx_BeaconViewDialog_map'
                     >
-                        <LocationIcon className='mx_BeaconViewDialog_mapFallbackIcon' />
                         <span className='mx_BeaconViewDialog_mapFallbackMessage'>{ _t('No live locations') }</span>
                         <AccessibleButton
                             kind='primary'
@@ -111,7 +122,7 @@ const BeaconViewDialog: React.FC<IProps> = ({
                         >
                             { _t('Close') }
                         </AccessibleButton>
-                    </div>
+                    </MapFallback>
                 }
                 { isSidebarOpen ?
                     <DialogSidebar beacons={liveBeacons} requestClose={() => setSidebarOpen(false)} /> :

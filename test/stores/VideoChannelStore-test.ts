@@ -17,20 +17,19 @@ limitations under the License.
 import { mocked } from "jest-mock";
 import { Widget, ClientWidgetApi, MatrixWidgetType, IWidgetApiRequest } from "matrix-widget-api";
 
-import { stubClient, setupAsyncStoreWithClient } from "../test-utils";
+import { stubClient, setupAsyncStoreWithClient, mkRoom } from "../test-utils";
 import { MatrixClientPeg } from "../../src/MatrixClientPeg";
 import WidgetStore, { IApp } from "../../src/stores/WidgetStore";
 import { WidgetMessagingStore } from "../../src/stores/widgets/WidgetMessagingStore";
 import { ElementWidgetActions } from "../../src/stores/widgets/ElementWidgetActions";
 import VideoChannelStore, { VideoChannelEvent } from "../../src/stores/VideoChannelStore";
-import { VIDEO_CHANNEL } from "../../src/utils/VideoChannelUtils";
 
 describe("VideoChannelStore", () => {
     const store = VideoChannelStore.instance;
 
-    const widget = { id: VIDEO_CHANNEL } as unknown as Widget;
+    const widget = { id: "1" } as unknown as Widget;
     const app = {
-        id: VIDEO_CHANNEL,
+        id: "1",
         eventId: "$1:example.org",
         roomId: "!1:example.org",
         type: MatrixWidgetType.JitsiMeet,
@@ -38,6 +37,7 @@ describe("VideoChannelStore", () => {
         name: "Video channel",
         creatorUserId: "@alice:example.org",
         avatar_url: null,
+        data: { isVideoChannel: true },
     } as IApp;
 
     // Set up mocks to simulate the remote end of the widget API
@@ -51,6 +51,7 @@ describe("VideoChannelStore", () => {
         const cli = MatrixClientPeg.get();
         setupAsyncStoreWithClient(WidgetMessagingStore.instance, cli);
         setupAsyncStoreWithClient(store, cli);
+        mocked(cli).getRoom.mockReturnValue(mkRoom(cli, "!1:example.org"));
 
         let resolveMessageSent: () => void;
         messageSent = new Promise(resolve => resolveMessageSent = resolve);
@@ -113,28 +114,46 @@ describe("VideoChannelStore", () => {
         expect(store.roomId).toBeFalsy();
         expect(store.connected).toEqual(false);
 
-        store.connect("!1:example.org", null, null);
+        const connectPromise = store.connect("!1:example.org", null, null);
         await confirmConnect();
+        await expect(connectPromise).resolves.toBeUndefined();
         expect(store.roomId).toEqual("!1:example.org");
         expect(store.connected).toEqual(true);
 
-        store.disconnect();
+        const disconnectPromise = store.disconnect();
         await confirmDisconnect();
+        await expect(disconnectPromise).resolves.toBeUndefined();
         expect(store.roomId).toBeFalsy();
         expect(store.connected).toEqual(false);
         WidgetMessagingStore.instance.stopMessaging(widget, "!1:example.org");
     });
 
     it("waits for messaging when connecting", async () => {
-        store.connect("!1:example.org", null, null);
+        const connectPromise = store.connect("!1:example.org", null, null);
         WidgetMessagingStore.instance.storeMessaging(widget, "!1:example.org", messaging);
         widgetReady();
         await confirmConnect();
+        await expect(connectPromise).resolves.toBeUndefined();
         expect(store.roomId).toEqual("!1:example.org");
         expect(store.connected).toEqual(true);
 
         store.disconnect();
         await confirmDisconnect();
         WidgetMessagingStore.instance.stopMessaging(widget, "!1:example.org");
+    });
+
+    it("rejects if the widget's messaging gets stopped mid-connect", async () => {
+        WidgetMessagingStore.instance.storeMessaging(widget, "!1:example.org", messaging);
+        widgetReady();
+        expect(store.roomId).toBeFalsy();
+        expect(store.connected).toEqual(false);
+
+        const connectPromise = store.connect("!1:example.org", null, null);
+        // Wait for the store to contact the widget API, then stop the messaging
+        await messageSent;
+        WidgetMessagingStore.instance.stopMessaging(widget, "!1:example.org");
+        await expect(connectPromise).rejects.toBeDefined();
+        expect(store.roomId).toBeFalsy();
+        expect(store.connected).toEqual(false);
     });
 });
