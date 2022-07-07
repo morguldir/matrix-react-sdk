@@ -28,7 +28,7 @@ import { formatRange, formatRangeAsLink, replaceRangeAndMoveCaret, toggleInlineF
     from '../../../editor/operations';
 import { getCaretOffsetAndText, getRangeForSelection } from '../../../editor/dom';
 import Autocomplete, { generateCompletionDomId } from '../rooms/Autocomplete';
-import { getAutoCompleteCreator, Type } from '../../../editor/parts';
+import { getAutoCompleteCreator, Part, Type } from '../../../editor/parts';
 import { parseEvent, parsePlainTextMessage } from '../../../editor/deserialize';
 import { renderModel } from '../../../editor/render';
 import TypingStore from "../../../stores/TypingStore";
@@ -92,7 +92,7 @@ function selectionEquals(a: Partial<Selection>, b: Selection): boolean {
 interface IProps {
     model: EditorModel;
     room: Room;
-    threadId: string;
+    threadId?: string;
     placeholder?: string;
     label?: string;
     initialCaret?: DocumentOffset;
@@ -333,28 +333,30 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
 
     private onPaste = (event: ClipboardEvent<HTMLDivElement>): boolean => {
         event.preventDefault(); // we always handle the paste ourselves
-        if (this.props.onPaste && this.props.onPaste(event, this.props.model)) {
+        if (this.props.onPaste?.(event, this.props.model)) {
             // to prevent double handling, allow props.onPaste to skip internal onPaste
             return true;
         }
 
         const { model } = this.props;
         const { partCreator } = model;
+        const plainText = event.clipboardData.getData("text/plain");
         const partsText = event.clipboardData.getData("application/x-element-composer");
-        let parts;
+
+        let parts: Part[];
         if (partsText) {
             const serializedTextParts = JSON.parse(partsText);
-            const deserializedParts = serializedTextParts.map(p => partCreator.deserializePart(p));
-            parts = deserializedParts;
+            parts = serializedTextParts.map(p => partCreator.deserializePart(p));
         } else {
-            const text = event.clipboardData.getData("text/plain");
-            parts = parsePlainTextMessage(text, partCreator, { shouldEscape: false });
+            parts = parsePlainTextMessage(plainText, partCreator, { shouldEscape: false });
         }
-        const textToInsert = event.clipboardData.getData("text/plain");
+
         this.modifiedFlag = true;
         const range = getRangeForSelection(this.editorRef.current, model, document.getSelection());
-        if (textToInsert && linkify.test(textToInsert)) {
-            formatRangeAsLink(range, textToInsert);
+
+        // If the user is pasting a link, and has a range selected which is not a link, wrap the range with the link
+        if (plainText && range.length > 0 && linkify.test(plainText) && !linkify.test(range.text)) {
+            formatRangeAsLink(range, plainText);
         } else {
             replaceRangeAndMoveCaret(range, parts);
         }
@@ -447,12 +449,11 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         const selection = document.getSelection();
         if (this.hasTextSelected && selection.isCollapsed) {
             this.hasTextSelected = false;
-            if (this.formatBarRef.current) {
-                this.formatBarRef.current.hide();
-            }
+            this.formatBarRef.current?.hide();
         } else if (!selection.isCollapsed && !isEmpty) {
             this.hasTextSelected = true;
-            if (this.formatBarRef.current && this.state.useMarkdown) {
+            const range = getRangeForSelection(this.editorRef.current, this.props.model, selection);
+            if (this.formatBarRef.current && this.state.useMarkdown && !!range.text.trim()) {
                 const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
                 this.formatBarRef.current.showAt(selectionRect);
             }

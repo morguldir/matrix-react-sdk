@@ -127,10 +127,6 @@ limitations under the License.
                     width: 30px;
                     height: 30px;
                 }
-
-                .mx_AccessibleButton_hasKind {
-                    padding: 0px;
-                }
             }
         }
     }
@@ -164,6 +160,11 @@ limitations under the License.
             .mx_CallViewButtons_button {
                 width: 34px;
                 height: 34px;
+
+                &.mx_CallViewButtons_dropdownButton {
+                    width: var(--CallViewButtons_dropdownButton-size);
+                    height: var(--CallViewButtons_dropdownButton-size);
+                }
 
                 &::before {
                     width: 22px;

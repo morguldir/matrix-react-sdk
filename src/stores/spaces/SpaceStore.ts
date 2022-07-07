@@ -187,7 +187,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 metricsTrigger: "WebSpacePanelNotificationBadge",
             });
         } else {
-            const lists = RoomListStore.instance.unfilteredLists;
+            const lists = RoomListStore.instance.orderedLists;
             for (let i = 0; i < TAG_ORDER.length; i++) {
                 const t = TAG_ORDER[i];
                 const listRooms = lists[t];
@@ -316,11 +316,10 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         return [];
     };
 
-    public addRoomToSpace(space: Room, roomId: string, via: string[], suggested = false, autoJoin = false) {
+    public addRoomToSpace(space: Room, roomId: string, via: string[], suggested = false) {
         return this.matrixClient.sendStateEvent(space.roomId, EventType.SpaceChild, {
             via,
             suggested,
-            auto_join: autoJoin,
         }, roomId);
     }
 
@@ -803,8 +802,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         this.updateNotificationStates(notificationStatesToUpdate);
     };
 
-    private switchSpaceIfNeeded = () => {
-        const roomId = RoomViewStore.instance.getRoomId();
+    private switchSpaceIfNeeded = (roomId = RoomViewStore.instance.getRoomId()) => {
         if (!this.isRoomInSpace(this.activeSpace, roomId) && !this.matrixClient.getRoom(roomId)?.isSpaceRoom()) {
             this.switchToRelatedSpace(roomId);
         }
@@ -856,7 +854,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
                 // if the room currently being viewed was just joined then switch to its related space
                 if (newMembership === "join" && room.roomId === RoomViewStore.instance.getRoomId()) {
-                    this.switchToRelatedSpace(room.roomId);
+                    this.switchSpaceIfNeeded(room.roomId);
                 }
             }
             return;
@@ -961,9 +959,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     private onRoomAccountData = (ev: MatrixEvent, room: Room, lastEv?: MatrixEvent) => {
-        if (!room.isSpaceRoom()) return;
-
-        if (ev.getType() === EventType.SpaceOrder) {
+        if (room.isSpaceRoom() && ev.getType() === EventType.SpaceOrder) {
             this.spaceOrderLocalEchoMap.delete(room.roomId); // clear any local echo
             const order = ev.getContent()?.order;
             const lastOrder = lastEv?.getContent()?.order;
@@ -1075,6 +1071,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 ?.["m.room_versions"]?.["org.matrix.msc3244.room_capabilities"]?.["restricted"];
         });
 
+        const oldMetaSpaces = this._enabledMetaSpaces;
         const enabledMetaSpaces = SettingsStore.getValue("Spaces.enabledMetaSpaces");
         this._enabledMetaSpaces = metaSpaceOrder.filter(k => enabledMetaSpaces[k]);
 
@@ -1082,6 +1079,11 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         this.sendUserProperties();
 
         this.rebuildSpaceHierarchy(); // trigger an initial update
+        // rebuildSpaceHierarchy will only send an update if the spaces have changed.
+        // If only the meta spaces have changed, we need to send an update ourselves.
+        if (arrayHasDiff(oldMetaSpaces, this._enabledMetaSpaces)) {
+            this.emit(UPDATE_TOP_LEVEL_SPACES, this.spacePanelSpaces, this.enabledMetaSpaces);
+        }
 
         // restore selected state from last session if any and still valid
         const lastSpaceId = window.localStorage.getItem(ACTIVE_SPACE_LS_KEY);
@@ -1131,8 +1133,8 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                     // Don't context switch when navigating to the space room
                     // as it will cause you to end up in the wrong room
                     this.setActiveSpace(room.roomId, false);
-                } else if (!this.isRoomInSpace(this.activeSpace, roomId)) {
-                    this.switchToRelatedSpace(roomId);
+                } else {
+                    this.switchSpaceIfNeeded(roomId);
                 }
 
                 // Persist last viewed room from a space

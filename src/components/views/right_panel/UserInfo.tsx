@@ -251,7 +251,7 @@ function DevicesSection({ devices, userId, loading }: { devices: IDevice[], user
         return <Spinner />;
     }
     if (devices === null) {
-        return <>{ _t("Unable to load session list") }</>;
+        return <p>{ _t("Unable to load session list") }</p>;
     }
     const isMe = userId === cli.getUserId();
     const deviceTrusts = devices.map(d => cli.checkDeviceTrust(userId, d.deviceId));
@@ -367,7 +367,7 @@ const UserOptionsSection: React.FC<{
     const isMe = member.userId === cli.getUserId();
 
     const onShareUserClick = () => {
-        Modal.createTrackedDialog('share room member dialog', '', ShareDialog, {
+        Modal.createDialog(ShareDialog, {
             target: member,
         });
     };
@@ -453,7 +453,7 @@ const UserOptionsSection: React.FC<{
                         }
                     });
                 } catch (err) {
-                    Modal.createTrackedDialog('Failed to invite', '', ErrorDialog, {
+                    Modal.createDialog(ErrorDialog, {
                         title: _t('Failed to invite'),
                         description: ((err && err.message) ? err.message : _t("Operation failed")),
                     });
@@ -505,7 +505,7 @@ const UserOptionsSection: React.FC<{
 };
 
 const warnSelfDemote = async (isSpace: boolean) => {
-    const { finished } = Modal.createTrackedDialog('Demoting Self', '', QuestionDialog, {
+    const { finished } = Modal.createDialog(QuestionDialog, {
         title: _t("Demote yourself?"),
         description:
             <div>
@@ -592,9 +592,7 @@ const RoomKickButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBas
     if (member.membership !== "invite" && member.membership !== "join") return null;
 
     const onKick = async () => {
-        const { finished } = Modal.createTrackedDialog(
-            'Confirm User Action Dialog',
-            'onKick',
+        const { finished } = Modal.createDialog(
             room.isSpaceRoom() ? ConfirmSpaceUserActionDialog : ConfirmUserActionDialog,
             {
                 member,
@@ -634,7 +632,7 @@ const RoomKickButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBas
             logger.log("Kick success");
         }, function(err) {
             logger.error("Kick error: " + err);
-            Modal.createTrackedDialog('Failed to kick', '', ErrorDialog, {
+            Modal.createDialog(ErrorDialog, {
                 title: _t("Failed to remove user"),
                 description: ((err && err.message) ? err.message : "Operation failed"),
             });
@@ -663,7 +661,7 @@ const RedactMessagesButton: React.FC<IBaseProps> = ({ member }) => {
         const room = cli.getRoom(member.roomId);
         if (!room) return;
 
-        Modal.createTrackedDialog("Bulk Redact Dialog", "", BulkRedactDialog, {
+        Modal.createDialog(BulkRedactDialog, {
             matrixClient: cli,
             room, member,
         });
@@ -683,9 +681,7 @@ const BanToggleButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBa
 
     const isBanned = member.membership === "ban";
     const onBanOrUnban = async () => {
-        const { finished } = Modal.createTrackedDialog(
-            'Confirm User Action Dialog',
-            'onBanOrUnban',
+        const { finished } = Modal.createDialog(
             room.isSpaceRoom() ? ConfirmSpaceUserActionDialog : ConfirmUserActionDialog,
             {
                 member,
@@ -748,7 +744,7 @@ const BanToggleButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBa
             logger.log("Ban success");
         }, function(err) {
             logger.error("Ban error: " + err);
-            Modal.createTrackedDialog('Failed to ban user', '', ErrorDialog, {
+            Modal.createDialog(ErrorDialog, {
                 title: _t("Error"),
                 description: _t("Failed to ban user"),
             });
@@ -829,7 +825,7 @@ const MuteToggleButton: React.FC<IBaseRoomProps> = ({ member, room, powerLevels,
                 logger.log("Mute toggle success");
             }, function(err) {
                 logger.error("Mute error: " + err);
-                Modal.createTrackedDialog('Failed to mute user', '', ErrorDialog, {
+                Modal.createDialog(ErrorDialog, {
                     title: _t("Error"),
                     description: _t("Failed to mute user"),
                 });
@@ -1050,7 +1046,7 @@ const PowerLevelEditor: React.FC<{
                     logger.log("Power change success");
                 }, function(err) {
                     logger.error("Failed to change power level " + err);
-                    Modal.createTrackedDialog('Failed to change power level', '', ErrorDialog, {
+                    Modal.createDialog(ErrorDialog, {
                         title: _t("Error"),
                         description: _t("Failed to change power level"),
                     });
@@ -1067,7 +1063,7 @@ const PowerLevelEditor: React.FC<{
         const myUserId = cli.getUserId();
         const myPower = powerLevelEvent.getContent().users[myUserId];
         if (myPower && parseInt(myPower) <= powerLevel && myUserId !== target) {
-            const { finished } = Modal.createTrackedDialog('Promote to PL100 Warning', '', QuestionDialog, {
+            const { finished } = Modal.createDialog(QuestionDialog, {
                 title: _t("Warning!"),
                 description:
                     <div>
@@ -1216,7 +1212,7 @@ const BasicUserInfo: React.FC<{
     const roomPermissions = useRoomPermissions(cli, room, member as RoomMember);
 
     const onSynapseDeactivate = useCallback(async () => {
-        const { finished } = Modal.createTrackedDialog('Synapse User Deactivation', '', QuestionDialog, {
+        const { finished } = Modal.createDialog(QuestionDialog, {
             title: _t("Deactivate user?"),
             description:
                 <div>{ _t(
@@ -1236,7 +1232,7 @@ const BasicUserInfo: React.FC<{
             logger.error("Failed to deactivate user");
             logger.error(err);
 
-            Modal.createTrackedDialog('Failed to deactivate Synapse user', '', ErrorDialog, {
+            Modal.createDialog(ErrorDialog, {
                 title: _t('Failed to deactivate user'),
                 description: ((err && err.message) ? err.message : _t("Operation failed")),
             });
@@ -1434,8 +1430,8 @@ const UserInfoHeader: React.FC<{
 
     const avatarElement = (
         <div className="mx_UserInfo_avatar">
-            <div>
-                <div>
+            <div className="mx_UserInfo_avatar_transition">
+                <div className="mx_UserInfo_avatar_transition_child">
                     <MemberAvatar
                         key={member.userId} // to instantly blank the avatar when UserInfo changes members
                         member={member as RoomMember}
@@ -1495,7 +1491,12 @@ const UserInfoHeader: React.FC<{
                         </span>
                     </h2>
                 </div>
-                <div>{ UserIdentifierCustomisations.getDisplayUserIdentifier(member.userId, { roomId, withDisplayName: true }) }</div>
+                <div className="mx_UserInfo_profile_mxid">
+                    { UserIdentifierCustomisations.getDisplayUserIdentifier(member.userId, {
+                        roomId,
+                        withDisplayName: true,
+                    }) }
+                </div>
                 <div className="mx_UserInfo_profileStatus">
                     { presenceLabel }
                 </div>
