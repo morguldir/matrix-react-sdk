@@ -1,6 +1,6 @@
 /*
 Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
-Copyright 2015 - 2021 The Matrix.org Foundation C.I.C.
+Copyright 2015 - 2022 The Matrix.org Foundation C.I.C.
 Copyright 2021 - 2022 Šimon Brandner <simon.bra.ag@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,12 @@ import Modal from '../../../Modal';
 import Resend from '../../../Resend';
 import SettingsStore from '../../../settings/SettingsStore';
 import { isUrlPermitted } from '../../../HtmlUtils';
-import { canEditContent, canForward, editEvent, isContentActionable, isLocationEvent } from '../../../utils/EventUtils';
+import {
+    canEditContent,
+    canPinEvent,
+    editEvent,
+    isContentActionable,
+} from '../../../utils/EventUtils';
 import IconizedContextMenu, { IconizedContextMenuOption, IconizedContextMenuOptionList } from './IconizedContextMenu';
 import { ReadPinsEventId } from "../right_panel/types";
 import { Action } from "../../../dispatcher/actions";
@@ -51,6 +56,8 @@ import { GetRelationsForEvent, IEventTileOps } from "../rooms/EventTile";
 import { OpenForwardDialogPayload } from "../../../dispatcher/payloads/OpenForwardDialogPayload";
 import { OpenReportEventDialogPayload } from "../../../dispatcher/payloads/OpenReportEventDialogPayload";
 import { createMapSiteLinkFromEvent } from '../../../utils/location';
+import { getForwardableEvent } from '../../../events/forward/getForwardableEvent';
+import { getShareableLocationEvent } from '../../../events/location/getShareableLocationEvent';
 
 interface IProps extends IPosition {
     chevronFace: ChevronFace;
@@ -122,7 +129,8 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         const canRedact = room.currentState.maySendRedactionForEvent(this.props.mxEvent, cli.credentials.userId)
             && this.props.mxEvent.getType() !== EventType.RoomServerAcl
             && this.props.mxEvent.getType() !== EventType.RoomEncryption;
-        let canPin = room.currentState.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli);
+        let canPin = room.currentState.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli) &&
+            canPinEvent(this.props.mxEvent);
         // TODO check for server support first
         // TODO allow if isSynapseAdmin too
         const canViewRedacted = room.currentState.hasSufficientPowerLevelFor(
@@ -140,10 +148,6 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         if (!pinnedEvent) return false;
         const content = pinnedEvent.getContent();
         return content.pinned && Array.isArray(content.pinned) && content.pinned.includes(this.props.mxEvent.getId());
-    }
-
-    private canOpenInMapSite(mxEvent: MatrixEvent): boolean {
-        return isLocationEvent(mxEvent);
     }
 
     private canEndPoll(mxEvent: MatrixEvent): boolean {
@@ -195,7 +199,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private onViewSourceClick = (): void => {
-        Modal.createTrackedDialog('View Event Source', '', ViewSource, {
+        Modal.createDialog(ViewSource, {
             mxEvent: this.props.mxEvent,
         }, 'mx_Dialog_viewsource');
         this.closeMenu();
@@ -210,10 +214,10 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         this.closeMenu();
     };
 
-    private onForwardClick = (): void => {
+    private onForwardClick = (forwardableEvent: MatrixEvent) => (): void => {
         dis.dispatch<OpenForwardDialogPayload>({
             action: Action.OpenForwardDialog,
-            event: this.props.mxEvent,
+            event: forwardableEvent,
             permalinkCreator: this.props.permalinkCreator,
         });
         this.closeMenu();
@@ -225,6 +229,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         const eventId = this.props.mxEvent.getId();
 
         const pinnedIds = room?.currentState?.getStateEvents(EventType.RoomPinnedEvents, "")?.getContent().pinned || [];
+
         if (pinnedIds.includes(eventId)) {
             pinnedIds.splice(pinnedIds.indexOf(eventId), 1);
         } else {
@@ -260,7 +265,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
     private onShareClick = (e: React.MouseEvent): void => {
         e.preventDefault();
-        Modal.createTrackedDialog('share room message dialog', '', ShareDialog, {
+        Modal.createDialog(ShareDialog, {
             target: this.props.mxEvent,
             permalinkCreator: this.props.permalinkCreator,
         });
@@ -308,7 +313,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
     private onEndPollClick = (): void => {
         const matrixClient = MatrixClientPeg.get();
-        Modal.createTrackedDialog('End Poll', '', EndPollDialog, {
+        Modal.createDialog(EndPollDialog, {
             matrixClient,
             event: this.props.mxEvent,
             getRelationsForEvent: this.props.getRelationsForEvent,
@@ -392,8 +397,9 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         }
 
         let openInMapSiteButton: JSX.Element;
-        if (this.canOpenInMapSite(mxEvent)) {
-            const mapSiteLink = createMapSiteLinkFromEvent(mxEvent);
+        const shareableLocationEvent = getShareableLocationEvent(mxEvent, cli);
+        if (shareableLocationEvent) {
+            const mapSiteLink = createMapSiteLinkFromEvent(shareableLocationEvent);
             openInMapSiteButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconOpenInMapSite"
@@ -412,12 +418,13 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         }
 
         let forwardButton: JSX.Element;
-        if (contentActionable && canForward(mxEvent)) {
+        const forwardableEvent = getForwardableEvent(mxEvent, cli);
+        if (contentActionable && forwardableEvent) {
             forwardButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconForward"
                     label={_t("Forward")}
-                    onClick={this.onForwardClick}
+                    onClick={this.onForwardClick(forwardableEvent)}
                 />
             );
         }
@@ -485,7 +492,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         }
 
         let quoteButton: JSX.Element;
-        if (eventTileOps) { // this event is rendered using TextualBody
+        if (eventTileOps && canSendMessages) { // this event is rendered using TextualBody
             quoteButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconQuote"
