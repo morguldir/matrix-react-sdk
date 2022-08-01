@@ -436,6 +436,13 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         ),
         default: false,
     },
+    "feature_favourite_messages": {
+        isFeature: true,
+        labsGroup: LabGroup.Messaging,
+        supportedLevels: LEVELS_FEATURE,
+        displayName: _td("Favourite Messages (under active development)"),
+        default: false,
+    },
     "baseFontSize": {
         displayName: _td("Font size"),
         supportedLevels: LEVELS_ACCOUNT_SETTINGS,
@@ -705,6 +712,10 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         displayName: _td('Send analytics data'),
         default: null,
     },
+    "FTUE.useCaseSelection": {
+        supportedLevels: LEVELS_ACCOUNT_SETTINGS,
+        default: null,
+    },
     "autocompleteDelay": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         default: 200,
@@ -945,6 +956,10 @@ export const SETTINGS: {[setting: string]: ISetting} = {
         default: false,
     },
     "debug_registration": {
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
+        default: false,
+    },
+    "debug_animation": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
         default: false,
     },
