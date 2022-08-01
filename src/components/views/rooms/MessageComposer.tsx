@@ -383,7 +383,10 @@ export default class MessageComposer extends React.Component<IProps, IState> {
             controls.push(<VoiceRecordComposerTile
                 key="controls_voice_record"
                 ref={this.voiceRecordingButton}
-                room={this.props.room} />);
+                room={this.props.room}
+                permalinkCreator={this.props.permalinkCreator}
+                relation={this.props.relation}
+                replyToEvent={this.props.replyToEvent} />);
         } else if (this.context.tombstone) {
             const replacementRoomId = this.context.tombstone.getContent()['replacement_room'];
 
@@ -443,7 +446,6 @@ export default class MessageComposer extends React.Component<IProps, IState> {
 
         const classes = classNames({
             "mx_MessageComposer": true,
-            "mx_GroupLayout": true,
             "mx_MessageComposer--compact": this.props.compact,
             "mx_MessageComposer_e2eStatus": this.props.e2eStatus != undefined,
         });
