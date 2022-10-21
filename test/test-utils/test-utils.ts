@@ -30,11 +30,14 @@ import {
     EventType,
     IEventRelation,
     IUnsigned,
+    IPusher,
 } from 'matrix-js-sdk/src/matrix';
 import { normalize } from "matrix-js-sdk/src/utils";
+import { ReEmitter } from "matrix-js-sdk/src/ReEmitter";
+import { MediaHandler } from "matrix-js-sdk/src/webrtc/mediaHandler";
+import { Feature, ServerSupport } from "matrix-js-sdk/src/feature";
 
 import { MatrixClientPeg as peg } from '../../src/MatrixClientPeg';
-import dis from '../../src/dispatcher/dispatcher';
 import { makeType } from "../../src/utils/TypeUtils";
 import { ValidatedServerConfig } from "../../src/utils/ValidatedServerConfig";
 import { EnhancedMap } from "../../src/utils/maps";
@@ -49,7 +52,7 @@ import MatrixClientBackedSettingsHandler from "../../src/settings/handlers/Matri
  * the react context, we can get rid of this and just inject a test client
  * via the context instead.
  */
-export function stubClient() {
+export function stubClient(): MatrixClient {
     const client = createTestClient();
 
     // stub out the methods in MatrixClientPeg
@@ -63,6 +66,7 @@ export function stubClient() {
     // fast stub function rather than a sinon stub
     peg.get = function() { return client; };
     MatrixClientBackedSettingsHandler.matrixClient = client;
+    return client;
 }
 
 /**
@@ -74,7 +78,7 @@ export function createTestClient(): MatrixClient {
     const eventEmitter = new EventEmitter();
     let txnId = 1;
 
-    return {
+    const client = {
         getHomeserverUrl: jest.fn(),
         getIdentityServerUrl: jest.fn(),
         getDomain: jest.fn().mockReturnValue("matrix.org"),
@@ -91,8 +95,14 @@ export function createTestClient(): MatrixClient {
             removeRoom: jest.fn(),
         },
 
+        crypto: {
+            deviceList: {
+                downloadKeys: jest.fn(),
+            },
+        },
+
         getPushActionsForEvent: jest.fn(),
-        getRoom: jest.fn().mockImplementation(mkStubRoom),
+        getRoom: jest.fn().mockImplementation(roomId => mkStubRoom(roomId, "My room", client)),
         getRooms: jest.fn().mockReturnValue([]),
         getVisibleRooms: jest.fn().mockReturnValue([]),
         loginFlows: jest.fn(),
@@ -112,6 +122,7 @@ export function createTestClient(): MatrixClient {
         getThirdpartyProtocols: jest.fn().mockResolvedValue({}),
         getClientWellKnown: jest.fn().mockReturnValue(null),
         supportsVoip: jest.fn().mockReturnValue(true),
+        getTurnServers: jest.fn().mockReturnValue([]),
         getTurnServersExpiry: jest.fn().mockReturnValue(2 ^ 32),
         getThirdpartyUser: jest.fn().mockResolvedValue([]),
         getAccountData: (type) => {
@@ -127,6 +138,7 @@ export function createTestClient(): MatrixClient {
         setAccountData: jest.fn(),
         setRoomAccountData: jest.fn(),
         setRoomTopic: jest.fn(),
+        setRoomReadMarkers: jest.fn().mockResolvedValue({}),
         sendTyping: jest.fn().mockResolvedValue({}),
         sendMessage: jest.fn().mockResolvedValue({}),
         sendStateEvent: jest.fn().mockResolvedValue(undefined),
@@ -147,8 +159,9 @@ export function createTestClient(): MatrixClient {
         getOpenIdToken: jest.fn().mockResolvedValue(undefined),
         registerWithIdentityServer: jest.fn().mockResolvedValue({}),
         getIdentityAccount: jest.fn().mockResolvedValue({}),
-        getTerms: jest.fn().mockResolvedValueOnce(undefined),
+        getTerms: jest.fn().mockResolvedValue({ policies: [] }),
         doesServerSupportUnstableFeature: jest.fn().mockResolvedValue(undefined),
+        isVersionSupported: jest.fn().mockResolvedValue(undefined),
         getPushRules: jest.fn().mockResolvedValue(undefined),
         getPushers: jest.fn().mockResolvedValue({ pushers: [] }),
         getThreePids: jest.fn().mockResolvedValue({ threepids: [] }),
@@ -162,7 +175,30 @@ export function createTestClient(): MatrixClient {
         downloadKeys: jest.fn(),
         fetchRoomEvent: jest.fn(),
         makeTxnId: jest.fn().mockImplementation(() => `t${txnId++}`),
+        sendToDevice: jest.fn().mockResolvedValue(undefined),
+        queueToDevice: jest.fn().mockResolvedValue(undefined),
+        encryptAndSendToDevices: jest.fn().mockResolvedValue(undefined),
+
+        getMediaHandler: jest.fn().mockReturnValue({
+            setVideoInput: jest.fn(),
+            setAudioInput: jest.fn(),
+        } as unknown as MediaHandler),
+        uploadContent: jest.fn(),
+        getEventMapper: () => (opts) => new MatrixEvent(opts),
     } as unknown as MatrixClient;
+
+    client.reEmitter = new ReEmitter(client);
+
+    client.canSupport = new Map();
+    Object.keys(Feature).forEach(feature => {
+        client.canSupport.set(feature as Feature, ServerSupport.Stable);
+    });
+
+    Object.defineProperty(client, "pollingTurnServers", {
+        configurable: true,
+        get: () => true,
+    });
+    return client;
 }
 
 type MakeEventPassThruProps = {
@@ -175,7 +211,7 @@ type MakeEventPassThruProps = {
 type MakeEventProps = MakeEventPassThruProps & {
     type: string;
     content: IContent;
-    room: Room["roomId"];
+    room?: Room["roomId"]; // to-device messages are roomless
     // eslint-disable-next-line camelcase
     prev_content?: IContent;
     unsigned?: IUnsigned;
@@ -308,6 +344,20 @@ export function mkMembership(opts: MakeEventPassThruProps & {
     return e;
 }
 
+export function mkRoomMember(roomId: string, userId: string, membership = "join"): RoomMember {
+    return {
+        userId,
+        membership,
+        name: userId,
+        rawDisplayName: userId,
+        roomId,
+        events: {},
+        getAvatarUrl: () => {},
+        getMxcAvatarUrl: () => {},
+        getDMInviter: () => {},
+    } as unknown as RoomMember;
+}
+
 export type MessageEventProps = MakeEventPassThruProps & {
     room: Room["roomId"];
     relatesTo?: IEventRelation;
@@ -361,10 +411,12 @@ export function mkStubRoom(roomId: string = null, name: string, client: MatrixCl
         getMembersWithMembership: jest.fn().mockReturnValue([]),
         getJoinedMembers: jest.fn().mockReturnValue([]),
         getJoinedMemberCount: jest.fn().mockReturnValue(1),
+        getInvitedAndJoinedMemberCount: jest.fn().mockReturnValue(1),
+        setUnreadNotificationCount: jest.fn(),
         getMembers: jest.fn().mockReturnValue([]),
         getPendingEvents: () => [],
         getLiveTimeline: jest.fn().mockReturnValue(stubTimeline),
-        getUnfilteredTimelineSet: () => null,
+        getUnfilteredTimelineSet: jest.fn(),
         findEventById: () => null,
         getAccountData: () => null,
         hasMembershipState: () => null,
@@ -407,6 +459,9 @@ export function mkStubRoom(roomId: string = null, name: string, client: MatrixCl
         myUserId: client?.getUserId(),
         canInvite: jest.fn(),
         getThreads: jest.fn().mockReturnValue([]),
+        eventShouldLiveIn: jest.fn().mockReturnValue({}),
+        createThreadsTimelineSets: jest.fn().mockReturnValue(new Promise(() => {})),
+        fetchRoomThreads: jest.fn().mockReturnValue(new Promise(() => {})),
     } as unknown as Room;
 }
 
@@ -417,18 +472,6 @@ export function mkServerConfig(hsUrl, isUrl) {
         hsNameIsDifferent: false, // yes, we lie
         isUrl,
     });
-}
-
-export function getDispatchForStore(store) {
-    // Mock the dispatcher by gut-wrenching. Stores can only __emitChange whilst a
-    // dispatcher `_isDispatching` is true.
-    return (payload) => {
-        // these are private properties in flux dispatcher
-        // fool ts
-        (dis as any)._isDispatching = true;
-        (dis as any)._callbacks[store._dispatchToken](payload);
-        (dis as any)._isDispatching = false;
-    };
 }
 
 // These methods make some use of some private methods on the AsyncStoreWithClient to simplify getting into a consistent
@@ -514,3 +557,14 @@ export const mkSpace = (
     )));
     return space;
 };
+
+export const mkPusher = (extra: Partial<IPusher> = {}): IPusher => ({
+    app_display_name: "app",
+    app_id: "123",
+    data: {},
+    device_display_name: "name",
+    kind: "http",
+    lang: "en",
+    pushkey: "pushpush",
+    ...extra,
+});

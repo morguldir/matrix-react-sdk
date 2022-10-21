@@ -60,13 +60,13 @@ import MatrixClientContext from "../../contexts/MatrixClientContext";
 import { useTypedEventEmitterState } from "../../hooks/useEventEmitter";
 import { IOOBData } from "../../stores/ThreepidInviteStore";
 import { awaitRoomDownSync } from "../../utils/RoomUpgrade";
-import { RoomViewStore } from "../../stores/RoomViewStore";
 import { ViewRoomPayload } from "../../dispatcher/payloads/ViewRoomPayload";
 import { JoinRoomReadyPayload } from "../../dispatcher/payloads/JoinRoomReadyPayload";
 import { KeyBindingAction } from "../../accessibility/KeyboardShortcuts";
 import { getKeyBindingsManager } from "../../KeyBindingsManager";
 import { Alignment } from "../views/elements/Tooltip";
 import { getTopic } from "../../hooks/room/useTopic";
+import { SdkContextClass } from "../../contexts/SDKContext";
 
 interface IProps {
     space: Room;
@@ -378,7 +378,7 @@ export const joinRoom = (cli: MatrixClient, hierarchy: RoomHierarchy, roomId: st
             metricsTrigger: "SpaceHierarchy",
         });
     }, err => {
-        RoomViewStore.instance.showJoinRoomError(err, roomId);
+        SdkContextClass.instance.roomViewStore.showJoinRoomError(err, roomId);
     });
 
     return prom;
@@ -499,8 +499,8 @@ const INITIAL_PAGE_SIZE = 20;
 export const useRoomHierarchy = (space: Room): {
     loading: boolean;
     rooms?: IHierarchyRoom[];
-    hierarchy: RoomHierarchy;
-    error: Error;
+    hierarchy?: RoomHierarchy;
+    error?: Error;
     loadMore(pageSize?: number): Promise<void>;
 } => {
     const [rooms, setRooms] = useState<IHierarchyRoom[]>([]);
@@ -531,10 +531,18 @@ export const useRoomHierarchy = (space: Room): {
         setRooms(hierarchy.rooms);
     }, [error, hierarchy]);
 
+    // Only return the hierarchy if it is for the space requested
+    if (hierarchy?.root !== space) {
+        return {
+            loading: true,
+            loadMore,
+        };
+    }
+
     return {
-        loading: hierarchy?.loading ?? true,
+        loading: hierarchy.loading,
         rooms,
-        hierarchy: hierarchy?.root === space ? hierarchy : undefined,
+        hierarchy,
         loadMore,
         error,
     };
@@ -683,7 +691,7 @@ const SpaceHierarchy = ({
     const { loading, rooms, hierarchy, loadMore, error: hierarchyError } = useRoomHierarchy(space);
 
     const filteredRoomSet = useMemo<Set<IHierarchyRoom>>(() => {
-        if (!rooms?.length) return new Set();
+        if (!rooms?.length || !hierarchy) return new Set();
         const lcQuery = query.toLowerCase().trim();
         if (!lcQuery) return new Set(rooms);
 
@@ -715,7 +723,7 @@ const SpaceHierarchy = ({
 
     const loaderRef = useIntersectionObserver(loadMore);
 
-    if (!loading && hierarchy.noSupport) {
+    if (!loading && hierarchy!.noSupport) {
         return <p>{ _t("Your server does not support showing space hierarchies.") }</p>;
     }
 
@@ -749,7 +757,7 @@ const SpaceHierarchy = ({
     return <RovingTabIndexProvider onKeyDown={onKeyDown} handleHomeEnd handleUpDown>
         { ({ onKeyDownHandler }) => {
             let content: JSX.Element;
-            if (loading && !rooms?.length) {
+            if (!hierarchy || (loading && !rooms?.length)) {
                 content = <Spinner />;
             } else {
                 const hasPermissions = space?.getMyMembership() === "join" &&

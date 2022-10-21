@@ -47,7 +47,6 @@ export class LabsSettingToggle extends React.Component<ILabsSettingToggleProps> 
 }
 
 interface IState {
-    showHiddenReadReceipts: boolean;
     showJumpToDate: boolean;
     showExploringPublicSpaces: boolean;
 }
@@ -58,10 +57,6 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
         const cli = MatrixClientPeg.get();
 
-        cli.doesServerSupportUnstableFeature("org.matrix.msc2285").then((showHiddenReadReceipts) => {
-            this.setState({ showHiddenReadReceipts });
-        });
-
         cli.doesServerSupportUnstableFeature("org.matrix.msc3030").then((showJumpToDate) => {
             this.setState({ showJumpToDate });
         });
@@ -71,7 +66,6 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
         });
 
         this.state = {
-            showHiddenReadReceipts: false,
             showJumpToDate: false,
             showExploringPublicSpaces: false,
         };
@@ -86,7 +80,10 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
         let betaSection;
         if (betas.length) {
-            betaSection = <div className="mx_SettingsTab_section">
+            betaSection = <div
+                data-testid="labs-beta-section"
+                className="mx_SettingsTab_section"
+            >
                 { betas.map(f => <BetaCard key={f} featureId={f} />) }
             </div>;
         }
@@ -121,16 +118,6 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
                 />,
             );
 
-            if (this.state.showHiddenReadReceipts) {
-                groups.getOrCreate(LabGroup.Messaging, []).push(
-                    <SettingsFlag
-                        key="feature_hidden_read_receipts"
-                        name="feature_hidden_read_receipts"
-                        level={SettingLevel.DEVICE}
-                    />,
-                );
-            }
-
             if (this.state.showJumpToDate) {
                 groups.getOrCreate(LabGroup.Messaging, []).push(
                     <SettingsFlag
@@ -153,7 +140,11 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
             labsSections = <>
                 { sortBy(Array.from(groups.entries()), "0").map(([group, flags]) => (
-                    <div className="mx_SettingsTab_section" key={group}>
+                    <div
+                        className="mx_SettingsTab_section"
+                        key={group}
+                        data-testid={`labs-group-${group}`}
+                    >
                         <span className="mx_SettingsTab_subheading">{ _t(labGroupNames[group]) }</span>
                         { flags }
                     </div>
