@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React, { ComponentProps } from "react";
+// eslint-disable-next-line deprecate/import
 import { mount, ReactWrapper } from "enzyme";
 import { mocked } from "jest-mock";
 import { act } from "react-dom/test-utils";
@@ -57,7 +58,7 @@ describe("<PinnedMessagesCard />", () => {
         const pins = () => [...localPins, ...nonLocalPins];
 
         // Insert pin IDs into room state
-        mocked(room.currentState).getStateEvents.mockImplementation(() => mkEvent({
+        mocked(room.currentState).getStateEvents.mockImplementation((): any => mkEvent({
             event: true,
             type: EventType.RoomPinnedEvents,
             content: {

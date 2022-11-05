@@ -15,10 +15,10 @@ limitations under the License.
 */
 
 import React from "react";
-import { mount } from "enzyme";
+// eslint-disable-next-line deprecate/import
+import { mount, ReactWrapper } from "enzyme";
 import { act } from "react-dom/test-utils";
 import { MatrixEvent, EventType } from "matrix-js-sdk/src/matrix";
-import { ReactWrapper } from "enzyme";
 import { LocationAssetType, M_ASSET, M_LOCATION, M_TIMESTAMP } from "matrix-js-sdk/src/@types/location";
 import { TEXT_NODE_TYPE } from "matrix-js-sdk/src/@types/extensible_events";
 
@@ -133,7 +133,7 @@ describe("ForwardDialog", () => {
         // Make sendEvent require manual resolution so we can see the sending state
         let finishSend;
         let cancelSend;
-        mockClient.sendEvent.mockImplementation(() => new Promise((resolve, reject) => {
+        mockClient.sendEvent.mockImplementation(<T extends {}>() => new Promise<T>((resolve, reject) => {
             finishSend = resolve;
             cancelSend = reject;
         }));
