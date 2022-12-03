@@ -109,11 +109,11 @@ const RoomLiveShareWarningInner: React.FC<RoomLiveShareWarningInnerProps> = ({ l
             element='button'
             disabled={stoppingInProgress}
         >
-            { hasError ? _t('Retry') : _t('Stop sharing') }
+            { hasError ? _t('Retry') : _t('Stop') }
         </AccessibleButton>
         { hasLocationPublishError && <AccessibleButton
             data-test-id='room-live-share-wire-error-close-button'
-            title={_t('Stop sharing and close')}
+            title={_t('Stop and close')}
             element='button'
             className='mx_RoomLiveShareWarning_closeButton'
             onClick={stopPropagationWrapper(onStopSharing)}
@@ -141,6 +141,7 @@ const RoomLiveShareWarning: React.FC<Props> = ({ roomId }) => {
     );
 
     if (!isMonitoringLiveLocation || !liveBeaconIds.length) {
+        // This logic is entangled with the RoomCallBanner-test's. The tests need updating if this logic changes.
         return null;
     }
 

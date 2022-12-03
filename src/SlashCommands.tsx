@@ -39,7 +39,7 @@ import WidgetUtils from "./utils/WidgetUtils";
 import { textToHtmlRainbow } from "./utils/colour";
 import { AddressType, getAddressType } from './UserAddress';
 import { abbreviateUrl } from './utils/UrlUtils';
-import { getDefaultIdentityServerUrl, useDefaultIdentityServer } from './utils/IdentityServerUtils';
+import { getDefaultIdentityServerUrl, setToDefaultIdentityServer } from './utils/IdentityServerUtils';
 import { isPermalinkHost, parsePermalink } from "./utils/permalinks/Permalinks";
 import { WidgetType } from "./widgets/WidgetType";
 import { Jitsi } from "./widgets/Jitsi";
@@ -52,7 +52,7 @@ import SdkConfig from "./SdkConfig";
 import SettingsStore from "./settings/SettingsStore";
 import { UIComponent, UIFeature } from "./settings/UIFeature";
 import { CHAT_EFFECTS } from "./effects";
-import CallHandler from "./CallHandler";
+import LegacyCallHandler from "./LegacyCallHandler";
 import { guessAndSetDMRoom } from "./Rooms";
 import { upgradeRoom } from './utils/RoomUpgrade';
 import UploadConfirmDialog from './components/views/dialogs/UploadConfirmDialog';
@@ -62,20 +62,21 @@ import InfoDialog from "./components/views/dialogs/InfoDialog";
 import SlashCommandHelpDialog from "./components/views/dialogs/SlashCommandHelpDialog";
 import { shouldShowComponent } from "./customisations/helpers/UIComponents";
 import { TimelineRenderingType } from './contexts/RoomContext';
-import { RoomViewStore } from "./stores/RoomViewStore";
 import { XOR } from "./@types/common";
 import { PosthogAnalytics } from "./PosthogAnalytics";
 import { ViewRoomPayload } from "./dispatcher/payloads/ViewRoomPayload";
 import VoipUserMapper from './VoipUserMapper';
 import { htmlSerializeFromMdIfNeeded } from './editor/serialize';
 import { leaveRoomBehaviour } from "./utils/leave-behaviour";
+import { isLocalRoom } from './utils/localRoom/isLocalRoom';
+import { SdkContextClass } from './contexts/SDKContext';
 
 // XXX: workaround for https://github.com/microsoft/TypeScript/issues/31816
 interface HTMLInputEvent extends Event {
     target: HTMLInputElement & EventTarget;
 }
 
-const singleMxcUpload = async (): Promise<any> => {
+const singleMxcUpload = async (): Promise<string | null> => {
     return new Promise((resolve) => {
         const fileSelector = document.createElement('input');
         fileSelector.setAttribute('type', 'file');
@@ -84,8 +85,13 @@ const singleMxcUpload = async (): Promise<any> => {
 
             Modal.createDialog(UploadConfirmDialog, {
                 file,
-                onFinished: (shouldContinue) => {
-                    resolve(shouldContinue ? MatrixClientPeg.get().uploadContent(file) : null);
+                onFinished: async (shouldContinue) => {
+                    if (shouldContinue) {
+                        const { content_uri: uri } = await MatrixClientPeg.get().uploadContent(file);
+                        resolve(uri);
+                    } else {
+                        resolve(null);
+                    }
                 },
             });
         };
@@ -105,7 +111,7 @@ export const CommandCategories = {
 
 export type RunResult = XOR<{ error: Error | ITranslatableError }, { promise: Promise<IContent | undefined> }>;
 
-type RunFn = ((roomId: string, args: string, cmd: string) => RunResult);
+type RunFn = ((this: Command, roomId: string, args: string) => RunResult);
 
 interface ICommandOpts {
     command: string;
@@ -123,9 +129,9 @@ interface ICommandOpts {
 export class Command {
     public readonly command: string;
     public readonly aliases: string[];
-    public readonly args: undefined | string;
+    public readonly args?: string;
     public readonly description: string;
-    public readonly runFn: undefined | RunFn;
+    public readonly runFn?: RunFn;
     public readonly category: string;
     public readonly hideCompletionAfterSpace: boolean;
     public readonly renderingTypes?: TimelineRenderingType[];
@@ -137,7 +143,7 @@ export class Command {
         this.aliases = opts.aliases || [];
         this.args = opts.args || "";
         this.description = opts.description;
-        this.runFn = opts.runFn;
+        this.runFn = opts.runFn?.bind(this);
         this.category = opts.category || CommandCategories.other;
         this.hideCompletionAfterSpace = opts.hideCompletionAfterSpace || false;
         this._isEnabled = opts.isEnabled;
@@ -182,7 +188,7 @@ export class Command {
             });
         }
 
-        return this.runFn.bind(this)(roomId, args);
+        return this.runFn(roomId, args);
     }
 
     public getUsage() {
@@ -205,6 +211,12 @@ function success(promise?: Promise<any>) {
 function successSync(value: any) {
     return success(Promise.resolve(value));
 }
+
+const isCurrentLocalRoom = (): boolean => {
+    const cli = MatrixClientPeg.get();
+    const room = cli.getRoom(SdkContextClass.instance.roomViewStore.getRoomId());
+    return isLocalRoom(room);
+};
 
 /* Disable the "unexpected this" error for these commands - all of the run
  * functions are called with `this` bound to the Command instance.
@@ -297,6 +309,7 @@ export const Commands = [
         command: 'upgraderoom',
         args: '<new_version>',
         description: _td('Upgrades a room to a new version'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             if (args) {
                 const cli = MatrixClientPeg.get();
@@ -380,6 +393,7 @@ export const Commands = [
         aliases: ['roomnick'],
         args: '<display_name>',
         description: _td('Changes your display nickname in the current room only'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             if (args) {
                 const cli = MatrixClientPeg.get();
@@ -399,6 +413,7 @@ export const Commands = [
         command: 'roomavatar',
         args: '[<mxc_url>]',
         description: _td('Changes the avatar of the current room'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             let promise = Promise.resolve(args);
             if (!args) {
@@ -417,6 +432,7 @@ export const Commands = [
         command: 'myroomavatar',
         args: '[<mxc_url>]',
         description: _td('Changes your avatar in this current room only'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             const cli = MatrixClientPeg.get();
             const room = cli.getRoom(roomId);
@@ -462,6 +478,7 @@ export const Commands = [
         command: 'topic',
         args: '[<topic>]',
         description: _td('Gets or sets the room topic'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             const cli = MatrixClientPeg.get();
             if (args) {
@@ -498,6 +515,7 @@ export const Commands = [
         command: 'roomname',
         args: '<name>',
         description: _td('Sets the room name'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             if (args) {
                 return success(MatrixClientPeg.get().setRoomName(roomId, args));
@@ -512,7 +530,7 @@ export const Commands = [
         args: '<user-id> [<reason>]',
         description: _td('Invites user with given id to current room'),
         analyticsName: "Invite",
-        isEnabled: () => shouldShowComponent(UIComponent.InviteUsers),
+        isEnabled: () => !isCurrentLocalRoom() && shouldShowComponent(UIComponent.InviteUsers),
         runFn: function(roomId, args) {
             if (args) {
                 const [address, reason] = args.split(/\s+(.+)/);
@@ -544,7 +562,7 @@ export const Commands = [
 
                             prom = finished.then(([useDefault]) => {
                                 if (useDefault) {
-                                    useDefaultIdentityServer();
+                                    setToDefaultIdentityServer();
                                     return;
                                 }
                                 throw newTranslatableError(
@@ -694,10 +712,11 @@ export const Commands = [
         args: '[<room-address>]',
         description: _td('Leave room'),
         analyticsName: "Part",
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             const cli = MatrixClientPeg.get();
 
-            let targetRoomId;
+            let targetRoomId: string | undefined;
             if (args) {
                 const matches = args.match(/^(\S+)$/);
                 if (matches) {
@@ -710,20 +729,9 @@ export const Commands = [
 
                     // Try to find a room with this alias
                     const rooms = cli.getRooms();
-                    for (let i = 0; i < rooms.length; i++) {
-                        const aliasEvents = rooms[i].currentState.getStateEvents('m.room.aliases');
-                        for (let j = 0; j < aliasEvents.length; j++) {
-                            const aliases = aliasEvents[j].getContent().aliases || [];
-                            for (let k = 0; k < aliases.length; k++) {
-                                if (aliases[k] === roomAlias) {
-                                    targetRoomId = rooms[i].roomId;
-                                    break;
-                                }
-                            }
-                            if (targetRoomId) break;
-                        }
-                        if (targetRoomId) break;
-                    }
+                    targetRoomId = rooms.find(room => {
+                        return room.getCanonicalAlias() === roomAlias || room.getAltAliases().includes(roomAlias);
+                    })?.roomId;
                     if (!targetRoomId) {
                         return reject(
                             newTranslatableError(
@@ -746,6 +754,7 @@ export const Commands = [
         aliases: ["kick"],
         args: '<user-id> [reason]',
         description: _td('Removes user with given id from this room'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             if (args) {
                 const matches = args.match(/^(\S+?)( +(.*))?$/);
@@ -762,6 +771,7 @@ export const Commands = [
         command: 'ban',
         args: '<user-id> [reason]',
         description: _td('Bans user with given id'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             if (args) {
                 const matches = args.match(/^(\S+?)( +(.*))?$/);
@@ -778,6 +788,7 @@ export const Commands = [
         command: 'unban',
         args: '<user-id>',
         description: _td('Unbans user with given ID'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             if (args) {
                 const matches = args.match(/^(\S+)$/);
@@ -856,8 +867,9 @@ export const Commands = [
         description: _td('Define the power level of a user'),
         isEnabled(): boolean {
             const cli = MatrixClientPeg.get();
-            const room = cli.getRoom(RoomViewStore.instance.getRoomId());
-            return room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId());
+            const room = cli.getRoom(SdkContextClass.instance.roomViewStore.getRoomId());
+            return room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId())
+                && !isLocalRoom(room);
         },
         runFn: function(roomId, args) {
             if (args) {
@@ -896,8 +908,9 @@ export const Commands = [
         description: _td('Deops user with given id'),
         isEnabled(): boolean {
             const cli = MatrixClientPeg.get();
-            const room = cli.getRoom(RoomViewStore.instance.getRoomId());
-            return room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId());
+            const room = cli.getRoom(SdkContextClass.instance.roomViewStore.getRoomId());
+            return room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId())
+                && !isLocalRoom(room);
         },
         runFn: function(roomId, args) {
             if (args) {
@@ -936,7 +949,9 @@ export const Commands = [
         command: 'addwidget',
         args: '<url | embed code | Jitsi url>',
         description: _td('Adds a custom widget by URL to the room'),
-        isEnabled: () => SettingsStore.getValue(UIFeature.Widgets) && shouldShowComponent(UIComponent.AddIntegrations),
+        isEnabled: () => SettingsStore.getValue(UIFeature.Widgets)
+            && shouldShowComponent(UIComponent.AddIntegrations)
+            && !isCurrentLocalRoom(),
         runFn: function(roomId, widgetUrl) {
             if (!widgetUrl) {
                 return reject(newTranslatableError("Please supply a widget URL or embed code"));
@@ -1059,6 +1074,7 @@ export const Commands = [
     new Command({
         command: 'discardsession',
         description: _td('Forces the current outbound group session in an encrypted room to be discarded'),
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId) {
             try {
                 MatrixClientPeg.get().forceDiscardSession(roomId);
@@ -1071,11 +1087,34 @@ export const Commands = [
         renderingTypes: [TimelineRenderingType.Room],
     }),
     new Command({
+        command: 'remakeolm',
+        description: _td('Developer command: Discards the current outbound group session and sets up new Olm sessions'),
+        isEnabled: () => {
+            return SettingsStore.getValue("developerMode") && !isCurrentLocalRoom();
+        },
+        runFn: (roomId) => {
+            try {
+                const room = MatrixClientPeg.get().getRoom(roomId);
+
+                MatrixClientPeg.get().forceDiscardSession(roomId);
+
+                return success(room.getEncryptionTargetMembers().then(members => {
+                    // noinspection JSIgnoredPromiseFromCall
+                    MatrixClientPeg.get().crypto.ensureOlmSessionsForUsers(members.map(m => m.userId), true);
+                }));
+            } catch (e) {
+                return reject(e.message);
+            }
+        },
+        category: CommandCategories.advanced,
+        renderingTypes: [TimelineRenderingType.Room],
+    }),
+    new Command({
         command: "rainbow",
         description: _td("Sends the given message coloured as a rainbow"),
         args: '<message>',
         runFn: function(roomId, args) {
-            if (!args) return reject(this.getUserId());
+            if (!args) return reject(this.getUsage());
             return successSync(ContentHelpers.makeHtmlMessage(args, textToHtmlRainbow(args)));
         },
         category: CommandCategories.messages,
@@ -1085,7 +1124,7 @@ export const Commands = [
         description: _td("Sends the given emote coloured as a rainbow"),
         args: '<message>',
         runFn: function(roomId, args) {
-            if (!args) return reject(this.getUserId());
+            if (!args) return reject(this.getUsage());
             return successSync(ContentHelpers.makeHtmlEmote(args, textToHtmlRainbow(args)));
         },
         category: CommandCategories.messages,
@@ -1103,6 +1142,7 @@ export const Commands = [
         command: "whois",
         description: _td("Displays information about a user"),
         args: "<user-id>",
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, userId) {
             if (!userId || !userId.startsWith("@") || !userId.includes(":")) {
                 return reject(this.getUsage());
@@ -1138,7 +1178,7 @@ export const Commands = [
         description: _td("Switches to this room's virtual room, if it has one"),
         category: CommandCategories.advanced,
         isEnabled(): boolean {
-            return CallHandler.instance.getSupportsVirtualRooms();
+            return LegacyCallHandler.instance.getSupportsVirtualRooms() && !isCurrentLocalRoom();
         },
         runFn: (roomId) => {
             return success((async () => {
@@ -1167,7 +1207,7 @@ export const Commands = [
 
             return success((async () => {
                 if (isPhoneNumber) {
-                    const results = await CallHandler.instance.pstnLookup(this.state.value);
+                    const results = await LegacyCallHandler.instance.pstnLookup(userId);
                     if (!results || results.length === 0 || !results[0].userid) {
                         throw newTranslatableError("Unable to find Matrix ID for phone number");
                     }
@@ -1222,8 +1262,9 @@ export const Commands = [
         command: "holdcall",
         description: _td("Places the call in the current room on hold"),
         category: CommandCategories.other,
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
-            const call = CallHandler.instance.getCallForRoom(roomId);
+            const call = LegacyCallHandler.instance.getCallForRoom(roomId);
             if (!call) {
                 return reject(newTranslatableError("No active call in this room"));
             }
@@ -1236,8 +1277,9 @@ export const Commands = [
         command: "unholdcall",
         description: _td("Takes the call in the current room off hold"),
         category: CommandCategories.other,
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
-            const call = CallHandler.instance.getCallForRoom(roomId);
+            const call = LegacyCallHandler.instance.getCallForRoom(roomId);
             if (!call) {
                 return reject(newTranslatableError("No active call in this room"));
             }
@@ -1250,6 +1292,7 @@ export const Commands = [
         command: "converttodm",
         description: _td("Converts the room to a DM"),
         category: CommandCategories.other,
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             const room = MatrixClientPeg.get().getRoom(roomId);
             return success(guessAndSetDMRoom(room, true));
@@ -1260,6 +1303,7 @@ export const Commands = [
         command: "converttoroom",
         description: _td("Converts the DM to a room"),
         category: CommandCategories.other,
+        isEnabled: () => !isCurrentLocalRoom(),
         runFn: function(roomId, args) {
             const room = MatrixClientPeg.get().getRoom(roomId);
             return success(guessAndSetDMRoom(room, false));
@@ -1283,19 +1327,17 @@ export const Commands = [
             description: effect.description(),
             args: '<message>',
             runFn: function(roomId, args) {
-                return success((async () => {
-                    if (!args) {
-                        args = effect.fallbackMessage();
-                        MatrixClientPeg.get().sendEmoteMessage(roomId, args);
-                    } else {
-                        const content = {
-                            msgtype: effect.msgType,
-                            body: args,
-                        };
-                        MatrixClientPeg.get().sendMessage(roomId, content);
-                    }
-                    dis.dispatch({ action: `effects.${effect.command}` });
-                })());
+                let content: IContent;
+                if (!args) {
+                    content = ContentHelpers.makeEmoteMessage(effect.fallbackMessage());
+                } else {
+                    content = {
+                        msgtype: effect.msgType,
+                        body: args,
+                    };
+                }
+                dis.dispatch({ action: `effects.${effect.command}` });
+                return successSync(content);
             },
             category: CommandCategories.effects,
             renderingTypes: [TimelineRenderingType.Room],

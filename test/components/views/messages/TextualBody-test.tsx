@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from "react";
+// eslint-disable-next-line deprecate/import
 import { mount } from "enzyme";
 import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { MockedObject } from "jest-mock";
@@ -334,7 +335,7 @@ describe("<TextualBody />", () => {
                 '?via=example.com&amp;via=bob.com"' +
                 '><img class="mx_BaseAvatar mx_BaseAvatar_image" ' +
                 'src="mxc://avatar.url/room.png" ' +
-                'style="width: 16px; height: 16px;" alt="" aria-hidden="true">' +
+                'style="width: 16px; height: 16px;" alt="" data-testid="avatar-img" aria-hidden="true">' +
                 '<span class="mx_Pill_linkText">room name</span></a></bdi></span> with vias</span>',
             );
         });

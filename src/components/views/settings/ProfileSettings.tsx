@@ -30,6 +30,7 @@ import AvatarSetting from './AvatarSetting';
 import ExternalLink from '../elements/ExternalLink';
 import UserIdentifierCustomisations from '../../../customisations/UserIdentifier';
 import { chromeFileInputFix } from "../../../utils/BrowserWorkarounds";
+import PosthogTrackers from '../../../PosthogTrackers';
 
 interface IState {
     userId?: string;
@@ -110,7 +111,7 @@ export default class ProfileSettings extends React.Component<{}, IState> {
                 logger.log(
                     `Uploading new avatar, ${this.state.avatarFile.name} of type ${this.state.avatarFile.type},` +
                     ` (${this.state.avatarFile.size}) bytes`);
-                const uri = await client.uploadContent(this.state.avatarFile);
+                const { content_uri: uri } = await client.uploadContent(this.state.avatarFile);
                 await client.setAvatarUrl(uri);
                 newState.avatarUrl = mediaFromMxc(uri).getSquareThumbnailHttp(96);
                 newState.originalAvatarUrl = newState.avatarUrl;
@@ -189,7 +190,10 @@ export default class ProfileSettings extends React.Component<{}, IState> {
                     type="file"
                     ref={this.avatarUpload}
                     className="mx_ProfileSettings_avatarUpload"
-                    onClick={chromeFileInputFix}
+                    onClick={(ev) => {
+                        chromeFileInputFix(ev);
+                        PosthogTrackers.trackInteraction("WebProfileSettingsAvatarUploadButton", ev);
+                    }}
                     onChange={this.onAvatarChanged}
                     accept="image/*"
                 />

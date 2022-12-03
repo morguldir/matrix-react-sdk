@@ -19,7 +19,7 @@ import classNames from 'classnames';
 
 import { _t } from '../../../languageHandler';
 import SdkConfig from '../../../SdkConfig';
-import { ValidatedServerConfig } from "../../../utils/AutoDiscoveryUtils";
+import { ValidatedServerConfig } from '../../../utils/ValidatedServerConfig';
 import AccessibleButton from "../elements/AccessibleButton";
 import withValidation, { IValidationResult } from "../elements/Validation";
 import Field from "../elements/Field";
@@ -191,14 +191,8 @@ export default class PasswordLogin extends React.PureComponent<IProps, IState> {
         return false;
     }
 
-    private allFieldsValid() {
-        const keys = Object.keys(this.state.fieldValid);
-        for (let i = 0; i < keys.length; ++i) {
-            if (!this.state.fieldValid[keys[i]]) {
-                return false;
-            }
-        }
-        return true;
+    private allFieldsValid(): boolean {
+        return Object.values(this.state.fieldValid).every(Boolean);
     }
 
     private findFirstInvalidField(fieldIDs: LoginField[]) {
@@ -422,7 +416,7 @@ export default class PasswordLogin extends React.PureComponent<IProps, IState> {
                     <Field
                         id="mx_LoginForm_password"
                         className={pwFieldClass}
-                        autoComplete="password"
+                        autoComplete="current-password"
                         type="password"
                         name="password"
                         label={_t('Password')}

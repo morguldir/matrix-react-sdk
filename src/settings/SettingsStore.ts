@@ -35,6 +35,9 @@ import SettingsHandler from "./handlers/SettingsHandler";
 import { SettingUpdatedPayload } from "../dispatcher/payloads/SettingUpdatedPayload";
 import { Action } from "../dispatcher/actions";
 import PlatformSettingsHandler from "./handlers/PlatformSettingsHandler";
+import dispatcher from "../dispatcher/dispatcher";
+import { ActionPayload } from "../dispatcher/payloads";
+import { MatrixClientPeg } from "../MatrixClientPeg";
 
 const defaultWatchManager = new WatchManager();
 
@@ -98,8 +101,6 @@ interface IHandlerMap {
     // @ts-ignore - TS wants this to be a string key but we know better
     [level: SettingLevel]: SettingsHandler;
 }
-
-export type LabsFeatureState = "labs" | "disable" | "enable" | string;
 
 /**
  * Controls and manages application settings by providing varying levels at which the
@@ -294,6 +295,16 @@ export default class SettingsStore {
         return SETTINGS[settingName].isFeature;
     }
 
+    /**
+     * Determines if a setting should have a warning sign in the microcopy
+     * @param {string} settingName The setting to look up.
+     * @return {boolean} True if the setting should have a warning sign.
+     */
+    public static shouldHaveWarning(settingName: string): boolean {
+        if (!SETTINGS[settingName]) return false;
+        return SETTINGS[settingName].shouldWarn ?? false;
+    }
+
     public static getBetaInfo(settingName: string): ISetting["betaInfo"] {
         // consider a beta disabled if the config is explicitly set to false, in which case treat as normal Labs flag
         if (SettingsStore.isFeature(settingName)
@@ -354,7 +365,7 @@ export default class SettingsStore {
     public static getValueAt(
         level: SettingLevel,
         settingName: string,
-        roomId: string = null,
+        roomId: string | null = null,
         explicit = false,
         excludeDefault = false,
     ): any {
@@ -419,7 +430,7 @@ export default class SettingsStore {
     private static getFinalValue(
         setting: ISetting,
         level: SettingLevel,
-        roomId: string,
+        roomId: string | null,
         calculatedValue: any,
         calculatedAtLevel: SettingLevel,
     ): any {
@@ -448,7 +459,12 @@ export default class SettingsStore {
      */
 
     /* eslint-enable valid-jsdoc */
-    public static async setValue(settingName: string, roomId: string, level: SettingLevel, value: any): Promise<void> {
+    public static async setValue(
+        settingName: string,
+        roomId: string | null,
+        level: SettingLevel,
+        value: any,
+    ): Promise<void> {
         // Verify that the setting is actually a setting
         const setting = SETTINGS[settingName];
         if (!setting) {
@@ -565,6 +581,44 @@ export default class SettingsStore {
             return level;
         }
         return null;
+    }
+
+    /**
+     * Runs or queues any setting migrations needed.
+     */
+    public static runMigrations(): void {
+        // Dev notes: to add your migration, just add a new `migrateMyFeature` function, call it, and
+        // add a comment to note when it can be removed.
+
+        SettingsStore.migrateHiddenReadReceipts(); // Can be removed after October 2022.
+    }
+
+    private static migrateHiddenReadReceipts(): void {
+        if (MatrixClientPeg.get().isGuest()) return; // not worth it
+
+        // We wait for the first sync to ensure that the user's existing account data has loaded, as otherwise
+        // getValue() for an account-level setting like sendReadReceipts will return `null`.
+        const disRef = dispatcher.register((payload: ActionPayload) => {
+            if (payload.action === "MatrixActions.sync") {
+                dispatcher.unregister(disRef);
+
+                const rrVal = SettingsStore.getValue("sendReadReceipts", null, true);
+                if (typeof rrVal !== "boolean") {
+                    // new setting isn't set - see if the labs flag was. We have to manually reach into the
+                    // handler for this because it isn't a setting anymore (`getValue` will yell at us).
+                    const handler = LEVEL_HANDLERS[SettingLevel.DEVICE] as DeviceSettingsHandler;
+                    const labsVal = handler.readFeature("feature_hidden_read_receipts");
+                    if (typeof labsVal === "boolean") {
+                        // Inverse of labs flag because negative->positive language switch in setting name
+                        const newVal = !labsVal;
+                        console.log(`Setting sendReadReceipts to ${newVal} because of previously-set labs flag`);
+
+                        // noinspection JSIgnoredPromiseFromCall
+                        SettingsStore.setValue("sendReadReceipts", null, SettingLevel.ACCOUNT, newVal);
+                    }
+                }
+            }
+        });
     }
 
     /**

@@ -29,7 +29,7 @@ import { FocusComposerPayload } from '../../../dispatcher/payloads/FocusComposer
 
 interface IProps {
     mxEvent: MatrixEvent;
-    reactions?: Relations;
+    reactions?: Relations | null | undefined;
     onFinished(): void;
 }
 
@@ -134,7 +134,6 @@ class ReactionPicker extends React.Component<IProps, IState> {
             isEmojiDisabled={this.isEmojiDisabled}
             selectedEmojis={this.state.selectedEmojis}
             showQuickReactions={true}
-            data-testid='mx_ReactionPicker'
         />;
     }
 }

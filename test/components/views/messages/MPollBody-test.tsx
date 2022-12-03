@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from "react";
+// eslint-disable-next-line deprecate/import
 import { mount, ReactWrapper } from "enzyme";
 import { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk/src/matrix";
 import { Relations } from "matrix-js-sdk/src/models/relations";
@@ -320,12 +321,13 @@ describe("MPollBody", () => {
         const votes = [responseEvent("@me:example.com", "pizza", 100)];
         const body = newMPollBody(votes);
         const props: IBodyProps = body.instance().props as IBodyProps;
-        const voteRelations: Relations = props.getRelationsForEvent(
+        const voteRelations = props!.getRelationsForEvent!(
             "$mypoll", "m.reference", M_POLL_RESPONSE.name);
+        expect(voteRelations).toBeDefined();
         clickRadio(body, "pizza");
 
         // When a new vote from me comes in
-        voteRelations.addEvent(responseEvent("@me:example.com", "wings", 101));
+        voteRelations!.addEvent(responseEvent("@me:example.com", "wings", 101));
 
         // Then the new vote is counted, not the old one
         expect(votesCount(body, "pizza")).toBe("0 votes");
@@ -341,12 +343,13 @@ describe("MPollBody", () => {
         const votes = [responseEvent("@me:example.com", "pizza")];
         const body = newMPollBody(votes);
         const props: IBodyProps = body.instance().props as IBodyProps;
-        const voteRelations: Relations = props.getRelationsForEvent(
+        const voteRelations = props!.getRelationsForEvent!(
             "$mypoll", "m.reference", M_POLL_RESPONSE.name);
+        expect(voteRelations).toBeDefined();
         clickRadio(body, "pizza");
 
         // When a new vote from someone else comes in
-        voteRelations.addEvent(responseEvent("@xx:example.com", "wings", 101));
+        voteRelations!.addEvent(responseEvent("@xx:example.com", "wings", 101));
 
         // Then my vote is still for pizza
         // NOTE: the new event does not affect the counts for other people -

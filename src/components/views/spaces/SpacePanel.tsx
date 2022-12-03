@@ -132,6 +132,7 @@ const MetaSpaceButton = ({ selected, isPanelCollapsed, ...props }: IMetaSpaceBut
             "collapsed": isPanelCollapsed,
         })}
         role="treeitem"
+        aria-selected={selected}
     >
         <SpaceButton {...props} selected={selected} isNarrow={isPanelCollapsed} />
     </li>;
@@ -203,9 +204,7 @@ const CreateSpaceButton = ({
     isPanelCollapsed,
     setPanelCollapsed,
 }: Pick<IInnerSpacePanelProps, "isPanelCollapsed" | "setPanelCollapsed">) => {
-    // We don't need the handle as we position the menu in a constant location
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [menuDisplayed, _handle, openMenu, closeMenu] = useContextMenu<void>();
+    const [menuDisplayed, handle, openMenu, closeMenu] = useContextMenu<HTMLElement>();
 
     useEffect(() => {
         if (!isPanelCollapsed && menuDisplayed) {
@@ -230,13 +229,14 @@ const CreateSpaceButton = ({
         role="treeitem"
     >
         <SpaceButton
-            data-test-id='create-space-button'
+            data-testid='create-space-button'
             className={classNames("mx_SpaceButton_new", {
                 mx_SpaceButton_newCancel: menuDisplayed,
             })}
             label={menuDisplayed ? _t("Cancel") : _t("Create a space")}
             onClick={onNewClick}
             isNarrow={isPanelCollapsed}
+            ref={handle}
         />
 
         { contextMenu }
@@ -282,6 +282,9 @@ const InnerSpacePanel = React.memo<IInnerSpacePanelProps>(({
         style={isDraggingOver ? {
             pointerEvents: "none",
         } : undefined}
+        element="ul"
+        role="tree"
+        aria-label={_t("Spaces")}
     >
         { metaSpacesSection }
         { invites.map(s => (
@@ -321,7 +324,7 @@ const InnerSpacePanel = React.memo<IInnerSpacePanelProps>(({
 
 const SpacePanel = () => {
     const [isPanelCollapsed, setPanelCollapsed] = useState(true);
-    const ref = useRef<HTMLUListElement>();
+    const ref = useRef<HTMLDivElement>();
     useLayoutEffect(() => {
         UIStore.instance.trackElementDimensions("SpacePanel", ref.current);
         return () => UIStore.instance.stopTrackingElementDimensions("SpacePanel");
@@ -340,11 +343,9 @@ const SpacePanel = () => {
         }}>
             <RovingTabIndexProvider handleHomeEnd handleUpDown>
                 { ({ onKeyDownHandler }) => (
-                    <ul
+                    <div
                         className={classNames("mx_SpacePanel", { collapsed: isPanelCollapsed })}
                         onKeyDown={onKeyDownHandler}
-                        role="tree"
-                        aria-label={_t("Spaces")}
                         ref={ref}
                     >
                         <UserMenu isPanelCollapsed={isPanelCollapsed}>
@@ -381,7 +382,7 @@ const SpacePanel = () => {
                         </Droppable>
 
                         <QuickSettingsButton isPanelCollapsed={isPanelCollapsed} />
-                    </ul>
+                    </div>
                 ) }
             </RovingTabIndexProvider>
         </DragDropContext>

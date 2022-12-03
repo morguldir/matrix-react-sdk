@@ -32,7 +32,7 @@ This will run the Cypress tests once, non-interactively.
 You can also run individual tests this way too, as you'd expect:
 
 ```
-yarn run test:cypress --spec cypress/integration/1-register/register.spec.ts
+yarn run test:cypress --spec cypress/e2e/1-register/register.spec.ts
 ```
 
 Cypress also has its own UI that you can use to run and debug the tests.
@@ -44,7 +44,7 @@ yarn run test:cypress:open
 
 ## How the Tests Work
 Everything Cypress-related lives in the `cypress/` subdirectory of react-sdk
-as is typical for Cypress tests. Likewise, tests live in `cypress/integration`.
+as is typical for Cypress tests. Likewise, tests live in `cypress/e2e`.
 
 `cypress/plugins/synapsedocker` contains a Cypress plugin that starts instances
 of Synapse in Docker containers. These synapses are what Element-web runs against
@@ -70,7 +70,9 @@ at the start of each test run.
 ## Writing Tests
 Mostly this is the same advice as for writing any other Cypress test: the Cypress
 docs are well worth a read if you're not already familiar with Cypress testing, eg.
-https://docs.cypress.io/guides/references/best-practices .
+https://docs.cypress.io/guides/references/best-practices. To avoid your tests being
+flaky it is also recommended to give https://docs.cypress.io/guides/core-concepts/retry-ability
+a read.
 
 ### Getting a Synapse
 The key difference is in starting Synapse instances.  Tests use this plugin via

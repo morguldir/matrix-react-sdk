@@ -18,14 +18,14 @@
       "dom",
       "dom.iterable"
     ],
+    "alwaysStrict": true,
+    "strictBindCallApply": true,
+    "noImplicitThis": true
   },
   "include": [
     "./src/**/*.ts",
     "./src/**/*.tsx",
     "./test/**/*.ts",
-    "./test/**/*.tsx",
-  ],
-  "exclude": [
-    "./test/end-to-end-tests/"
+    "./test/**/*.tsx"
   ]
 }

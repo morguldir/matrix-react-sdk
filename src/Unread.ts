@@ -17,12 +17,12 @@ limitations under the License.
 import { Room } from "matrix-js-sdk/src/models/room";
 import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { EventType } from "matrix-js-sdk/src/@types/event";
+import { M_BEACON } from "matrix-js-sdk/src/@types/beacon";
 
 import { MatrixClientPeg } from "./MatrixClientPeg";
 import shouldHideEvent from './shouldHideEvent';
 import { haveRendererForEvent } from "./events/EventTileFactory";
 import SettingsStore from "./settings/SettingsStore";
-import { RoomNotificationStateStore } from "./stores/notifications/RoomNotificationStateStore";
 
 /**
  * Returns true if this event arriving in a room should affect the room's
@@ -41,9 +41,10 @@ export function eventTriggersUnreadCount(ev: MatrixEvent): boolean {
         case EventType.RoomThirdPartyInvite:
         case EventType.CallAnswer:
         case EventType.CallHangup:
-        case EventType.RoomAliases:
         case EventType.RoomCanonicalAlias:
         case EventType.RoomServerAcl:
+        case M_BEACON.name:
+        case M_BEACON.altName:
             return false;
     }
 
@@ -52,6 +53,12 @@ export function eventTriggersUnreadCount(ev: MatrixEvent): boolean {
 }
 
 export function doesRoomHaveUnreadMessages(room: Room): boolean {
+    if (SettingsStore.getValue("feature_sliding_sync")) {
+        // TODO: https://github.com/vector-im/element-web/issues/23207
+        // Sliding Sync doesn't support unread indicator dots (yet...)
+        return false;
+    }
+
     const myUserId = MatrixClientPeg.get().getUserId();
 
     // get the most recent read receipt sent by our account.
@@ -68,11 +75,6 @@ export function doesRoomHaveUnreadMessages(room: Room): boolean {
         //             https://github.com/vector-im/element-web/issues/3363
         if (room.timeline.length && room.timeline[room.timeline.length - 1].getSender() === myUserId) {
             return false;
-        }
-    } else {
-        const threadState = RoomNotificationStateStore.instance.getThreadsRoomState(room);
-        if (threadState.color > 0) {
-            return true;
         }
     }
 

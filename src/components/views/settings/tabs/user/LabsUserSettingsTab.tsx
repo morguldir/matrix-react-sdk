@@ -19,7 +19,6 @@ import { sortBy } from "lodash";
 
 import { _t } from "../../../../../languageHandler";
 import SettingsStore from "../../../../../settings/SettingsStore";
-import LabelledToggleSwitch from "../../../elements/LabelledToggleSwitch";
 import { SettingLevel } from "../../../../../settings/SettingLevel";
 import SdkConfig from "../../../../../SdkConfig";
 import BetaCard from "../../../beta/BetaCard";
@@ -28,26 +27,7 @@ import { MatrixClientPeg } from '../../../../../MatrixClientPeg';
 import { LabGroup, labGroupNames } from "../../../../../settings/Settings";
 import { EnhancedMap } from "../../../../../utils/maps";
 
-interface ILabsSettingToggleProps {
-    featureId: string;
-}
-
-export class LabsSettingToggle extends React.Component<ILabsSettingToggleProps> {
-    private onChange = async (checked: boolean): Promise<void> => {
-        await SettingsStore.setValue(this.props.featureId, null, SettingLevel.DEVICE, checked);
-        this.forceUpdate();
-    };
-
-    public render(): JSX.Element {
-        const label = SettingsStore.getDisplayName(this.props.featureId);
-        const value = SettingsStore.getValue(this.props.featureId);
-        const canChange = SettingsStore.canSetValue(this.props.featureId, null, SettingLevel.DEVICE);
-        return <LabelledToggleSwitch value={value} label={label} onChange={this.onChange} disabled={!canChange} />;
-    }
-}
-
 interface IState {
-    showHiddenReadReceipts: boolean;
     showJumpToDate: boolean;
     showExploringPublicSpaces: boolean;
 }
@@ -58,20 +38,15 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
         const cli = MatrixClientPeg.get();
 
-        cli.doesServerSupportUnstableFeature("org.matrix.msc2285").then((showHiddenReadReceipts) => {
-            this.setState({ showHiddenReadReceipts });
-        });
-
         cli.doesServerSupportUnstableFeature("org.matrix.msc3030").then((showJumpToDate) => {
             this.setState({ showJumpToDate });
         });
 
-        cli.doesServerSupportUnstableFeature("org.matrix.msc3827").then((showExploringPublicSpaces) => {
+        cli.doesServerSupportUnstableFeature("org.matrix.msc3827.stable").then((showExploringPublicSpaces) => {
             this.setState({ showExploringPublicSpaces });
         });
 
         this.state = {
-            showHiddenReadReceipts: false,
             showJumpToDate: false,
             showExploringPublicSpaces: false,
         };
@@ -86,7 +61,10 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
         let betaSection;
         if (betas.length) {
-            betaSection = <div className="mx_SettingsTab_section">
+            betaSection = <div
+                data-testid="labs-beta-section"
+                className="mx_SettingsTab_section"
+            >
                 { betas.map(f => <BetaCard key={f} featureId={f} />) }
             </div>;
         }
@@ -96,7 +74,7 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
             const groups = new EnhancedMap<LabGroup, JSX.Element[]>();
             labs.forEach(f => {
                 groups.getOrCreate(SettingsStore.getLabGroup(f), []).push(
-                    <LabsSettingToggle featureId={f} key={f} />,
+                    <SettingsFlag level={SettingLevel.DEVICE} name={f} key={f} />,
                 );
             });
 
@@ -121,16 +99,6 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
                 />,
             );
 
-            if (this.state.showHiddenReadReceipts) {
-                groups.getOrCreate(LabGroup.Messaging, []).push(
-                    <SettingsFlag
-                        key="feature_hidden_read_receipts"
-                        name="feature_hidden_read_receipts"
-                        level={SettingLevel.DEVICE}
-                    />,
-                );
-            }
-
             if (this.state.showJumpToDate) {
                 groups.getOrCreate(LabGroup.Messaging, []).push(
                     <SettingsFlag
@@ -153,7 +121,11 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
             labsSections = <>
                 { sortBy(Array.from(groups.entries()), "0").map(([group, flags]) => (
-                    <div className="mx_SettingsTab_section" key={group}>
+                    <div
+                        className="mx_SettingsTab_section"
+                        key={group}
+                        data-testid={`labs-group-${group}`}
+                    >
                         <span className="mx_SettingsTab_subheading">{ _t(labGroupNames[group]) }</span>
                         { flags }
                     </div>
@@ -163,24 +135,42 @@ export default class LabsUserSettingsTab extends React.Component<{}, IState> {
 
         return (
             <div className="mx_SettingsTab mx_LabsUserSettingsTab">
-                <div className="mx_SettingsTab_heading">{ _t("Labs") }</div>
+                <div className="mx_SettingsTab_heading">{ _t("Upcoming features") }</div>
                 <div className='mx_SettingsTab_subsectionText'>
                     {
-                        _t('Feeling experimental? Labs are the best way to get things early, ' +
-                            'test out new features and help shape them before they actually launch. ' +
-                            '<a>Learn more</a>.', {}, {
-                            'a': (sub) => {
-                                return <a
-                                    href="https://github.com/vector-im/element-web/blob/develop/docs/labs.md"
-                                    rel='noreferrer noopener'
-                                    target='_blank'
-                                >{ sub }</a>;
-                            },
-                        })
+                        _t(
+                            "What's next for %(brand)s? "
+                            + "Labs are the best way to get things early, "
+                            + "test out new features and help shape them before they actually launch.",
+                            { brand: SdkConfig.get("brand") },
+                        )
                     }
                 </div>
                 { betaSection }
-                { labsSections }
+                { labsSections && <>
+                    <div className="mx_SettingsTab_heading">{ _t("Early previews") }</div>
+                    <div className='mx_SettingsTab_subsectionText'>
+                        {
+                            _t(
+                                "Feeling experimental? "
+                                + "Try out our latest ideas in development. "
+                                + "These features are not finalised; "
+                                + "they may be unstable, may change, or may be dropped altogether. "
+                                + "<a>Learn more</a>.",
+                                {},
+                                {
+                                    'a': (sub) => {
+                                        return <a
+                                            href="https://github.com/vector-im/element-web/blob/develop/docs/labs.md"
+                                            rel='noreferrer noopener'
+                                            target='_blank'
+                                        >{ sub }</a>;
+                                    },
+                                })
+                        }
+                    </div>
+                    { labsSections }
+                </> }
             </div>
         );
     }

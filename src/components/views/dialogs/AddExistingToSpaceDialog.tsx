@@ -130,7 +130,7 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
     const cli = useContext(MatrixClientContext);
     const visibleRooms = useMemo(() => cli.getVisibleRooms().filter(r => r.getMyMembership() === "join"), [cli]);
 
-    const scrollRef = useRef<AutoHideScrollbar>();
+    const scrollRef = useRef<AutoHideScrollbar<"div">>();
     const [scrollState, setScrollState] = useState<IScrollState>({
         // these are estimates which update as soon as it mounts
         scrollTop: 0,
@@ -181,7 +181,7 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
         setError(null);
         setProgress(0);
 
-        let error;
+        let error: Error | undefined;
 
         for (const room of selectedToAdd) {
             const via = calculateRoomVia(room);
@@ -197,13 +197,15 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
                 setProgress(i => i + 1);
             } catch (e) {
                 logger.error("Failed to add rooms to space", e);
-                setError(error = e);
+                error = e;
                 break;
             }
         }
 
         if (!error) {
             onFinished(true);
+        } else {
+            setError(error);
         }
     };
 

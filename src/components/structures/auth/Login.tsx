@@ -15,15 +15,16 @@ limitations under the License.
 */
 
 import React, { ReactNode } from 'react';
-import { MatrixError } from "matrix-js-sdk/src/http-api";
+import { ConnectionError, MatrixError } from "matrix-js-sdk/src/http-api";
 import classNames from "classnames";
 import { logger } from "matrix-js-sdk/src/logger";
+import { ISSOFlow, LoginFlow } from "matrix-js-sdk/src/@types/auth";
 
 import { _t, _td } from '../../../languageHandler';
-import Login, { ISSOFlow, LoginFlow } from '../../../Login';
+import Login from '../../../Login';
 import SdkConfig from '../../../SdkConfig';
 import { messageForResourceLimitError } from '../../../utils/ErrorUtils';
-import AutoDiscoveryUtils, { ValidatedServerConfig } from "../../../utils/AutoDiscoveryUtils";
+import AutoDiscoveryUtils from "../../../utils/AutoDiscoveryUtils";
 import AuthPage from "../../views/auth/AuthPage";
 import PlatformPeg from '../../../PlatformPeg';
 import SettingsStore from "../../../settings/SettingsStore";
@@ -37,6 +38,7 @@ import ServerPicker from "../../views/elements/ServerPicker";
 import AuthBody from "../../views/auth/AuthBody";
 import AuthHeader from "../../views/auth/AuthHeader";
 import AccessibleButton from '../../views/elements/AccessibleButton';
+import { ValidatedServerConfig } from '../../../utils/ValidatedServerConfig';
 
 // These are used in several places, and come from the js-sdk's autodiscovery
 // stuff. We define them here so that they'll be picked up by i18n.
@@ -142,9 +144,7 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
         };
     }
 
-    // TODO: [REACT-WARNING] Replace with appropriate lifecycle event
-    // eslint-disable-next-line
-    UNSAFE_componentWillMount() {
+    public componentDidMount() {
         this.initLoginLogic(this.props.serverConfig);
     }
 
@@ -152,14 +152,13 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
         this.unmounted = true;
     }
 
-    // TODO: [REACT-WARNING] Replace with appropriate lifecycle event
-    // eslint-disable-next-line
-    UNSAFE_componentWillReceiveProps(newProps) {
-        if (newProps.serverConfig.hsUrl === this.props.serverConfig.hsUrl &&
-            newProps.serverConfig.isUrl === this.props.serverConfig.isUrl) return;
-
-        // Ensure that we end up actually logging in to the right place
-        this.initLoginLogic(newProps.serverConfig);
+    public componentDidUpdate(prevProps) {
+        if (prevProps.serverConfig.hsUrl !== this.props.serverConfig.hsUrl ||
+            prevProps.serverConfig.isUrl !== this.props.serverConfig.isUrl
+        ) {
+            // Ensure that we end up actually logging in to the right place
+            this.initLoginLogic(this.props.serverConfig);
+        }
     }
 
     isBusy = () => this.state.busy || this.props.busy;
@@ -367,7 +366,8 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
         let isDefaultServer = false;
         if (this.props.serverConfig.isDefault
             && hsUrl === this.props.serverConfig.hsUrl
-            && isUrl === this.props.serverConfig.isUrl) {
+            && isUrl === this.props.serverConfig.isUrl
+        ) {
             isDefaultServer = true;
         }
 
@@ -452,7 +452,7 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
         let errorText: ReactNode = _t("There was a problem communicating with the homeserver, " +
             "please try again later.") + (errCode ? " (" + errCode + ")" : "");
 
-        if (err["cors"] === 'rejected') { // browser-request specific error field
+        if (err instanceof ConnectionError) {
             if (window.location.protocol === 'https:' &&
                 (this.props.serverConfig.hsUrl.startsWith("http:") ||
                  !this.props.serverConfig.hsUrl.startsWith("http"))
@@ -599,10 +599,10 @@ export default class LoginComponent extends React.PureComponent<IProps, IState> 
             <AuthPage>
                 <AuthHeader disableLanguageSelector={this.props.isSyncing || this.state.busyLoggingIn} />
                 <AuthBody>
-                    <h2>
+                    <h1>
                         { _t('Sign in') }
                         { loader }
-                    </h2>
+                    </h1>
                     { errorTextSection }
                     { serverDeadSection }
                     <ServerPicker

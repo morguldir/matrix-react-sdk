@@ -31,7 +31,6 @@ import Autocomplete, { generateCompletionDomId } from '../rooms/Autocomplete';
 import { getAutoCompleteCreator, Part, Type } from '../../../editor/parts';
 import { parseEvent, parsePlainTextMessage } from '../../../editor/deserialize';
 import { renderModel } from '../../../editor/render';
-import TypingStore from "../../../stores/TypingStore";
 import SettingsStore from "../../../settings/SettingsStore";
 import { IS_MAC, Key } from "../../../Keyboard";
 import { EMOTICON_TO_EMOJI } from "../../../emoji";
@@ -47,6 +46,7 @@ import { getKeyBindingsManager } from '../../../KeyBindingsManager';
 import { ALTERNATE_KEY_NAME, KeyBindingAction } from '../../../accessibility/KeyboardShortcuts';
 import { _t } from "../../../languageHandler";
 import { linkify } from '../../../linkify-matrix';
+import { SdkContextClass } from '../../../contexts/SDKContext';
 
 // matches emoticons which follow the start of a line or whitespace
 const REGEX_EMOTICON_WHITESPACE = new RegExp('(?:^|\\s)(' + EMOTICON_REGEX.source + ')\\s|:^$');
@@ -246,7 +246,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                 isTyping = false;
             }
         }
-        TypingStore.sharedInstance().setSelfTyping(
+        SdkContextClass.instance.typingStore.setSelfTyping(
             this.props.room.roomId,
             this.props.threadId,
             isTyping,
@@ -754,13 +754,13 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
             [Formatting.Bold]: ctrlShortcutLabel("B"),
             [Formatting.Italics]: ctrlShortcutLabel("I"),
             [Formatting.Code]: ctrlShortcutLabel("E"),
-            [Formatting.Quote]: ctrlShortcutLabel(">"),
+            [Formatting.Quote]: ctrlShortcutLabel(">", true),
             [Formatting.InsertLink]: ctrlShortcutLabel("L", true),
         };
 
         const { completionIndex } = this.state;
         const hasAutocomplete = Boolean(this.state.autoComplete);
-        let activeDescendant;
+        let activeDescendant: string;
         if (hasAutocomplete && completionIndex >= 0) {
             activeDescendant = generateCompletionDomId(completionIndex);
         }
@@ -784,11 +784,12 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                 aria-multiline="true"
                 aria-autocomplete="list"
                 aria-haspopup="listbox"
-                aria-expanded={hasAutocomplete}
-                aria-owns="mx_Autocomplete"
+                aria-expanded={hasAutocomplete ? true : undefined}
+                aria-owns={hasAutocomplete ? "mx_Autocomplete" : undefined}
                 aria-activedescendant={activeDescendant}
                 dir="auto"
                 aria-disabled={this.props.disabled}
+                data-testid="basicmessagecomposer"
             />
         </div>);
     }

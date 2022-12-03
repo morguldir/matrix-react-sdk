@@ -16,9 +16,8 @@ limitations under the License.
 
 /// <reference types="cypress" />
 
-import type { FileType, UploadContentResponseType } from "matrix-js-sdk/src/http-api";
-import type { IAbortablePromise } from "matrix-js-sdk/src/@types/partials";
-import type { ICreateRoomOpts, ISendEventResponse, IUploadOpts } from "matrix-js-sdk/src/@types/requests";
+import type { FileType, Upload, UploadOpts } from "matrix-js-sdk/src/http-api";
+import type { ICreateRoomOpts, ISendEventResponse } from "matrix-js-sdk/src/@types/requests";
 import type { MatrixClient } from "matrix-js-sdk/src/client";
 import type { Room } from "matrix-js-sdk/src/models/room";
 import type { IContent } from "matrix-js-sdk/src/models/event";
@@ -90,10 +89,10 @@ declare global {
              *   can be sent to XMLHttpRequest.send (typically a File).  Under node.js,
              *   a a Buffer, String or ReadStream.
              */
-            uploadContent<O extends IUploadOpts>(
+            uploadContent(
                 file: FileType,
-                opts?: O,
-            ): IAbortablePromise<UploadContentResponseType<O>>;
+                opts?: UploadOpts,
+            ): Chainable<Awaited<Upload["promise"]>>;
             /**
              * Turn an MXC URL into an HTTP one. <strong>This method is experimental and
              * may change.</strong>
@@ -124,6 +123,11 @@ declare global {
              * Boostraps cross-signing.
              */
             bootstrapCrossSigning(): Chainable<void>;
+            /**
+             * Joins the given room by alias or ID
+             * @param roomIdOrAlias the id or alias of the room to join
+             */
+            joinRoom(roomIdOrAlias: string): Chainable<Room>;
         }
     }
 }
@@ -198,9 +202,9 @@ Cypress.Commands.add("setDisplayName", (name: string): Chainable<{}> => {
     });
 });
 
-Cypress.Commands.add("uploadContent", (file: FileType): Chainable<{}> => {
+Cypress.Commands.add("uploadContent", (file: FileType, opts?: UploadOpts): Chainable<Awaited<Upload["promise"]>> => {
     return cy.getClient().then(async (cli: MatrixClient) => {
-        return cli.uploadContent(file);
+        return cli.uploadContent(file, opts);
     });
 });
 
@@ -216,4 +220,8 @@ Cypress.Commands.add("bootstrapCrossSigning", () => {
             authUploadDeviceSigningKeys: async func => { await func({}); },
         });
     });
+});
+
+Cypress.Commands.add("joinRoom", (roomIdOrAlias: string): Chainable<Room> => {
+    return cy.getClient().then(cli => cli.joinRoom(roomIdOrAlias));
 });

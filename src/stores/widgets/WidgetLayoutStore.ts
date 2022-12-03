@@ -18,6 +18,7 @@ import { Room } from "matrix-js-sdk/src/models/room";
 import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
 import { Optional } from "matrix-events-sdk";
+import { compare } from "matrix-js-sdk/src/utils";
 
 import SettingsStore from "../../settings/SettingsStore";
 import WidgetStore, { IApp } from "../WidgetStore";
@@ -28,7 +29,6 @@ import { ReadyWatchingStore } from "../ReadyWatchingStore";
 import { SettingLevel } from "../../settings/SettingLevel";
 import { arrayFastClone } from "../../utils/arrays";
 import { UPDATE_EVENT } from "../AsyncStore";
-import { compare } from "../../utils/strings";
 
 export const WIDGET_LAYOUT_EVENT_TYPE = "io.element.widgets.layout";
 
@@ -114,10 +114,11 @@ export class WidgetLayoutStore extends ReadyWatchingStore {
     }
 
     public static get instance(): WidgetLayoutStore {
-        if (!WidgetLayoutStore.internalInstance) {
-            WidgetLayoutStore.internalInstance = new WidgetLayoutStore();
+        if (!this.internalInstance) {
+            this.internalInstance = new WidgetLayoutStore();
+            this.internalInstance.start();
         }
-        return WidgetLayoutStore.internalInstance;
+        return this.internalInstance;
     }
 
     public static emissionForRoom(room: Room): string {

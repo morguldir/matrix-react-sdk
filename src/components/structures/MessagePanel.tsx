@@ -20,11 +20,12 @@ import classNames from 'classnames';
 import { Room } from 'matrix-js-sdk/src/models/room';
 import { EventType } from 'matrix-js-sdk/src/@types/event';
 import { MatrixEvent } from 'matrix-js-sdk/src/models/event';
-import { Relations } from "matrix-js-sdk/src/models/relations";
 import { logger } from 'matrix-js-sdk/src/logger';
 import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
-import { ReceiptType } from "matrix-js-sdk/src/@types/read_receipts";
 import { M_BEACON_INFO } from 'matrix-js-sdk/src/@types/beacon';
+import { isSupportedReceiptType } from "matrix-js-sdk/src/utils";
+import { ReadReceipt } from 'matrix-js-sdk/src/models/read-receipt';
+import { ListenerMap } from 'matrix-js-sdk/src/models/typed-event-emitter';
 
 import shouldHideEvent from '../../shouldHideEvent';
 import { wantsDateSeparator } from '../../DateUtils';
@@ -33,14 +34,14 @@ import SettingsStore from '../../settings/SettingsStore';
 import RoomContext, { TimelineRenderingType } from "../../contexts/RoomContext";
 import { Layout } from "../../settings/enums/Layout";
 import { _t } from "../../languageHandler";
-import EventTile, { UnwrappedEventTile, IReadReceiptProps } from "../views/rooms/EventTile";
+import EventTile, { UnwrappedEventTile, GetRelationsForEvent, IReadReceiptProps } from "../views/rooms/EventTile";
 import { hasText } from "../../TextForEvent";
 import IRCTimelineProfileResizer from "../views/elements/IRCTimelineProfileResizer";
 import DMRoomMap from "../../utils/DMRoomMap";
 import NewRoomIntro from "../views/rooms/NewRoomIntro";
 import HistoryTile from "../views/rooms/HistoryTile";
 import defaultDispatcher from '../../dispatcher/dispatcher';
-import CallEventGrouper from "./CallEventGrouper";
+import LegacyCallEventGrouper from "./LegacyCallEventGrouper";
 import WhoIsTypingTile from '../views/rooms/WhoIsTypingTile';
 import ScrollPanel, { IScrollState } from "./ScrollPanel";
 import GenericEventListSummary from '../views/elements/GenericEventListSummary';
@@ -57,10 +58,11 @@ import { IReadReceiptInfo } from "../views/rooms/ReadReceiptMarker";
 import { haveRendererForEvent } from "../../events/EventTileFactory";
 import { editorRoomKey } from "../../Editing";
 import { hasThreadSummary } from "../../utils/EventUtils";
+import { VoiceBroadcastInfoEventType } from '../../voice-broadcast';
 
 const CONTINUATION_MAX_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const continuedTypes = [EventType.Sticker, EventType.RoomMessage];
-const groupedEvents = [
+const groupedStateEvents = [
     EventType.RoomMember,
     EventType.RoomThirdPartyInvite,
     EventType.RoomServerAcl,
@@ -135,7 +137,7 @@ interface IProps {
     showUrlPreview?: boolean;
 
     // event after which we should show a read marker
-    readMarkerEventId?: string;
+    readMarkerEventId?: string | null;
 
     // whether the read marker should be visible
     readMarkerVisible?: boolean;
@@ -181,14 +183,14 @@ interface IProps {
     onFillRequest?(backwards: boolean): Promise<boolean>;
 
     // helper function to access relations for an event
-    onUnfillRequest?(backwards: boolean, scrollToken: string): void;
+    onUnfillRequest?(backwards: boolean, scrollToken: string | null): void;
 
-    getRelationsForEvent?(eventId: string, relationType: string, eventType: string): Relations;
+    getRelationsForEvent?: GetRelationsForEvent;
 
     hideThreadedMessages?: boolean;
     disableGrouping?: boolean;
 
-    callEventGroupers: Map<string, CallEventGrouper>;
+    callEventGroupers: Map<string, LegacyCallEventGrouper>;
 }
 
 interface IState {
@@ -345,8 +347,8 @@ export default class MessagePanel extends React.Component<IProps, IState> {
         return this.eventTiles[eventId]?.ref?.current;
     }
 
-    public getTileForEventId(eventId: string): UnwrappedEventTile {
-        if (!this.eventTiles) {
+    public getTileForEventId(eventId?: string): UnwrappedEventTile | undefined {
+        if (!this.eventTiles || !eventId) {
             return undefined;
         }
         return this.eventTiles[eventId];
@@ -408,17 +410,6 @@ export default class MessagePanel extends React.Component<IProps, IState> {
     public scrollToBottom(): void {
         if (this.scrollPanel.current) {
             this.scrollPanel.current.scrollToBottom();
-        }
-    }
-
-    /**
-     * Page up/down.
-     *
-     * @param {number} mult: -1 to page up, +1 to page down
-     */
-    public scrollRelative(mult: number): void {
-        if (this.scrollPanel.current) {
-            this.scrollPanel.current.scrollRelative(mult);
         }
     }
 
@@ -826,9 +817,25 @@ export default class MessagePanel extends React.Component<IProps, IState> {
         if (!room) {
             return null;
         }
+
+        const receiptDestination: ReadReceipt<string, ListenerMap<string>> = this.context.threadId
+            ? room.getThread(this.context.threadId)
+            : room;
+
         const receipts: IReadReceiptProps[] = [];
-        room.getReceiptsForEvent(event).forEach((r) => {
-            if (!r.userId || ![ReceiptType.Read, ReceiptType.ReadPrivate].includes(r.type) || r.userId === myUserId) {
+
+        if (!receiptDestination) {
+            logger.debug("Discarding request, could not find the receiptDestination for event: "
+                + this.context.threadId);
+            return receipts;
+        }
+
+        receiptDestination.getReceiptsForEvent(event).forEach((r) => {
+            if (
+                !r.userId ||
+                !isSupportedReceiptType(r.type) ||
+                r.userId === myUserId
+            ) {
                 return; // ignore non-read receipts and receipts from self.
             }
             if (MatrixClientPeg.get().isUserIgnored(r.userId)) {
@@ -1080,11 +1087,20 @@ class CreationGrouper extends BaseGrouper {
             && (ev.getStateKey() !== createEvent.getSender() || ev.getContent()["membership"] !== "join")) {
             return false;
         }
+
+        const eventType = ev.getType();
+
         // beacons are not part of room creation configuration
         // should be shown in timeline
-        if (M_BEACON_INFO.matches(ev.getType())) {
+        if (M_BEACON_INFO.matches(eventType)) {
             return false;
         }
+
+        if (VoiceBroadcastInfoEventType === eventType) {
+            // always show voice broadcast info events in timeline
+            return false;
+        }
+
         if (ev.isState() && ev.getSender() === createEvent.getSender()) {
             return true;
         }
@@ -1190,7 +1206,7 @@ class MainGrouper extends BaseGrouper {
     static canStartGroup = function(panel: MessagePanel, ev: MatrixEvent): boolean {
         if (!panel.shouldShowEvent(ev)) return false;
 
-        if (groupedEvents.includes(ev.getType() as EventType)) {
+        if (ev.isState() && groupedStateEvents.includes(ev.getType() as EventType)) {
             return true;
         }
 
@@ -1225,7 +1241,7 @@ class MainGrouper extends BaseGrouper {
         if (this.panel.wantsDateSeparator(this.events[0], ev.getDate())) {
             return false;
         }
-        if (groupedEvents.includes(ev.getType() as EventType)) {
+        if (ev.isState() && groupedStateEvents.includes(ev.getType() as EventType)) {
             return true;
         }
         if (ev.isRedacted()) {

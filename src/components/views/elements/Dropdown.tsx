@@ -22,6 +22,7 @@ import AccessibleButton, { ButtonEvent } from './AccessibleButton';
 import { _t } from '../../../languageHandler';
 import { getKeyBindingsManager } from "../../../KeyBindingsManager";
 import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
+import { objectHasDiff } from "../../../utils/objects";
 
 interface IMenuOptionProps {
     children: ReactElement;
@@ -68,7 +69,7 @@ class MenuOption extends React.Component<IMenuOptionProps> {
     }
 }
 
-interface IProps {
+export interface DropdownProps {
     id: string;
     // ARIA label
     label: string;
@@ -82,6 +83,8 @@ interface IProps {
     // width.
     menuWidth?: number;
     searchEnabled?: boolean;
+    // Placeholder to show when no value is selected
+    placeholder?: string;
     // Called when the selected option changes
     onOptionChange(dropdownKey: string): void;
     // Called when the value of the search field changes
@@ -106,13 +109,13 @@ interface IState {
  * but somewhat simpler as react-select is 79KB of minified
  * javascript.
  */
-export default class Dropdown extends React.Component<IProps, IState> {
+export default class Dropdown extends React.Component<DropdownProps, IState> {
     private readonly buttonRef = createRef<HTMLDivElement>();
     private dropdownRootElement: HTMLDivElement = null;
     private ignoreEvent: MouseEvent = null;
     private childrenByKey: Record<string, ReactNode> = {};
 
-    constructor(props: IProps) {
+    constructor(props: DropdownProps) {
         super(props);
 
         this.reindexChildren(this.props.children);
@@ -134,20 +137,18 @@ export default class Dropdown extends React.Component<IProps, IState> {
         document.addEventListener('click', this.onDocumentClick, false);
     }
 
-    componentWillUnmount() {
-        document.removeEventListener('click', this.onDocumentClick, false);
+    public componentDidUpdate(prevProps: Readonly<DropdownProps>) {
+        if (objectHasDiff(this.props, prevProps) && this.props.children?.length) {
+            this.reindexChildren(this.props.children);
+            const firstChild = this.props.children[0];
+            this.setState({
+                highlightedOption: String(firstChild?.key) ?? null,
+            });
+        }
     }
 
-    // TODO: [REACT-WARNING] Replace with appropriate lifecycle event
-    UNSAFE_componentWillReceiveProps(nextProps) { // eslint-disable-line
-        if (!nextProps.children || nextProps.children.length === 0) {
-            return;
-        }
-        this.reindexChildren(nextProps.children);
-        const firstChild = nextProps.children[0];
-        this.setState({
-            highlightedOption: firstChild ? firstChild.key : null,
-        });
+    componentWillUnmount() {
+        document.removeEventListener('click', this.onDocumentClick, false);
     }
 
     private reindexChildren(children: ReactElement[]): void {
@@ -298,7 +299,7 @@ export default class Dropdown extends React.Component<IProps, IState> {
     }
 
     private getMenuOptions() {
-        const options = React.Children.map(this.props.children, (child) => {
+        const options = React.Children.map(this.props.children, (child: ReactElement) => {
             const highlighted = this.state.highlightedOption === child.key;
             return (
                 <MenuOption
@@ -362,7 +363,7 @@ export default class Dropdown extends React.Component<IProps, IState> {
                 this.props.getShortOption(this.props.value) :
                 this.childrenByKey[this.props.value];
             currentValue = <div className="mx_Dropdown_option" id={`${this.props.id}_value`}>
-                { selectedChild }
+                { selectedChild || this.props.placeholder }
             </div>;
         }
 

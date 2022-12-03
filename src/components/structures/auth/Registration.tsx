@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AuthType, createClient } from 'matrix-js-sdk/src/matrix';
+import { AuthType, createClient, IAuthData } from 'matrix-js-sdk/src/matrix';
 import React, { Fragment, ReactNode } from 'react';
 import { MatrixClient } from "matrix-js-sdk/src/client";
 import classNames from "classnames";
 import { logger } from "matrix-js-sdk/src/logger";
+import { ISSOFlow } from "matrix-js-sdk/src/@types/auth";
 
 import { _t, _td } from '../../../languageHandler';
 import { messageForResourceLimitError } from '../../../utils/ErrorUtils';
-import AutoDiscoveryUtils, { ValidatedServerConfig } from "../../../utils/AutoDiscoveryUtils";
+import AutoDiscoveryUtils from "../../../utils/AutoDiscoveryUtils";
 import * as Lifecycle from '../../../Lifecycle';
 import { IMatrixClientCreds, MatrixClientPeg } from "../../../MatrixClientPeg";
 import AuthPage from "../../views/auth/AuthPage";
-import Login, { ISSOFlow } from "../../../Login";
+import Login from "../../../Login";
 import dis from "../../../dispatcher/dispatcher";
 import SSOButtons from "../../views/elements/SSOButtons";
 import ServerPicker from '../../views/elements/ServerPicker';
@@ -39,6 +40,7 @@ import Spinner from "../../views/elements/Spinner";
 import { AuthHeaderDisplay } from './header/AuthHeaderDisplay';
 import { AuthHeaderProvider } from './header/AuthHeaderProvider';
 import SettingsStore from '../../../settings/SettingsStore';
+import { ValidatedServerConfig } from '../../../utils/ValidatedServerConfig';
 
 const debuglog = (...args: any[]) => {
     if (SettingsStore.getValue("debug_registration")) {
@@ -163,13 +165,13 @@ export default class Registration extends React.Component<IProps, IState> {
             return "";
         }
     };
-    // TODO: [REACT-WARNING] Replace with appropriate lifecycle event
-    // eslint-disable-next-line
-    UNSAFE_componentWillReceiveProps(newProps) {
-        if (newProps.serverConfig.hsUrl === this.props.serverConfig.hsUrl &&
-            newProps.serverConfig.isUrl === this.props.serverConfig.isUrl) return;
 
-        this.replaceClient(newProps.serverConfig);
+    public componentDidUpdate(prevProps) {
+        if (prevProps.serverConfig.hsUrl !== this.props.serverConfig.hsUrl ||
+            prevProps.serverConfig.isUrl !== this.props.serverConfig.isUrl
+        ) {
+            this.replaceClient(this.props.serverConfig);
+        }
     }
 
     private async replaceClient(serverConfig: ValidatedServerConfig) {
@@ -331,7 +333,7 @@ export default class Registration extends React.Component<IProps, IState> {
             } else if (response.errcode === "M_USER_IN_USE") {
                 errorText = _t("Someone already has that username, please try another.");
             } else if (response.errcode === "M_THREEPID_IN_USE") {
-                errorText = _t("That e-mail address is already in use.");
+                errorText = _t("That e-mail address or phone number is already in use.");
             }
 
             this.setState({
@@ -381,7 +383,8 @@ export default class Registration extends React.Component<IProps, IState> {
         const hasEmail = Boolean(this.state.formVals.email);
         const hasAccessToken = Boolean(response.access_token);
         debuglog("Registration: ui auth finished:", { hasEmail, hasAccessToken });
-        if (!hasEmail && hasAccessToken) {
+        // don’t log in if we found a session for a different user
+        if (!hasEmail && hasAccessToken && !newState.differentLoggedInUserId) {
             // we'll only try logging in if we either have no email to verify at all or we're the client that verified
             // the email, not the client that started the registration flow
             await this.props.onLoggedIn({
@@ -440,7 +443,7 @@ export default class Registration extends React.Component<IProps, IState> {
         });
     };
 
-    private makeRegisterRequest = auth => {
+    private makeRegisterRequest = (auth: IAuthData | null) => {
         const registerParams = {
             username: this.state.formVals.username,
             password: this.state.formVals.password,
@@ -505,9 +508,9 @@ export default class Registration extends React.Component<IProps, IState> {
                 // when there is only a single (or 0) providers we show a wide button with `Continue with X` text
                 if (providers.length > 1) {
                     // i18n: ssoButtons is a placeholder to help translators understand context
-                    continueWithSection = <h3 className="mx_AuthBody_centered">
+                    continueWithSection = <h2 className="mx_AuthBody_centered">
                         { _t("Continue with %(ssoButtons)s", { ssoButtons: "" }).trim() }
-                    </h3>;
+                    </h2>;
                 }
 
                 // i18n: ssoButtons & usernamePassword are placeholders to help translators understand context
@@ -519,7 +522,7 @@ export default class Registration extends React.Component<IProps, IState> {
                         loginType={this.state.ssoFlow.type === "m.login.sso" ? "sso" : "cas"}
                         fragmentAfterLogin={this.props.fragmentAfterLogin}
                     />
-                    <h3 className="mx_AuthBody_centered">
+                    <h2 className="mx_AuthBody_centered">
                         { _t(
                             "%(ssoButtons)s Or %(usernamePassword)s",
                             {
@@ -527,7 +530,7 @@ export default class Registration extends React.Component<IProps, IState> {
                                 usernamePassword: "",
                             },
                         ).trim() }
-                    </h3>
+                    </h2>
                 </React.Fragment>;
             }
 
@@ -615,7 +618,7 @@ export default class Registration extends React.Component<IProps, IState> {
             } else {
                 // regardless of whether we're the client that started the registration or not, we should
                 // try our credentials anyway
-                regDoneText = <h3>{ _t(
+                regDoneText = <h2>{ _t(
                     "<a>Log in</a> to your new account.", {},
                     {
                         a: (sub) => <AccessibleButton
@@ -628,10 +631,10 @@ export default class Registration extends React.Component<IProps, IState> {
                             }}
                         >{ sub }</AccessibleButton>,
                     },
-                ) }</h3>;
+                ) }</h2>;
             }
             body = <div>
-                <h2>{ _t("Registration Successful") }</h2>
+                <h1>{ _t("Registration Successful") }</h1>
                 { regDoneText }
             </div>;
         } else {

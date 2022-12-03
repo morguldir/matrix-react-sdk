@@ -38,6 +38,7 @@ import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { shouldShowComponent } from "../../../customisations/helpers/UIComponents";
 import { UIComponent } from "../../../settings/UIFeature";
 import { privateShouldBeEncrypted } from "../../../utils/rooms";
+import { LocalRoom } from "../../../models/LocalRoom";
 
 function hasExpectedEncryptionSettings(matrixClient: MatrixClient, room: Room): boolean {
     const isEncrypted: boolean = matrixClient.isRoomEncrypted(room.roomId);
@@ -49,16 +50,24 @@ const NewRoomIntro = () => {
     const cli = useContext(MatrixClientContext);
     const { room, roomId } = useContext(RoomContext);
 
-    const dmPartner = DMRoomMap.shared().getUserIdForRoomId(roomId);
-    let body;
+    const isLocalRoom = room instanceof LocalRoom;
+    const dmPartner = isLocalRoom
+        ? room.targets[0]?.userId
+        : DMRoomMap.shared().getUserIdForRoomId(roomId);
+
+    let body: JSX.Element;
     if (dmPartner) {
-        let caption;
-        if ((room.getJoinedMemberCount() + room.getInvitedMemberCount()) === 2) {
+        let introMessage = _t("This is the beginning of your direct message history with <displayName/>.");
+        let caption: string | undefined;
+
+        if (isLocalRoom) {
+            introMessage = _t("Send your first message to invite <displayName/> to chat");
+        } else if ((room.getJoinedMemberCount() + room.getInvitedMemberCount()) === 2) {
             caption = _t("Only the two of you are in this conversation, unless either of you invites anyone to join.");
         }
 
         const member = room?.getMember(dmPartner);
-        const displayName = member?.rawDisplayName || dmPartner;
+        const displayName = room?.name || member?.rawDisplayName || dmPartner;
         body = <React.Fragment>
             <RoomAvatar
                 room={room}
@@ -75,7 +84,7 @@ const NewRoomIntro = () => {
 
             <h2>{ room.name }</h2>
 
-            <p>{ _t("This is the beginning of your direct message history with <displayName/>.", {}, {
+            <p>{ _t(introMessage, {}, {
                 displayName: () => <b>{ displayName }</b>,
             }) }</p>
             { caption && <p>{ caption }</p> }
@@ -166,14 +175,22 @@ const NewRoomIntro = () => {
         }
 
         const avatarUrl = room.currentState.getStateEvents(EventType.RoomAvatar, "")?.getContent()?.url;
-        body = <React.Fragment>
-            <MiniAvatarUploader
-                hasAvatar={!!avatarUrl}
+        let avatar = (
+            <RoomAvatar room={room} width={AVATAR_SIZE} height={AVATAR_SIZE} viewAvatarOnClick={!!avatarUrl} />
+        );
+
+        if (!avatarUrl) {
+            avatar = <MiniAvatarUploader
+                hasAvatar={false}
                 noAvatarLabel={_t("Add a photo, so people can easily spot your room.")}
                 setAvatarUrl={url => cli.sendStateEvent(roomId, EventType.RoomAvatar, { url }, '')}
             >
-                <RoomAvatar room={room} width={AVATAR_SIZE} height={AVATAR_SIZE} viewAvatarOnClick={true} />
-            </MiniAvatarUploader>
+                { avatar }
+            </MiniAvatarUploader>;
+        }
+
+        body = <React.Fragment>
+            { avatar }
 
             <h2>{ room.name }</h2>
 
@@ -200,7 +217,7 @@ const NewRoomIntro = () => {
     );
 
     let subButton;
-    if (room.currentState.mayClientSendStateEvent(EventType.RoomEncryption, MatrixClientPeg.get())) {
+    if (room.currentState.mayClientSendStateEvent(EventType.RoomEncryption, MatrixClientPeg.get()) && !isLocalRoom) {
         subButton = (
             <AccessibleButton kind='link_inline' onClick={openRoomSettings}>{ _t("Enable encryption in settings.") }</AccessibleButton>
         );
@@ -210,8 +227,7 @@ const NewRoomIntro = () => {
         <span> { subText } { subButton } </span>
     );
 
-    return <div className="mx_NewRoomIntro">
-
+    return <li className="mx_NewRoomIntro">
         { !hasExpectedEncryptionSettings(cli, room) && (
             <EventTileBubble
                 className="mx_cryptoEvent mx_cryptoEvent_icon_warning"
@@ -221,7 +237,7 @@ const NewRoomIntro = () => {
         ) }
 
         { body }
-    </div>;
+    </li>;
 };
 
 export default NewRoomIntro;

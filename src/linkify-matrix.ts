@@ -21,7 +21,6 @@ import linkifyElement from 'linkify-element';
 import linkifyString from 'linkify-string';
 import { RoomMember } from 'matrix-js-sdk/src/models/room-member';
 
-import { baseUrl } from "./utils/permalinks/MatrixToPermalinkConstructor";
 import {
     parsePermalink,
     tryTransformEntityToPermalink,
@@ -31,13 +30,11 @@ import dis from './dispatcher/dispatcher';
 import { Action } from './dispatcher/actions';
 import { ViewUserPayload } from './dispatcher/payloads/ViewUserPayload';
 import { ViewRoomPayload } from "./dispatcher/payloads/ViewRoomPayload";
-import { showGroupReplacedWithSpacesDialog } from "./group_helpers";
 
 export enum Type {
     URL = "url",
     UserId = "userid",
     RoomAlias = "roomalias",
-    GroupId = "groupid",
 }
 
 // Linkify stuff doesn't type scanner/parser/utils properly :/
@@ -116,11 +113,6 @@ function onUserClick(event: MouseEvent, userId: string) {
     });
 }
 
-function onGroupClick(event: MouseEvent, groupId: string) {
-    event.preventDefault();
-    showGroupReplacedWithSpacesDialog(groupId);
-}
-
 function onAliasClick(event: MouseEvent, roomAlias: string) {
     event.preventDefault();
     dis.dispatch<ViewRoomPayload>({
@@ -131,8 +123,8 @@ function onAliasClick(event: MouseEvent, roomAlias: string) {
     });
 }
 
-const escapeRegExp = function(string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = function(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
 // Recognise URLs from both our local and official Element deployments.
@@ -143,11 +135,6 @@ export const ELEMENT_URL_PATTERN =
         "(?:www\\.)?(?:riot|vector)\\.im/(?:app|beta|staging|develop)/|" +
         "(?:app|beta|staging|develop)\\.element\\.io/" +
     ")(#.*)";
-
-export const MATRIXTO_URL_PATTERN = "^(?:https?://)?(?:www\\.)?matrix\\.to/#/(([#@!+]).*)";
-export const MATRIXTO_MD_LINK_PATTERN =
-    '\\[([^\\]]*)\\]\\((?:https?://)?(?:www\\.)?matrix\\.to/#/([#@!+][^\\)]*)\\)';
-export const MATRIXTO_BASE_URL= baseUrl;
 
 export const options = {
     events: function(href: string, type: Type | string): Partial<GlobalEventHandlers> {
@@ -198,15 +185,6 @@ export const options = {
                         onAliasClick(e, alias);
                     },
                 };
-
-            case Type.GroupId:
-                return {
-                    // @ts-ignore see https://linkify.js.org/docs/options.html
-                    click: function(e: MouseEvent) {
-                        const groupId = parsePermalink(href).groupId;
-                        onGroupClick(e, groupId);
-                    },
-                };
         }
     },
 
@@ -214,7 +192,6 @@ export const options = {
         switch (type) {
             case Type.RoomAlias:
             case Type.UserId:
-            case Type.GroupId:
             default: {
                 return tryTransformEntityToPermalink(href);
             }
@@ -258,17 +235,6 @@ registerPlugin(Type.RoomAlias, ({ scanner, parser, utils }) => {
         utils,
         token,
         name: Type.RoomAlias,
-    });
-});
-
-registerPlugin(Type.GroupId, ({ scanner, parser, utils }) => {
-    const token = scanner.tokens.PLUS as '+';
-    matrixOpaqueIdLinkifyParser({
-        scanner,
-        parser,
-        utils,
-        token,
-        name: Type.GroupId,
     });
 });
 

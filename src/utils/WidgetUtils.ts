@@ -26,6 +26,7 @@ import { CallType } from "matrix-js-sdk/src/webrtc/call";
 import { randomString, randomLowercaseString, randomUppercaseString } from "matrix-js-sdk/src/randomstring";
 
 import { MatrixClientPeg } from '../MatrixClientPeg';
+import PlatformPeg from '../PlatformPeg';
 import SdkConfig from "../SdkConfig";
 import dis from '../dispatcher/dispatcher';
 import WidgetEchoStore from '../stores/WidgetEchoStore';
@@ -165,7 +166,7 @@ export default class WidgetUtils {
                     resolve();
                 }
             }
-            const timerId = setTimeout(() => {
+            const timerId = window.setTimeout(() => {
                 MatrixClientPeg.get().removeListener(ClientEvent.AccountData, onAccountData);
                 reject(new Error("Timed out waiting for widget ID " + widgetId + " to appear"));
             }, WIDGET_WAIT_TIME);
@@ -220,7 +221,7 @@ export default class WidgetUtils {
                     resolve();
                 }
             }
-            const timerId = setTimeout(() => {
+            const timerId = window.setTimeout(() => {
                 MatrixClientPeg.get().removeListener(RoomStateEvent.Events, onRoomStateEvents);
                 reject(new Error("Timed out waiting for widget ID " + widgetId + " to appear"));
             }, WIDGET_WAIT_TIME);
@@ -481,8 +482,8 @@ export default class WidgetUtils {
         appId: string,
         app: Partial<IApp>,
         senderUserId: string,
-        roomId: string | null,
-        eventId: string,
+        roomId: string | undefined,
+        eventId: string | undefined,
     ): IApp {
         if (!senderUserId) {
             throw new Error("Widgets must be created by someone - provide a senderUserId");
@@ -510,6 +511,8 @@ export default class WidgetUtils {
             'roomId=$matrix_room_id',
             'theme=$theme',
             'roomName=$roomName',
+            `supportsScreensharing=${PlatformPeg.get().supportsJitsiScreensharing()}`,
+            'language=$org.matrix.msc2873.client_language',
         ];
         if (opts.auth) {
             queryStringParts.push(`auth=${opts.auth}`);

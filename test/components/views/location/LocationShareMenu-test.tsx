@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+// eslint-disable-next-line deprecate/import
 import { mount, ReactWrapper } from 'enzyme';
 import { mocked } from 'jest-mock';
 import { RoomMember } from 'matrix-js-sdk/src/models/room-member';
@@ -41,6 +42,7 @@ import Modal from '../../../../src/Modal';
 import { DEFAULT_DURATION_MS } from '../../../../src/components/views/location/LiveDurationDropdown';
 import { OwnBeaconStore } from '../../../../src/stores/OwnBeaconStore';
 import { SettingLevel } from '../../../../src/settings/SettingLevel';
+import QuestionDialog from '../../../../src/components/views/dialogs/QuestionDialog';
 
 jest.useFakeTimers();
 
@@ -67,6 +69,9 @@ jest.mock('../../../../src/stores/OwnProfileStore', () => ({
 
 jest.mock('../../../../src/Modal', () => ({
     createDialog: jest.fn(),
+    on: jest.fn(),
+    off: jest.fn(),
+    ModalManagerEvent: { Opened: "opened" },
 }));
 
 describe('<LocationShareMenu />', () => {
@@ -211,8 +216,6 @@ describe('<LocationShareMenu />', () => {
     });
 
     describe('with pin drop share type enabled', () => {
-        beforeEach(() => enableSettings(["feature_location_share_pin_drop"]));
-
         it('renders share type switch with own and pin drop options', () => {
             const component = getComponent();
             expect(component.find('LocationPicker').length).toBe(0);
@@ -349,7 +352,7 @@ describe('<LocationShareMenu />', () => {
             // @ts-ignore
             mocked(SettingsStore.watchSetting).mockImplementation((featureName, roomId, callback) => {
                 callback(featureName, roomId, SettingLevel.DEVICE, '', '');
-                setTimeout(() => {
+                window.setTimeout(() => {
                     callback(featureName, roomId, SettingLevel.DEVICE, '', '');
                 }, 1000);
             });
@@ -417,7 +420,7 @@ describe('<LocationShareMenu />', () => {
             }));
         });
 
-        it('opens error dialog when beacon creation fails ', async () => {
+        it('opens error dialog when beacon creation fails', async () => {
             // stub logger to keep console clean from expected error
             const logSpy = jest.spyOn(logger, 'error').mockReturnValue(undefined);
             const error = new Error('oh no');
@@ -438,14 +441,46 @@ describe('<LocationShareMenu />', () => {
             await flushPromisesWithFakeTimers();
 
             expect(logSpy).toHaveBeenCalledWith("We couldn't start sharing your live location", error);
-            expect(mocked(Modal).createDialog).toHaveBeenCalled();
+            expect(mocked(Modal).createDialog).toHaveBeenCalledWith(QuestionDialog, expect.objectContaining({
+                button: 'Try again',
+                description: 'Element could not send your location. Please try again later.',
+                title: `We couldn't send your location`,
+                cancelButton: 'Cancel',
+            }));
+        });
+
+        it('opens error dialog when beacon creation fails with permission error', async () => {
+            // stub logger to keep console clean from expected error
+            const logSpy = jest.spyOn(logger, 'error').mockReturnValue(undefined);
+            const error = { errcode: 'M_FORBIDDEN' } as unknown as Error;
+            mockClient.unstable_createLiveBeacon.mockRejectedValue(error);
+            const component = getComponent();
+
+            // advance to location picker
+            setShareType(component, LocationShareType.Live);
+            setLocation(component);
+
+            act(() => {
+                getSubmitButton(component).at(0).simulate('click');
+                component.setProps({});
+            });
+
+            await flushPromisesWithFakeTimers();
+            await flushPromisesWithFakeTimers();
+            await flushPromisesWithFakeTimers();
+
+            expect(logSpy).toHaveBeenCalledWith("Insufficient permissions to start sharing your live location", error);
+            expect(mocked(Modal).createDialog).toHaveBeenCalledWith(QuestionDialog, expect.objectContaining({
+                button: 'OK',
+                description: 'You need to have the right permissions in order to share locations in this room.',
+                title: `You don't have permission to share locations`,
+                hasCancelButton: false,
+            }));
         });
     });
 });
 
 function enableSettings(settings: string[]) {
     mocked(SettingsStore).getValue.mockReturnValue(false);
-    mocked(SettingsStore).getValue.mockImplementation(
-        (settingName: string) => settings.includes(settingName),
-    );
+    mocked(SettingsStore).getValue.mockImplementation((settingName: string): any => settings.includes(settingName));
 }
