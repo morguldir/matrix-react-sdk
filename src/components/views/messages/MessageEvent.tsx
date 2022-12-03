@@ -16,7 +16,6 @@ limitations under the License.
 
 import React, { createRef } from 'react';
 import { EventType, MsgType } from "matrix-js-sdk/src/@types/event";
-import { Relations } from 'matrix-js-sdk/src/models/relations';
 import { M_BEACON_INFO } from 'matrix-js-sdk/src/@types/beacon';
 import { M_LOCATION } from 'matrix-js-sdk/src/@types/location';
 import { M_POLL_START } from "matrix-events-sdk";
@@ -41,7 +40,8 @@ import MPollBody from "./MPollBody";
 import MLocationBody from "./MLocationBody";
 import MjolnirBody from "./MjolnirBody";
 import MBeaconBody from "./MBeaconBody";
-import { IEventTileOps } from "../rooms/EventTile";
+import { GetRelationsForEvent, IEventTileOps } from "../rooms/EventTile";
+import { VoiceBroadcastBody, VoiceBroadcastInfoEventType, VoiceBroadcastInfoState } from '../../../voice-broadcast';
 
 // onMessageAllowed is handled internally
 interface IProps extends Omit<IBodyProps, "onMessageAllowed" | "mediaEventHelper"> {
@@ -50,7 +50,7 @@ interface IProps extends Omit<IBodyProps, "onMessageAllowed" | "mediaEventHelper
     overrideEventTypes?: Record<string, typeof React.Component>;
 
     // helper function to access relations for this event
-    getRelationsForEvent?: (eventId: string, relationType: string, eventType: string) => Relations;
+    getRelationsForEvent?: GetRelationsForEvent;
 
     isSeeingThroughMessageHiddenForModeration?: boolean;
 }
@@ -59,11 +59,30 @@ export interface IOperableEventTile {
     getEventTileOps(): IEventTileOps;
 }
 
+const baseBodyTypes = new Map<string, typeof React.Component>([
+    [MsgType.Text, TextualBody],
+    [MsgType.Notice, TextualBody],
+    [MsgType.Emote, TextualBody],
+    [MsgType.Image, MImageBody],
+    [MsgType.File, MFileBody],
+    [MsgType.Audio, MVoiceOrAudioBody],
+    [MsgType.Video, MVideoBody],
+]);
+const baseEvTypes = new Map<string, React.ComponentType<Partial<IBodyProps>>>([
+    [EventType.Sticker, MStickerBody],
+    [M_POLL_START.name, MPollBody],
+    [M_POLL_START.altName, MPollBody],
+    [M_BEACON_INFO.name, MBeaconBody],
+    [M_BEACON_INFO.altName, MBeaconBody],
+]);
+
 export default class MessageEvent extends React.Component<IProps> implements IMediaBody, IOperableEventTile {
     private body: React.RefObject<React.Component | IOperableEventTile> = createRef();
     private mediaHelper: MediaEventHelper;
+    private bodyTypes = new Map<string, typeof React.Component>(baseBodyTypes.entries());
+    private evTypes = new Map<string, React.ComponentType<Partial<IBodyProps>>>(baseEvTypes.entries());
 
-    static contextType = MatrixClientContext;
+    public static contextType = MatrixClientContext;
     public context!: React.ContextType<typeof MatrixClientContext>;
 
     public constructor(props: IProps, context: React.ContextType<typeof MatrixClientContext>) {
@@ -72,6 +91,8 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
         if (MediaEventHelper.isEligible(this.props.mxEvent)) {
             this.mediaHelper = new MediaEventHelper(this.props.mxEvent);
         }
+
+        this.updateComponentMaps();
     }
 
     public componentDidMount(): void {
@@ -88,32 +109,20 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
             this.mediaHelper?.destroy();
             this.mediaHelper = new MediaEventHelper(this.props.mxEvent);
         }
+
+        this.updateComponentMaps();
     }
 
-    private get bodyTypes(): Record<string, typeof React.Component> {
-        return {
-            [MsgType.Text]: TextualBody,
-            [MsgType.Notice]: TextualBody,
-            [MsgType.Emote]: TextualBody,
-            [MsgType.Image]: MImageBody,
-            [MsgType.File]: MFileBody,
-            [MsgType.Audio]: MVoiceOrAudioBody,
-            [MsgType.Video]: MVideoBody,
+    private updateComponentMaps() {
+        this.bodyTypes = new Map<string, typeof React.Component>(baseBodyTypes.entries());
+        for (const [bodyType, bodyComponent] of Object.entries(this.props.overrideBodyTypes ?? {})) {
+            this.bodyTypes.set(bodyType, bodyComponent);
+        }
 
-            ...(this.props.overrideBodyTypes || {}),
-        };
-    }
-
-    private get evTypes(): Record<string, React.ComponentType<Partial<IBodyProps>>> {
-        return {
-            [EventType.Sticker]: MStickerBody,
-            [M_POLL_START.name]: MPollBody,
-            [M_POLL_START.altName]: MPollBody,
-            [M_BEACON_INFO.name]: MBeaconBody,
-            [M_BEACON_INFO.altName]: MBeaconBody,
-
-            ...(this.props.overrideEventTypes || {}),
-        };
+        this.evTypes = new Map<string, React.ComponentType<Partial<IBodyProps>>>(baseEvTypes.entries());
+        for (const [evType, evComponent] of Object.entries(this.props.overrideEventTypes ?? {})) {
+            this.evTypes.set(evType, evComponent);
+        }
     }
 
     public getEventTileOps = () => {
@@ -143,13 +152,13 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
         let BodyType: React.ComponentType<Partial<IBodyProps>> | ReactAnyComponent = RedactedBody;
         if (!this.props.mxEvent.isRedacted()) {
             // only resolve BodyType if event is not redacted
-            if (type && this.evTypes[type]) {
-                BodyType = this.evTypes[type];
-            } else if (msgtype && this.bodyTypes[msgtype]) {
-                BodyType = this.bodyTypes[msgtype];
+            if (type && this.evTypes.has(type)) {
+                BodyType = this.evTypes.get(type);
+            } else if (msgtype && this.bodyTypes.has(msgtype)) {
+                BodyType = this.bodyTypes.get(msgtype);
             } else if (content.url) {
                 // Fallback to MFileBody if there's a content URL
-                BodyType = this.bodyTypes[MsgType.File];
+                BodyType = this.bodyTypes.get(MsgType.File);
             } else {
                 // Fallback to UnknownBody otherwise if not redacted
                 BodyType = UnknownBody;
@@ -161,6 +170,13 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
                 (type === EventType.RoomMessage && msgtype === MsgType.Location)
             ) {
                 BodyType = MLocationBody;
+            }
+
+            if (
+                type === VoiceBroadcastInfoEventType
+                && content?.state === VoiceBroadcastInfoState.Started
+            ) {
+                BodyType = VoiceBroadcastBody;
             }
         }
 
