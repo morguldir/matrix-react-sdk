@@ -179,6 +179,17 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
             }
         }
 
+        const hasCaption =
+            // @ts-ignore
+            [MsgType.Image, MsgType.File, MsgType.Audio, MsgType.Video].includes(msgtype) &&
+            content.filename &&
+            content.filename !== content.body;
+        let OrigBodyType;
+        if (hasCaption) {
+            OrigBodyType = BodyType;
+            BodyType = CaptionBody;
+        }
+
         if (SettingsStore.getValue("feature_mjolnir")) {
             const key = `mx_mjolnir_render_${this.props.mxEvent.getRoomId()}__${this.props.mxEvent.getId()}`;
             const allowRender = localStorage.getItem(key) === "true";
@@ -212,7 +223,18 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
                 getRelationsForEvent={this.props.getRelationsForEvent}
                 isSeeingThroughMessageHiddenForModeration={this.props.isSeeingThroughMessageHiddenForModeration}
                 inhibitInteraction={this.props.inhibitInteraction}
+                OrigBodyType={OrigBodyType}
             />
         ) : null;
     }
 }
+
+const CaptionBody: React.FunctionComponent<IBodyProps & { OrigBodyType: React.ComponentType<Partial<IBodyProps>> }> = ({
+    OrigBodyType,
+    ...props
+}) => (
+    <div className="mx_EventTile_content">
+        <OrigBodyType {...props} />
+        <TextualBody {...{ ...props, ref: undefined }} />
+    </div>
+);
