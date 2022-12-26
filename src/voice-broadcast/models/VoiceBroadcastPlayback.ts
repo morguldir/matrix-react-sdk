@@ -18,6 +18,7 @@ import {
     EventType,
     MatrixClient,
     MatrixEvent,
+    MatrixEventEvent,
     MsgType,
     RelationType,
 } from "matrix-js-sdk/src/matrix";
@@ -30,10 +31,10 @@ import { PlaybackManager } from "../../audio/PlaybackManager";
 import { UPDATE_EVENT } from "../../stores/AsyncStore";
 import { MediaEventHelper } from "../../utils/MediaEventHelper";
 import { IDestroyable } from "../../utils/IDestroyable";
-import { VoiceBroadcastInfoEventType, VoiceBroadcastInfoState } from "..";
+import { VoiceBroadcastLiveness, VoiceBroadcastInfoEventType, VoiceBroadcastInfoState } from "..";
 import { RelationsHelper, RelationsHelperEvent } from "../../events/RelationsHelper";
-import { getReferenceRelationsForEvent } from "../../events";
 import { VoiceBroadcastChunkEvents } from "../utils/VoiceBroadcastChunkEvents";
+import { determineVoiceBroadcastLiveness } from "../utils/determineVoiceBroadcastLiveness";
 
 export enum VoiceBroadcastPlaybackState {
     Paused,
@@ -43,25 +44,32 @@ export enum VoiceBroadcastPlaybackState {
 }
 
 export enum VoiceBroadcastPlaybackEvent {
-    PositionChanged = "position_changed",
-    LengthChanged = "length_changed",
+    TimesChanged = "times_changed",
+    LivenessChanged = "liveness_changed",
     StateChanged = "state_changed",
     InfoStateChanged = "info_state_changed",
 }
 
+type VoiceBroadcastPlaybackTimes = {
+    duration: number;
+    position: number;
+    timeLeft: number;
+};
+
 interface EventMap {
-    [VoiceBroadcastPlaybackEvent.PositionChanged]: (position: number) => void;
-    [VoiceBroadcastPlaybackEvent.LengthChanged]: (length: number) => void;
+    [VoiceBroadcastPlaybackEvent.TimesChanged]: (times: VoiceBroadcastPlaybackTimes) => void;
+    [VoiceBroadcastPlaybackEvent.LivenessChanged]: (liveness: VoiceBroadcastLiveness) => void;
     [VoiceBroadcastPlaybackEvent.StateChanged]: (
         state: VoiceBroadcastPlaybackState,
-        playback: VoiceBroadcastPlayback
+        playback: VoiceBroadcastPlayback,
     ) => void;
     [VoiceBroadcastPlaybackEvent.InfoStateChanged]: (state: VoiceBroadcastInfoState) => void;
 }
 
 export class VoiceBroadcastPlayback
     extends TypedEventEmitter<VoiceBroadcastPlaybackEvent, EventMap>
-    implements IDestroyable, PlaybackInterface {
+    implements IDestroyable, PlaybackInterface
+{
     private state = VoiceBroadcastPlaybackState.Stopped;
     private chunkEvents = new VoiceBroadcastChunkEvents();
     private playbacks = new Map<string, Playback>();
@@ -71,6 +79,7 @@ export class VoiceBroadcastPlayback
     /** @var current playback position in milliseconds */
     private position = 0;
     public readonly liveData = new SimpleObservable<number[]>();
+    private liveness: VoiceBroadcastLiveness = "not-live";
 
     // set vial addInfoEvent() in constructor
     private infoState!: VoiceBroadcastInfoState;
@@ -80,24 +89,34 @@ export class VoiceBroadcastPlayback
     private chunkRelationHelper!: RelationsHelper;
     private infoRelationHelper!: RelationsHelper;
 
-    public constructor(
-        public readonly infoEvent: MatrixEvent,
-        private client: MatrixClient,
-    ) {
+    public constructor(public readonly infoEvent: MatrixEvent, private client: MatrixClient) {
         super();
         this.addInfoEvent(this.infoEvent);
+        this.infoEvent.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
         this.setUpRelationsHelper();
     }
 
-    private setUpRelationsHelper(): void {
+    private async setUpRelationsHelper(): Promise<void> {
         this.infoRelationHelper = new RelationsHelper(
             this.infoEvent,
             RelationType.Reference,
             VoiceBroadcastInfoEventType,
             this.client,
         );
-        this.infoRelationHelper.on(RelationsHelperEvent.Add, this.addInfoEvent);
-        this.infoRelationHelper.emitCurrent();
+        this.infoRelationHelper.getCurrent().forEach(this.addInfoEvent);
+
+        if (this.infoState !== VoiceBroadcastInfoState.Stopped) {
+            // Only required if not stopped. Stopped is the final state.
+            this.infoRelationHelper.on(RelationsHelperEvent.Add, this.addInfoEvent);
+
+            try {
+                await this.infoRelationHelper.emitFetchCurrent();
+            } catch (err) {
+                logger.warn("error fetching server side relation for voice broadcast info", err);
+                // fall back to local events
+                this.infoRelationHelper.emitCurrent();
+            }
+        }
 
         this.chunkRelationHelper = new RelationsHelper(
             this.infoEvent,
@@ -106,25 +125,30 @@ export class VoiceBroadcastPlayback
             this.client,
         );
         this.chunkRelationHelper.on(RelationsHelperEvent.Add, this.addChunkEvent);
-        this.chunkRelationHelper.emitCurrent();
+
+        try {
+            // TODO Michael W: only fetch events if needed, blocked by PSF-1708
+            await this.chunkRelationHelper.emitFetchCurrent();
+        } catch (err) {
+            logger.warn("error fetching server side relation for voice broadcast chunks", err);
+            // fall back to local events
+            this.chunkRelationHelper.emitCurrent();
+        }
     }
 
     private addChunkEvent = async (event: MatrixEvent): Promise<boolean> => {
-        const eventId = event.getId();
+        if (event.getContent()?.msgtype !== MsgType.Audio) {
+            // skip non-audio event
+            return false;
+        }
 
-        if (!eventId
-            || eventId.startsWith("~!") // don't add local events
-            || event.getContent()?.msgtype !== MsgType.Audio // don't add non-audio event
-        ) {
+        if (!event.getId() && !event.getTxnId()) {
+            // skip events without id and txn id
             return false;
         }
 
         this.chunkEvents.addEvent(event);
         this.setDuration(this.chunkEvents.getLength());
-
-        if (this.getState() !== VoiceBroadcastPlaybackState.Stopped) {
-            await this.enqueueChunk(event);
-        }
 
         if (this.getState() === VoiceBroadcastPlaybackState.Buffering) {
             await this.start();
@@ -150,23 +174,15 @@ export class VoiceBroadcastPlayback
         this.setInfoState(state);
     };
 
-    private async loadChunks(): Promise<void> {
-        const relations = getReferenceRelationsForEvent(this.infoEvent, EventType.RoomMessage, this.client);
-        const chunkEvents = relations?.getRelations();
-
-        if (!chunkEvents) {
-            return;
+    private onBeforeRedaction = () => {
+        if (this.getState() !== VoiceBroadcastPlaybackState.Stopped) {
+            this.stop();
+            // destroy cleans up everything
+            this.destroy();
         }
+    };
 
-        this.chunkEvents.addEvents(chunkEvents);
-        this.setDuration(this.chunkEvents.getLength());
-
-        for (const chunkEvent of chunkEvents) {
-            await this.enqueueChunk(chunkEvent);
-        }
-    }
-
-    private async enqueueChunk(chunkEvent: MatrixEvent) {
+    private async loadPlayback(chunkEvent: MatrixEvent): Promise<void> {
         const eventId = chunkEvent.getId();
 
         if (!eventId) {
@@ -187,13 +203,18 @@ export class VoiceBroadcastPlayback
         });
     }
 
-    private onPlaybackPositionUpdate = (
-        event: MatrixEvent,
-        position: number,
-    ): void => {
+    private unloadPlayback(event: MatrixEvent): void {
+        const playback = this.playbacks.get(event.getId()!);
+        if (!playback) return;
+
+        playback.destroy();
+        this.playbacks.delete(event.getId()!);
+    }
+
+    private onPlaybackPositionUpdate = (event: MatrixEvent, position: number): void => {
         if (event !== this.currentlyPlaying) return;
 
-        const newPosition = this.chunkEvents.getLengthTo(event) + (position * 1000); // observable sends seconds
+        const newPosition = this.chunkEvents.getLengthTo(event) + position * 1000; // observable sends seconds
 
         // do not jump backwards - this can happen when transiting from one to another chunk
         if (newPosition < this.position) return;
@@ -202,23 +223,27 @@ export class VoiceBroadcastPlayback
     };
 
     private setDuration(duration: number): void {
-        const shouldEmit = this.duration !== duration;
-        this.duration = duration;
+        if (this.duration === duration) return;
 
-        if (shouldEmit) {
-            this.emit(VoiceBroadcastPlaybackEvent.LengthChanged, this.duration);
-            this.liveData.update([this.timeSeconds, this.durationSeconds]);
-        }
+        this.duration = duration;
+        this.emitTimesChanged();
+        this.liveData.update([this.timeSeconds, this.durationSeconds]);
     }
 
     private setPosition(position: number): void {
-        const shouldEmit = this.position !== position;
-        this.position = position;
+        if (this.position === position) return;
 
-        if (shouldEmit) {
-            this.emit(VoiceBroadcastPlaybackEvent.PositionChanged, this.position);
-            this.liveData.update([this.timeSeconds, this.durationSeconds]);
-        }
+        this.position = position;
+        this.emitTimesChanged();
+        this.liveData.update([this.timeSeconds, this.durationSeconds]);
+    }
+
+    private emitTimesChanged(): void {
+        this.emit(VoiceBroadcastPlaybackEvent.TimesChanged, {
+            duration: this.durationSeconds,
+            position: this.timeSeconds,
+            timeLeft: this.timeLeftSeconds,
+        });
     }
 
     private onPlaybackStateChange = async (event: MatrixEvent, newState: PlaybackState): Promise<void> => {
@@ -226,6 +251,7 @@ export class VoiceBroadcastPlayback
         if (newState !== PlaybackState.Stopped) return;
 
         await this.playNext();
+        this.unloadPlayback(event);
     };
 
     private async playNext(): Promise<void> {
@@ -248,15 +274,20 @@ export class VoiceBroadcastPlayback
     private async playEvent(event: MatrixEvent): Promise<void> {
         this.setState(VoiceBroadcastPlaybackState.Playing);
         this.currentlyPlaying = event;
-        await this.getPlaybackForEvent(event)?.play();
+        const playback = await this.getOrLoadPlaybackForEvent(event);
+        playback?.play();
     }
 
-    private getPlaybackForEvent(event: MatrixEvent): Playback | undefined {
+    private async getOrLoadPlaybackForEvent(event: MatrixEvent): Promise<Playback | undefined> {
         const eventId = event.getId();
 
         if (!eventId) {
             logger.warn("event without id occurred");
             return;
+        }
+
+        if (!this.playbacks.has(eventId)) {
+            await this.loadPlayback(event);
         }
 
         const playback = this.playbacks.get(eventId);
@@ -266,7 +297,27 @@ export class VoiceBroadcastPlayback
             logger.warn("unable to find playback for event", event);
         }
 
+        // try to load the playback for the next event for a smooth(er) playback
+        const nextEvent = this.chunkEvents.getNext(event);
+        if (nextEvent) this.loadPlayback(nextEvent);
+
         return playback;
+    }
+
+    private getCurrentPlayback(): Playback | undefined {
+        if (!this.currentlyPlaying) return;
+        return this.playbacks.get(this.currentlyPlaying.getId()!);
+    }
+
+    public getLiveness(): VoiceBroadcastLiveness {
+        return this.liveness;
+    }
+
+    private setLiveness(liveness: VoiceBroadcastLiveness): void {
+        if (this.liveness === liveness) return;
+
+        this.liveness = liveness;
+        this.emit(VoiceBroadcastPlaybackEvent.LivenessChanged, liveness);
     }
 
     public get currentState(): PlaybackState {
@@ -281,20 +332,24 @@ export class VoiceBroadcastPlayback
         return this.duration / 1000;
     }
 
+    public get timeLeftSeconds(): number {
+        return Math.round(this.durationSeconds) - this.timeSeconds;
+    }
+
     public async skipTo(timeSeconds: number): Promise<void> {
         const time = timeSeconds * 1000;
         const event = this.chunkEvents.findByTime(time);
 
-        if (!event) return;
+        if (!event) {
+            logger.warn("voice broadcast chunk event to skip to not found");
+            return;
+        }
 
-        const currentPlayback = this.currentlyPlaying
-            ? this.getPlaybackForEvent(this.currentlyPlaying)
-            : null;
-
-        const skipToPlayback = this.getPlaybackForEvent(event);
+        const currentPlayback = this.getCurrentPlayback();
+        const skipToPlayback = await this.getOrLoadPlaybackForEvent(event);
 
         if (!skipToPlayback) {
-            logger.error("voice broadcast chunk to skip to not found", event);
+            logger.warn("voice broadcast chunk to skip to not found", event);
             return;
         }
 
@@ -309,7 +364,7 @@ export class VoiceBroadcastPlayback
         const offsetInChunk = time - this.chunkEvents.getLengthTo(event);
         await skipToPlayback.skipTo(offsetInChunk / 1000);
 
-        if (currentPlayback !== skipToPlayback) {
+        if (this.state === VoiceBroadcastPlaybackState.Playing && !skipToPlayback.isPlaying) {
             await skipToPlayback.play();
         }
 
@@ -317,17 +372,14 @@ export class VoiceBroadcastPlayback
     }
 
     public async start(): Promise<void> {
-        if (this.playbacks.size === 0) {
-            await this.loadChunks();
-        }
-
         const chunkEvents = this.chunkEvents.getEvents();
 
-        const toPlay = this.getInfoState() === VoiceBroadcastInfoState.Stopped
-            ? chunkEvents[0] // start at the beginning for an ended voice broadcast
-            : chunkEvents[chunkEvents.length - 1]; // start at the current chunk for an ongoing voice broadcast
+        const toPlay =
+            this.getInfoState() === VoiceBroadcastInfoState.Stopped
+                ? chunkEvents[0] // start at the beginning for an ended voice broadcast
+                : chunkEvents[chunkEvents.length - 1]; // start at the current chunk for an ongoing voice broadcast
 
-        if (this.playbacks.has(toPlay?.getId() || "")) {
+        if (toPlay) {
             return this.playEvent(toPlay);
         }
 
@@ -336,6 +388,7 @@ export class VoiceBroadcastPlayback
 
     public stop(): void {
         this.setState(VoiceBroadcastPlaybackState.Stopped);
+        this.getCurrentPlayback()?.stop();
         this.currentlyPlaying = null;
         this.setPosition(0);
     }
@@ -345,8 +398,7 @@ export class VoiceBroadcastPlayback
         if (this.getState() === VoiceBroadcastPlaybackState.Stopped) return;
 
         this.setState(VoiceBroadcastPlaybackState.Paused);
-        if (!this.currentlyPlaying) return;
-        this.getPlaybackForEvent(this.currentlyPlaying)?.pause();
+        this.getCurrentPlayback()?.pause();
     }
 
     public resume(): void {
@@ -357,7 +409,7 @@ export class VoiceBroadcastPlayback
         }
 
         this.setState(VoiceBroadcastPlaybackState.Playing);
-        this.getPlaybackForEvent(this.currentlyPlaying)?.play();
+        this.getCurrentPlayback()?.play();
     }
 
     /**
@@ -404,6 +456,7 @@ export class VoiceBroadcastPlayback
 
         this.infoState = state;
         this.emit(VoiceBroadcastPlaybackEvent.InfoStateChanged, state);
+        this.setLiveness(determineVoiceBroadcastLiveness(this.infoState));
     }
 
     public destroy(): void {
@@ -412,7 +465,7 @@ export class VoiceBroadcastPlayback
         this.removeAllListeners();
 
         this.chunkEvents = new VoiceBroadcastChunkEvents();
-        this.playbacks.forEach(p => p.destroy());
+        this.playbacks.forEach((p) => p.destroy());
         this.playbacks = new Map<string, Playback>();
     }
 }
