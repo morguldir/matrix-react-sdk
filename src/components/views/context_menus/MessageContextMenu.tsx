@@ -181,10 +181,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             canPinEvent(this.props.mxEvent);
         // TODO check for server support first
         // TODO allow if isSynapseAdmin too
-        const canViewRedacted = room.currentState.hasSufficientPowerLevelFor(
-            "redact",
-            room.currentState.getMember(cli.credentials.userId)?.powerLevel ?? 0,
-        );
+        const canViewRedacted = true;
 
         // HACK: Intentionally say we can't pin if the user doesn't want to use the functionality
         if (!SettingsStore.getValue("feature_pinning")) canPin = false;
