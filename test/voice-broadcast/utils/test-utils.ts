@@ -14,16 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { MatrixEvent } from "matrix-js-sdk/src/matrix";
+import { Optional } from "matrix-events-sdk";
+import { EventType, MatrixEvent, MsgType, RelationType } from "matrix-js-sdk/src/matrix";
 
-import { VoiceBroadcastInfoEventType, VoiceBroadcastInfoState } from "../../../src/voice-broadcast";
+import {
+    VoiceBroadcastChunkEventType,
+    VoiceBroadcastInfoEventType,
+    VoiceBroadcastInfoState,
+} from "../../../src/voice-broadcast";
 import { mkEvent } from "../../test-utils";
 
 export const mkVoiceBroadcastInfoStateEvent = (
-    roomId: string,
-    state: VoiceBroadcastInfoState,
-    senderId: string,
-    senderDeviceId: string,
+    roomId: Optional<string>,
+    state: Optional<VoiceBroadcastInfoState>,
+    senderId: Optional<string>,
+    senderDeviceId: Optional<string>,
     startedInfoEvent?: MatrixEvent,
 ): MatrixEvent => {
     const relationContent = {};
@@ -37,14 +42,50 @@ export const mkVoiceBroadcastInfoStateEvent = (
 
     return mkEvent({
         event: true,
+        // @ts-ignore allow everything here for edge test cases
         room: roomId,
+        // @ts-ignore allow everything here for edge test cases
         user: senderId,
         type: VoiceBroadcastInfoEventType,
+        // @ts-ignore allow everything here for edge test cases
         skey: senderId,
         content: {
             state,
             device_id: senderDeviceId,
             ...relationContent,
         },
+    });
+};
+
+export const mkVoiceBroadcastChunkEvent = (
+    infoEventId: string,
+    userId: string,
+    roomId: string,
+    duration: number,
+    sequence?: number,
+    timestamp?: number,
+): MatrixEvent => {
+    return mkEvent({
+        event: true,
+        user: userId,
+        room: roomId,
+        type: EventType.RoomMessage,
+        content: {
+            msgtype: MsgType.Audio,
+            ["org.matrix.msc1767.audio"]: {
+                duration,
+            },
+            info: {
+                duration,
+            },
+            [VoiceBroadcastChunkEventType]: {
+                ...(sequence ? { sequence } : {}),
+            },
+            ["m.relates_to"]: {
+                rel_type: RelationType.Reference,
+                event_id: infoEventId,
+            },
+        },
+        ts: timestamp,
     });
 };

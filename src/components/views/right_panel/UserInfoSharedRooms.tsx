@@ -14,15 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import { MatrixClientPeg } from '../../../MatrixClientPeg';
+import React from "react";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import Spinner from "../elements/Spinner";
-import { _t } from '../../../languageHandler';
-import Pill, { PillType } from '../../views/elements/Pill';
-import AccessibleButton from '../../views/elements/AccessibleButton';
-import MatrixToPermalinkConstructor from '../../../utils/permalinks/MatrixToPermalinkConstructor';
+import { _t } from "../../../languageHandler";
+import Pill, { PillType } from "../../views/elements/Pill";
+import AccessibleButton from "../../views/elements/AccessibleButton";
+import MatrixToPermalinkConstructor from "../../../utils/permalinks/MatrixToPermalinkConstructor";
 import UserInfoRoomTile from "../elements/UserInfoRoomTile";
-import { RecentAlgorithm } from '../../../stores/room-list/algorithms/tag-sorting/RecentAlgorithm';
+import { RecentAlgorithm } from "../../../stores/room-list/algorithms/tag-sorting/RecentAlgorithm";
 import { Room } from "matrix-js-sdk/src/models/room";
 import { DefaultTagID } from "../../../stores/room-list/models";
 
@@ -73,12 +73,9 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
             const peg = MatrixClientPeg.get();
 
             const roomIds = await MatrixClientPeg.get()._unstable_getSharedRooms(this.props.userId);
-            const rooms = roomIds.map(roomId => peg.getRoom(roomId)).filter(room => room !== null);
+            const rooms = roomIds.map((roomId) => peg.getRoom(roomId)).filter((room) => room !== null);
             this.setState({
-                rooms: await this.algorithm.sortRooms(
-                    rooms,
-                    DefaultTagID.Untagged,
-                ),
+                rooms: await this.algorithm.sortRooms(rooms, DefaultTagID.Untagged),
             });
         } catch (ex) {
             console.log(`Failed to get shared rooms for ${this.props.userId}`, ex);
@@ -107,24 +104,30 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
                 // Without an alias we get ugly room_ids, hide it.
                 return null;
             }
-            return <a href={`#/room/${alias}`}><Pill
-                key={room.roomId}
-                type={PillType.RoomMention}
-                room={room}
-                url={new MatrixToPermalinkConstructor().forRoom(alias, [])}
-                inMessage={false}
-                shouldShowPillAvatar={true}
-            /></a>;
+            return (
+                <a href={`#/room/${alias}`}>
+                    <Pill
+                        key={room.roomId}
+                        type={PillType.RoomMention}
+                        room={room}
+                        url={new MatrixToPermalinkConstructor().forRoom(alias, [])}
+                        inMessage={false}
+                        shouldShowPillAvatar={true}
+                    />
+                </a>
+            );
         }
 
-        return <li key={room.roomId}>
-            <UserInfoRoomTile room={room} />
-        </li>;
+        return (
+            <li key={room.roomId}>
+                <UserInfoRoomTile room={room} />
+            </li>
+        );
     }
 
     private renderRoomTiles() {
         // We must remove the null values in order for the slice to work in render()
-        return this.state.rooms.map((room) => this.renderRoomTile(room)).filter((tile => tile !== null));
+        return this.state.rooms.map((room) => this.renderRoomTile(room)).filter((tile) => tile !== null);
     }
 
     render(): React.ReactNode {
@@ -149,13 +152,22 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
         // Compact view: Show as a single line.
         if (this.props.compact && content.length) {
             if (realCount <= content.length) {
-                return <p> {_t("You are both participating in <rooms></rooms>", {}, {rooms: content})} </p>;
+                return <p> {_t("You are both participating in <rooms></rooms>", {}, { rooms: content })} </p>;
             } else {
-                return <p> {_t("You are both participating in <rooms></rooms> and %(hidden)s more", {
-                    hidden: realCount - content.length,
-                }, {
-                    rooms: content,
-                })}</p>;
+                return (
+                    <p>
+                        {" "}
+                        {_t(
+                            "You are both participating in <rooms></rooms> and %(hidden)s more",
+                            {
+                                hidden: realCount - content.length,
+                            },
+                            {
+                                rooms: content,
+                            },
+                        )}
+                    </p>
+                );
             }
         } else if (this.props.compact) {
             return content;
@@ -163,14 +175,16 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
 
         const canShowMore = !this.state.showAll && realCount > LIMITED_VIEW_SHOW_COUNT;
         // Normal view: Show as a list with a header
-        return <div className="mx_UserInfoSharedRooms mx_UserInfo_container">
-            <h3>{ _t("Shared Rooms") }</h3>
-            <ul>
-                {content}
-            </ul>
-            { canShowMore && <AccessibleButton className="mx_UserInfo_field" onClick={() => this.onShowMoreClick()}>
-                { _t("Show %(count)s more", { count: realCount - content.length}) }
-            </AccessibleButton> }
-        </div>;
+        return (
+            <div className="mx_UserInfoSharedRooms mx_UserInfo_container">
+                <h3>{_t("Shared Rooms")}</h3>
+                <ul>{content}</ul>
+                {canShowMore && (
+                    <AccessibleButton className="mx_UserInfo_field" onClick={() => this.onShowMoreClick()}>
+                        {_t("Show %(count)s more", { count: realCount - content.length })}
+                    </AccessibleButton>
+                )}
+            </div>
+        );
     }
 }

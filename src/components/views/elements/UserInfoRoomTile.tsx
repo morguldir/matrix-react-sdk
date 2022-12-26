@@ -24,7 +24,7 @@ import AccessibleButton from "../../views/elements/AccessibleButton";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import DecoratedRoomAvatar from "../avatars/DecoratedRoomAvatar";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
-import dis from '../../../dispatcher/dispatcher';
+import dis from "../../../dispatcher/dispatcher";
 import { Key } from "../../../Keyboard";
 
 interface IProps {
@@ -55,29 +55,25 @@ export default class UserInfoRoomTile extends React.PureComponent<IProps, IState
         ev.preventDefault();
         ev.stopPropagation();
         dis.dispatch({
-            action: 'view_room',
+            action: "view_room",
             show_room_tile: true, // make sure the room is visible in the list
             room_id: this.props.room.roomId,
-            clear_search: (ev && (ev.key === Key.ENTER || ev.key === Key.SPACE)),
+            clear_search: ev && (ev.key === Key.ENTER || ev.key === Key.SPACE),
         });
     };
 
     public render(): React.ReactElement {
         const classes = classNames({
-            'mx_RoomTile': true,
-            'mx_RoomTile_selected': this.state.selected,
+            mx_RoomTile: true,
+            mx_RoomTile_selected: this.state.selected,
         });
 
-        const roomAvatar = <DecoratedRoomAvatar
-            room={this.props.room}
-            avatarSize={32}
-            displayBadge={false}
-        />;
+        const roomAvatar = <DecoratedRoomAvatar room={this.props.room} avatarSize={32} displayBadge={false} />;
 
         let badge: React.ReactNode;
 
         let name = this.props.room.name;
-        if (typeof name !== 'string') name = '';
+        if (typeof name !== "string") name = "";
         name = name.replace(":", ":\u200b"); // add a zero-width space to allow linewrapping after the colon
 
         const nameContainer = (
