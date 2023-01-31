@@ -30,7 +30,7 @@ import { fireEvent, getByTestId, render, screen, waitFor } from "@testing-librar
 import Notifications from "../../../../src/components/views/settings/Notifications";
 import SettingsStore from "../../../../src/settings/SettingsStore";
 import { StandardActions } from "../../../../src/notifications/StandardActions";
-import { getMockClientWithEventEmitter, mkMessage } from "../../../test-utils";
+import { getMockClientWithEventEmitter, mkMessage, mockClientMethodsUser } from "../../../test-utils";
 
 // don't pollute test output with error logs from mock rejections
 jest.mock("matrix-js-sdk/src/logger");
@@ -205,6 +205,7 @@ describe("<Notifications />", () => {
     };
 
     const mockClient = getMockClientWithEventEmitter({
+        ...mockClientMethodsUser(),
         getPushRules: jest.fn(),
         getPushers: jest.fn(),
         getThreePids: jest.fn(),
@@ -224,7 +225,7 @@ describe("<Notifications />", () => {
         }),
         setAccountData: jest.fn(),
         sendReadReceipt: jest.fn(),
-        supportsExperimentalThreads: jest.fn().mockReturnValue(true),
+        supportsThreads: jest.fn().mockReturnValue(true),
     });
     mockClient.getPushRules.mockResolvedValue(pushRules);
 

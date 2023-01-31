@@ -218,7 +218,7 @@ class EmojiPicker extends React.Component<IProps, IState> {
         );
     };
 
-    private onEnterFilter = () => {
+    private onEnterFilter = (): void => {
         const btn =
             this.scrollRef.current?.containerRef.current?.querySelector<HTMLButtonElement>(".mx_EmojiPicker_item");
         if (btn) {
@@ -232,7 +232,7 @@ class EmojiPicker extends React.Component<IProps, IState> {
         });
     };
 
-    private onHoverEmojiEnd = (_emoji: IEmoji): void => {
+    private onHoverEmojiEnd = (emoji: IEmoji): void => {
         this.setState({
             previewEmoji: null,
         });
@@ -255,7 +255,7 @@ class EmojiPicker extends React.Component<IProps, IState> {
         return CATEGORY_HEADER_HEIGHT + Math.ceil(count / EMOJIS_PER_ROW) * EMOJI_HEIGHT;
     }
 
-    public render() {
+    public render(): JSX.Element {
         let heightBefore = 0;
         return (
             <div className="mx_EmojiPicker" data-testid="mx_EmojiPicker">
