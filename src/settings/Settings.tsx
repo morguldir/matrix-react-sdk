@@ -257,13 +257,13 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_FEATURE,
         default: false,
     },
-    "feature_threadstable": {
+    "feature_threadenabled": {
         isFeature: true,
         labsGroup: LabGroup.Messaging,
         controller: new ThreadBetaController(),
         displayName: _td("Threaded messages"),
         supportedLevels: LEVELS_FEATURE,
-        default: false,
+        default: true,
         betaInfo: {
             title: _td("Threaded messages"),
             caption: () => (
@@ -338,13 +338,6 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         labsGroup: LabGroup.Encryption,
         displayName: _td("Offline encrypted messaging using dehydrated devices"),
         supportedLevels: LEVELS_FEATURE,
-        default: false,
-    },
-    "feature_extensible_events": {
-        isFeature: true,
-        labsGroup: LabGroup.Developer, // developer for now, eventually Messaging and default on
-        supportedLevels: LEVELS_FEATURE,
-        displayName: _td("Show extensible event representation of events"),
         default: false,
     },
     "feature_show_shared_rooms": {
@@ -453,6 +446,15 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         shouldWarn: true,
         default: false,
     },
+    "feature_dynamic_room_predecessors": {
+        isFeature: true,
+        labsGroup: LabGroup.Rooms,
+        supportedLevels: LEVELS_FEATURE,
+        displayName: _td("Dynamic room predecessors"),
+        description: _td("Enable MSC3946 (to support late-arriving room archives)"),
+        shouldWarn: true,
+        default: false,
+    },
     "feature_favourite_messages": {
         isFeature: true,
         labsGroup: LabGroup.Messaging,
@@ -466,7 +468,6 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         labsGroup: LabGroup.Messaging,
         supportedLevels: LEVELS_FEATURE,
         displayName: _td("Voice broadcast"),
-        description: _td("Under active development"),
         default: false,
     },
     [Features.VoiceBroadcastForceSmallChunks]: {

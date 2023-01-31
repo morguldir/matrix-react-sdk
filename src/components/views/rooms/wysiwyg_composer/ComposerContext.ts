@@ -20,7 +20,7 @@ import { SubSelection } from "./types";
 
 export function getDefaultContextValue(): { selection: SubSelection } {
     return {
-        selection: { anchorNode: null, anchorOffset: 0, focusNode: null, focusOffset: 0 },
+        selection: { anchorNode: null, anchorOffset: 0, focusNode: null, focusOffset: 0, isForward: true },
     };
 }
 
@@ -31,6 +31,6 @@ export interface ComposerContextState {
 export const ComposerContext = createContext<ComposerContextState>(getDefaultContextValue());
 ComposerContext.displayName = "ComposerContext";
 
-export function useComposerContext() {
+export function useComposerContext(): ComposerContextState {
     return useContext(ComposerContext);
 }

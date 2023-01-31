@@ -29,6 +29,7 @@ import { EventType } from "matrix-js-sdk/src/@types/event";
 import { logger } from "matrix-js-sdk/src/logger";
 import { CryptoEvent } from "matrix-js-sdk/src/crypto";
 import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
+import { UserTrustLevel } from "matrix-js-sdk/src/crypto/CrossSigning";
 
 import dis from "../../../dispatcher/dispatcher";
 import Modal from "../../../Modal";
@@ -86,7 +87,7 @@ export interface IDevice {
     getDisplayName(): string;
 }
 
-const disambiguateDevices = (devices: IDevice[]) => {
+export const disambiguateDevices = (devices: IDevice[]): void => {
     const names = Object.create(null);
     for (let i = 0; i < devices.length; i++) {
         const name = devices[i].getDisplayName();
@@ -96,7 +97,7 @@ const disambiguateDevices = (devices: IDevice[]) => {
     }
     for (const name in names) {
         if (names[name].length > 1) {
-            names[name].forEach((j) => {
+            names[name].forEach((j: number) => {
                 devices[j].ambiguous = true;
             });
         }
@@ -134,7 +135,12 @@ async function openDMForUser(matrixClient: MatrixClient, user: RoomMember): Prom
 
 type SetUpdating = (updating: boolean) => void;
 
-function useHasCrossSigningKeys(cli: MatrixClient, member: User, canVerify: boolean, setUpdating: SetUpdating) {
+function useHasCrossSigningKeys(
+    cli: MatrixClient,
+    member: User,
+    canVerify: boolean,
+    setUpdating: SetUpdating,
+): boolean {
     return useAsyncMemo(async () => {
         if (!canVerify) {
             return undefined;
@@ -151,7 +157,7 @@ function useHasCrossSigningKeys(cli: MatrixClient, member: User, canVerify: bool
     }, [cli, member, canVerify]);
 }
 
-function DeviceItem({ userId, device }: { userId: string; device: IDevice }) {
+export function DeviceItem({ userId, device }: { userId: string; device: IDevice }): JSX.Element {
     const cli = useContext(MatrixClientContext);
     const isMe = userId === cli.getUserId();
     const deviceTrust = cli.checkDeviceTrust(userId, device.deviceId);
@@ -173,8 +179,11 @@ function DeviceItem({ userId, device }: { userId: string; device: IDevice }) {
         mx_E2EIcon_warning: userTrust.isVerified() && !isVerified,
     });
 
-    const onDeviceClick = () => {
-        verifyDevice(cli.getUser(userId), device);
+    const onDeviceClick = (): void => {
+        const user = cli.getUser(userId);
+        if (user) {
+            verifyDevice(user, device);
+        }
     };
 
     let deviceName;
@@ -208,7 +217,15 @@ function DeviceItem({ userId, device }: { userId: string; device: IDevice }) {
     }
 }
 
-function DevicesSection({ devices, userId, loading }: { devices: IDevice[]; userId: string; loading: boolean }) {
+function DevicesSection({
+    devices,
+    userId,
+    loading,
+}: {
+    devices: IDevice[];
+    userId: string;
+    loading: boolean;
+}): JSX.Element {
     const cli = useContext(MatrixClientContext);
     const userTrust = cli.checkUserTrust(userId);
 
@@ -296,7 +313,7 @@ function DevicesSection({ devices, userId, loading }: { devices: IDevice[]; user
     );
 }
 
-const MessageButton = ({ member }: { member: RoomMember }) => {
+const MessageButton = ({ member }: { member: RoomMember }): JSX.Element => {
     const cli = useContext(MatrixClientContext);
     const [busy, setBusy] = useState(false);
 
@@ -317,7 +334,7 @@ const MessageButton = ({ member }: { member: RoomMember }) => {
     );
 };
 
-const UserOptionsSection: React.FC<{
+export const UserOptionsSection: React.FC<{
     member: RoomMember;
     isIgnored: boolean;
     canInvite: boolean;
@@ -332,31 +349,48 @@ const UserOptionsSection: React.FC<{
 
     const isMe = member.userId === cli.getUserId();
 
-    const onShareUserClick = () => {
+    const onShareUserClick = (): void => {
         Modal.createDialog(ShareDialog, {
             target: member,
         });
     };
 
+    const unignore = useCallback(() => {
+        const ignoredUsers = cli.getIgnoredUsers();
+        const index = ignoredUsers.indexOf(member.userId);
+        if (index !== -1) ignoredUsers.splice(index, 1);
+        cli.setIgnoredUsers(ignoredUsers);
+    }, [cli, member]);
+
+    const ignore = useCallback(async () => {
+        const { finished } = Modal.createDialog(QuestionDialog, {
+            title: _t("Ignore %(user)s", { user: member.name }),
+            description: (
+                <div>
+                    {_t(
+                        "All messages and invites from this user will be hidden. " +
+                            "Are you sure you want to ignore them?",
+                    )}
+                </div>
+            ),
+            button: _t("Ignore"),
+        });
+        const [confirmed] = await finished;
+
+        if (confirmed) {
+            const ignoredUsers = cli.getIgnoredUsers();
+            ignoredUsers.push(member.userId);
+            cli.setIgnoredUsers(ignoredUsers);
+        }
+    }, [cli, member]);
+
     // Only allow the user to ignore the user if its not ourselves
     // same goes for jumping to read receipt
     if (!isMe) {
-        const onIgnoreToggle = () => {
-            const ignoredUsers = cli.getIgnoredUsers();
-            if (isIgnored) {
-                const index = ignoredUsers.indexOf(member.userId);
-                if (index !== -1) ignoredUsers.splice(index, 1);
-            } else {
-                ignoredUsers.push(member.userId);
-            }
-
-            cli.setIgnoredUsers(ignoredUsers);
-        };
-
         ignoreButton = (
             <AccessibleButton
+                onClick={isIgnored ? unignore : ignore}
                 kind="link"
-                onClick={onIgnoreToggle}
                 className={classNames("mx_UserInfo_field", { mx_UserInfo_destructive: !isIgnored })}
             >
                 {isIgnored ? _t("Unignore") : _t("Ignore")}
@@ -364,18 +398,19 @@ const UserOptionsSection: React.FC<{
         );
 
         if (member.roomId && !isSpace) {
-            const onReadReceiptButton = function () {
+            const onReadReceiptButton = function (): void {
                 const room = cli.getRoom(member.roomId);
                 dis.dispatch<ViewRoomPayload>({
                     action: Action.ViewRoom,
                     highlighted: true,
-                    event_id: room.getEventReadUpTo(member.userId),
+                    // this could return null, the default prevents a type error
+                    event_id: room?.getEventReadUpTo(member.userId) || undefined,
                     room_id: member.roomId,
                     metricsTrigger: undefined, // room doesn't change
                 });
             };
 
-            const onInsertPillButton = function () {
+            const onInsertPillButton = function (): void {
                 dis.dispatch<ComposerInsertPayload>({
                     action: Action.ComposerInsert,
                     userId: member.userId,
@@ -401,19 +436,21 @@ const UserOptionsSection: React.FC<{
 
         if (canInvite && (member?.membership ?? "leave") === "leave" && shouldShowComponent(UIComponent.InviteUsers)) {
             const roomId = member && member.roomId ? member.roomId : SdkContextClass.instance.roomViewStore.getRoomId();
-            const onInviteUserButton = async (ev: ButtonEvent) => {
+            const onInviteUserButton = async (ev: ButtonEvent): Promise<void> => {
                 try {
                     // We use a MultiInviter to re-use the invite logic, even though we're only inviting one user.
-                    const inviter = new MultiInviter(roomId);
+                    const inviter = new MultiInviter(roomId || "");
                     await inviter.invite([member.userId]).then(() => {
                         if (inviter.getCompletionState(member.userId) !== "invited") {
                             throw new Error(inviter.getErrorText(member.userId));
                         }
                     });
                 } catch (err) {
+                    const description = err instanceof Error ? err.message : _t("Operation failed");
+
                     Modal.createDialog(ErrorDialog, {
                         title: _t("Failed to invite"),
-                        description: err && err.message ? err.message : _t("Operation failed"),
+                        description,
                     });
                 }
 
@@ -434,10 +471,7 @@ const UserOptionsSection: React.FC<{
         </AccessibleButton>
     );
 
-    let directMessageButton: JSX.Element;
-    if (!isMe) {
-        directMessageButton = <MessageButton member={member} />;
-    }
+    const directMessageButton = isMe ? null : <MessageButton member={member} />;
 
     return (
         <div className="mx_UserInfo_container">
@@ -454,8 +488,8 @@ const UserOptionsSection: React.FC<{
     );
 };
 
-const warnSelfDemote = async (isSpace: boolean) => {
-    const { finished } = Modal.createDialog(QuestionDialog, {
+const warnSelfDemote = async (isSpace: boolean): Promise<boolean> => {
+    const { finished } = Modal.createDialog<[boolean]>(QuestionDialog, {
         title: _t("Demote yourself?"),
         description: (
             <div>
@@ -501,18 +535,26 @@ interface IPowerLevelsContent {
     redact?: number;
 }
 
-const isMuted = (member: RoomMember, powerLevelContent: IPowerLevelsContent) => {
+export const isMuted = (member: RoomMember, powerLevelContent: IPowerLevelsContent): boolean => {
     if (!powerLevelContent || !member) return false;
 
     const levelToSend =
         (powerLevelContent.events ? powerLevelContent.events["m.room.message"] : null) ||
         powerLevelContent.events_default;
+
+    // levelToSend could be undefined as .events_default is optional. Coercing in this case using
+    // Number() would always return false, so this preserves behaviour
+    // FIXME: per the spec, if `events_default` is unset, it defaults to zero. If
+    //   the member has a negative powerlevel, this will give an incorrect result.
+    if (levelToSend === undefined) return false;
+
     return member.powerLevel < levelToSend;
 };
 
-const getPowerLevels = (room) => room?.currentState?.getStateEvents(EventType.RoomPowerLevels, "")?.getContent() || {};
+export const getPowerLevels = (room: Room): IPowerLevelsContent =>
+    room?.currentState?.getStateEvents(EventType.RoomPowerLevels, "")?.getContent() || {};
 
-export const useRoomPowerLevels = (cli: MatrixClient, room: Room) => {
+export const useRoomPowerLevels = (cli: MatrixClient, room: Room): IPowerLevelsContent => {
     const [powerLevels, setPowerLevels] = useState<IPowerLevelsContent>(getPowerLevels(room));
 
     const update = useCallback(
@@ -540,13 +582,18 @@ interface IBaseProps {
     stopUpdating(): void;
 }
 
-const RoomKickButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBaseRoomProps, "powerLevels">) => {
+export const RoomKickButton = ({
+    room,
+    member,
+    startUpdating,
+    stopUpdating,
+}: Omit<IBaseRoomProps, "powerLevels">): JSX.Element => {
     const cli = useContext(MatrixClientContext);
 
     // check if user can be kicked/disinvited
     if (member.membership !== "invite" && member.membership !== "join") return null;
 
-    const onKick = async () => {
+    const onKick = async (): Promise<void> => {
         const { finished } = Modal.createDialog(
             room.isSpaceRoom() ? ConfirmSpaceUserActionDialog : ConfirmUserActionDialog,
             {
@@ -568,7 +615,7 @@ const RoomKickButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBas
                 space: room,
                 spaceChildFilter: (child: Room) => {
                     // Return true if the target member is not banned and we have sufficient PL to ban them
-                    const myMember = child.getMember(cli.credentials.userId);
+                    const myMember = child.getMember(cli.credentials.userId || "");
                     const theirMember = child.getMember(member.userId);
                     return (
                         myMember &&
@@ -628,7 +675,7 @@ const RoomKickButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBas
 const RedactMessagesButton: React.FC<IBaseProps> = ({ member }) => {
     const cli = useContext(MatrixClientContext);
 
-    const onRedactAllMessages = () => {
+    const onRedactAllMessages = (): void => {
         const room = cli.getRoom(member.roomId);
         if (!room) return;
 
@@ -650,11 +697,16 @@ const RedactMessagesButton: React.FC<IBaseProps> = ({ member }) => {
     );
 };
 
-const BanToggleButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBaseRoomProps, "powerLevels">) => {
+export const BanToggleButton = ({
+    room,
+    member,
+    startUpdating,
+    stopUpdating,
+}: Omit<IBaseRoomProps, "powerLevels">): JSX.Element => {
     const cli = useContext(MatrixClientContext);
 
     const isBanned = member.membership === "ban";
-    const onBanOrUnban = async () => {
+    const onBanOrUnban = async (): Promise<void> => {
         const { finished } = Modal.createDialog(
             room.isSpaceRoom() ? ConfirmSpaceUserActionDialog : ConfirmUserActionDialog,
             {
@@ -676,7 +728,7 @@ const BanToggleButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBa
                 spaceChildFilter: isBanned
                     ? (child: Room) => {
                           // Return true if the target member is banned and we have sufficient PL to unban
-                          const myMember = child.getMember(cli.credentials.userId);
+                          const myMember = child.getMember(cli.credentials.userId || "");
                           const theirMember = child.getMember(member.userId);
                           return (
                               myMember &&
@@ -688,7 +740,7 @@ const BanToggleButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBa
                       }
                     : (child: Room) => {
                           // Return true if the target member isn't banned and we have sufficient PL to ban
-                          const myMember = child.getMember(cli.credentials.userId);
+                          const myMember = child.getMember(cli.credentials.userId || "");
                           const theirMember = child.getMember(member.userId);
                           return (
                               myMember &&
@@ -716,7 +768,7 @@ const BanToggleButton = ({ room, member, startUpdating, stopUpdating }: Omit<IBa
 
         startUpdating();
 
-        const fn = (roomId: string) => {
+        const fn = (roomId: string): Promise<unknown> => {
             if (isBanned) {
                 return cli.unban(roomId, member.userId);
             } else {
@@ -772,7 +824,7 @@ const MuteToggleButton: React.FC<IBaseRoomProps> = ({ member, room, powerLevels,
     if (member.membership !== "join") return null;
 
     const muted = isMuted(member, powerLevels);
-    const onMuteToggle = async () => {
+    const onMuteToggle = async (): Promise<void> => {
         const roomId = member.roomId;
         const target = member.userId;
 
@@ -837,7 +889,7 @@ const MuteToggleButton: React.FC<IBaseRoomProps> = ({ member, room, powerLevels,
     );
 };
 
-const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
+export const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
     room,
     children,
     member,
@@ -857,7 +909,7 @@ const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
     // if these do not exist in the event then they should default to 50 as per the spec
     const { ban: banPowerLevel = 50, kick: kickPowerLevel = 50, redact: redactPowerLevel = 50 } = powerLevels;
 
-    const me = room.getMember(cli.getUserId());
+    const me = room.getMember(cli.getUserId() || "");
     if (!me) {
         // we aren't in the room, so return no admin tooling
         return <div />;
@@ -881,7 +933,7 @@ const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
             <BanToggleButton room={room} member={member} startUpdating={startUpdating} stopUpdating={stopUpdating} />
         );
     }
-    if (!isMe && canAffectUser && me.powerLevel >= editPowerLevel && !room.isSpaceRoom()) {
+    if (!isMe && canAffectUser && me.powerLevel >= Number(editPowerLevel) && !room.isSpaceRoom()) {
         muteButton = (
             <MuteToggleButton
                 member={member}
@@ -908,7 +960,7 @@ const RoomAdminToolsContainer: React.FC<IBaseRoomProps> = ({
     return <div />;
 };
 
-const useIsSynapseAdmin = (cli: MatrixClient) => {
+const useIsSynapseAdmin = (cli: MatrixClient): boolean => {
     const [isAdmin, setIsAdmin] = useState(false);
     useEffect(() => {
         cli.isSynapseAdministrator().then(
@@ -923,7 +975,7 @@ const useIsSynapseAdmin = (cli: MatrixClient) => {
     return isAdmin;
 };
 
-const useHomeserverSupportsCrossSigning = (cli: MatrixClient) => {
+const useHomeserverSupportsCrossSigning = (cli: MatrixClient): boolean => {
     return useAsyncMemo<boolean>(
         async () => {
             return cli.doesServerSupportUnstableFeature("org.matrix.e2e_cross_signing");
@@ -951,7 +1003,7 @@ function useRoomPermissions(cli: MatrixClient, room: Room, user: RoomMember): IR
         const powerLevels = room?.currentState.getStateEvents(EventType.RoomPowerLevels, "")?.getContent();
         if (!powerLevels) return;
 
-        const me = room.getMember(cli.getUserId());
+        const me = room.getMember(cli.getUserId() || "");
         if (!me) return;
 
         const them = user;
@@ -1008,7 +1060,7 @@ const PowerLevelSection: React.FC<{
     }
 };
 
-const PowerLevelEditor: React.FC<{
+export const PowerLevelEditor: React.FC<{
     user: RoomMember;
     room: Room;
     roomPermissions: IRoomPermissions;
@@ -1024,8 +1076,13 @@ const PowerLevelEditor: React.FC<{
         async (powerLevel: number) => {
             setSelectedPowerLevel(powerLevel);
 
-            const applyPowerChange = (roomId, target, powerLevel, powerLevelEvent) => {
-                return cli.setPowerLevel(roomId, target, parseInt(powerLevel), powerLevelEvent).then(
+            const applyPowerChange = (
+                roomId: string,
+                target: string,
+                powerLevel: number,
+                powerLevelEvent: MatrixEvent,
+            ): Promise<unknown> => {
+                return cli.setPowerLevel(roomId, target, powerLevel, powerLevelEvent).then(
                     function () {
                         // NO-OP; rely on the m.room.member event coming down else we could
                         // get out of sync if we force setState here!
@@ -1048,7 +1105,7 @@ const PowerLevelEditor: React.FC<{
             if (!powerLevelEvent) return;
 
             const myUserId = cli.getUserId();
-            const myPower = powerLevelEvent.getContent().users[myUserId];
+            const myPower = powerLevelEvent.getContent().users[myUserId || ""];
             if (myPower && parseInt(myPower) <= powerLevel && myUserId !== target) {
                 const { finished } = Modal.createDialog(QuestionDialog, {
                     title: _t("Warning!"),
@@ -1087,7 +1144,7 @@ const PowerLevelEditor: React.FC<{
     return (
         <div className="mx_UserInfo_profileField">
             <PowerSelector
-                label={null}
+                label={undefined}
                 value={selectedPowerLevel}
                 maxValue={roomPermissions.modifyLevelMax}
                 usersDefault={powerLevelUsersDefault}
@@ -1097,18 +1154,18 @@ const PowerLevelEditor: React.FC<{
     );
 };
 
-export const useDevices = (userId: string) => {
+export const useDevices = (userId: string): IDevice[] | undefined | null => {
     const cli = useContext(MatrixClientContext);
 
     // undefined means yet to be loaded, null means failed to load, otherwise list of devices
-    const [devices, setDevices] = useState(undefined);
+    const [devices, setDevices] = useState<undefined | null | IDevice[]>(undefined);
     // Download device lists
     useEffect(() => {
         setDevices(undefined);
 
         let cancelled = false;
 
-        async function downloadDeviceList() {
+        async function downloadDeviceList(): Promise<void> {
             try {
                 await cli.downloadKeys([userId], true);
                 const devices = cli.getStoredDevicesForUser(userId);
@@ -1118,8 +1175,8 @@ export const useDevices = (userId: string) => {
                     return;
                 }
 
-                disambiguateDevices(devices);
-                setDevices(devices);
+                disambiguateDevices(devices as IDevice[]);
+                setDevices(devices as IDevice[]);
             } catch (err) {
                 setDevices(null);
             }
@@ -1135,20 +1192,20 @@ export const useDevices = (userId: string) => {
     // Listen to changes
     useEffect(() => {
         let cancel = false;
-        const updateDevices = async () => {
+        const updateDevices = async (): Promise<void> => {
             const newDevices = cli.getStoredDevicesForUser(userId);
             if (cancel) return;
-            setDevices(newDevices);
+            setDevices(newDevices as IDevice[]);
         };
-        const onDevicesUpdated = (users) => {
+        const onDevicesUpdated = (users: string[]): void => {
             if (!users.includes(userId)) return;
             updateDevices();
         };
-        const onDeviceVerificationChanged = (_userId, device) => {
+        const onDeviceVerificationChanged = (_userId: string, deviceId: string): void => {
             if (_userId !== userId) return;
             updateDevices();
         };
-        const onUserTrustStatusChanged = (_userId, trustStatus) => {
+        const onUserTrustStatusChanged = (_userId: string, trustLevel: UserTrustLevel): void => {
             if (_userId !== userId) return;
             updateDevices();
         };
@@ -1231,9 +1288,11 @@ const BasicUserInfo: React.FC<{
             logger.error("Failed to deactivate user");
             logger.error(err);
 
+            const description = err instanceof Error ? err.message : _t("Operation failed");
+
             Modal.createDialog(ErrorDialog, {
                 title: _t("Failed to deactivate user"),
-                description: err && err.message ? err.message : _t("Operation failed"),
+                description,
             });
         }
     }, [cli, member.userId]);
@@ -1319,14 +1378,14 @@ const BasicUserInfo: React.FC<{
     const homeserverSupportsCrossSigning = useHomeserverSupportsCrossSigning(cli);
 
     const userTrust = cryptoEnabled && cli.checkUserTrust(member.userId);
-    const userVerified = cryptoEnabled && userTrust.isCrossSigningVerified();
+    const userVerified = cryptoEnabled && userTrust && userTrust.isCrossSigningVerified();
     const isMe = member.userId === cli.getUserId();
     const canVerify =
         cryptoEnabled && homeserverSupportsCrossSigning && !userVerified && !isMe && devices && devices.length > 0;
 
     const isSharedRoomsFeatureEnabled = SettingsStore.getValue("feature_show_shared_rooms");
 
-    const setUpdating = (updating) => {
+    const setUpdating: SetUpdating = (updating) => {
         setPendingUpdateCount((count) => count + (updating ? 1 : -1));
     };
     const hasCrossSigningKeys = useHasCrossSigningKeys(cli, member as User, canVerify, setUpdating);
@@ -1413,9 +1472,9 @@ const BasicUserInfo: React.FC<{
 
 export type Member = User | RoomMember;
 
-const UserInfoHeader: React.FC<{
+export const UserInfoHeader: React.FC<{
     member: Member;
-    e2eStatus: E2EStatus;
+    e2eStatus?: E2EStatus;
     roomId?: string;
 }> = ({ member, e2eStatus, roomId }) => {
     const cli = useContext(MatrixClientContext);
@@ -1432,8 +1491,10 @@ const UserInfoHeader: React.FC<{
             name: (member as RoomMember).name || (member as User).displayName,
         };
 
-        Modal.createDialog(ImageView, params, "mx_Dialog_lightbox", null, true);
+        Modal.createDialog(ImageView, params, "mx_Dialog_lightbox", undefined, true);
     }, [member]);
+
+    const avatarUrl = (member as User).avatarUrl;
 
     const avatarElement = (
         <div className="mx_UserInfo_avatar">
@@ -1447,7 +1508,7 @@ const UserInfoHeader: React.FC<{
                         resizeMethod="scale"
                         fallbackUserId={member.userId}
                         onClick={onMemberAvatarClick}
-                        urls={(member as User).avatarUrl ? [(member as User).avatarUrl] : undefined}
+                        urls={avatarUrl ? [avatarUrl] : undefined}
                     />
                 </div>
             </div>
@@ -1480,10 +1541,7 @@ const UserInfoHeader: React.FC<{
         );
     }
 
-    let e2eIcon;
-    if (e2eStatus) {
-        e2eIcon = <E2EIcon size={18} status={e2eStatus} isUser={true} />;
-    }
+    const e2eIcon = e2eStatus ? <E2EIcon size={18} status={e2eStatus} isUser={true} /> : null;
 
     const displayName = (member as RoomMember).rawDisplayName;
     return (
@@ -1501,7 +1559,7 @@ const UserInfoHeader: React.FC<{
                         </h2>
                     </div>
                     <div className="mx_UserInfo_profile_mxid">
-                        {UserIdentifierCustomisations.getDisplayUserIdentifier(member.userId, {
+                        {UserIdentifierCustomisations.getDisplayUserIdentifier?.(member.userId, {
                             roomId,
                             withDisplayName: true,
                         })}
@@ -1538,7 +1596,7 @@ const UserInfo: React.FC<IProps> = ({ user, room, onClose, phase = RightPanelPha
 
     const classes = ["mx_UserInfo"];
 
-    let cardState: IRightPanelCardState;
+    let cardState: IRightPanelCardState = {};
     // We have no previousPhase for when viewing a UserInfo without a Room at this time
     if (room && phase === RightPanelPhases.EncryptionPanel) {
         cardState = { member };
@@ -1546,7 +1604,7 @@ const UserInfo: React.FC<IProps> = ({ user, room, onClose, phase = RightPanelPha
         cardState = { spaceId: room.roomId };
     }
 
-    const onEncryptionPanelClose = () => {
+    const onEncryptionPanelClose = (): void => {
         RightPanelStore.instance.popCard();
     };
 
@@ -1556,10 +1614,10 @@ const UserInfo: React.FC<IProps> = ({ user, room, onClose, phase = RightPanelPha
         case RightPanelPhases.SpaceMemberInfo:
             content = (
                 <BasicUserInfo
-                    room={room}
+                    room={room as Room}
                     member={member as User}
-                    devices={devices}
-                    isRoomEncrypted={isRoomEncrypted}
+                    devices={devices as IDevice[]}
+                    isRoomEncrypted={Boolean(isRoomEncrypted)}
                 />
             );
             break;
@@ -1570,7 +1628,7 @@ const UserInfo: React.FC<IProps> = ({ user, room, onClose, phase = RightPanelPha
                     {...(props as React.ComponentProps<typeof EncryptionPanel>)}
                     member={member as User | RoomMember}
                     onClose={onEncryptionPanelClose}
-                    isRoomEncrypted={isRoomEncrypted}
+                    isRoomEncrypted={Boolean(isRoomEncrypted)}
                 />
             );
             break;
@@ -1587,7 +1645,7 @@ const UserInfo: React.FC<IProps> = ({ user, room, onClose, phase = RightPanelPha
     let scopeHeader;
     if (room?.isSpaceRoom()) {
         scopeHeader = (
-            <div data-test-id="space-header" className="mx_RightPanel_scopeHeader">
+            <div data-testid="space-header" className="mx_RightPanel_scopeHeader">
                 <RoomAvatar room={room} height={32} width={32} />
                 <RoomName room={room} />
             </div>

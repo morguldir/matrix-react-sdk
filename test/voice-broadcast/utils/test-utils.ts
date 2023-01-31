@@ -15,14 +15,23 @@ limitations under the License.
 */
 
 import { Optional } from "matrix-events-sdk";
-import { EventType, MatrixEvent, MsgType, RelationType } from "matrix-js-sdk/src/matrix";
+import { EventType, MatrixEvent, MsgType, RelationType, Room, RoomMember } from "matrix-js-sdk/src/matrix";
 
+import { SdkContextClass } from "../../../src/contexts/SDKContext";
+import {
+    VoiceBroadcastPlayback,
+    VoiceBroadcastPreRecording,
+    VoiceBroadcastRecording,
+} from "../../../src/voice-broadcast";
 import {
     VoiceBroadcastChunkEventType,
     VoiceBroadcastInfoEventType,
     VoiceBroadcastInfoState,
-} from "../../../src/voice-broadcast";
+} from "../../../src/voice-broadcast/types";
 import { mkEvent } from "../../test-utils";
+
+// timestamp incremented on each call to prevent duplicate timestamp
+let timestamp = new Date().getTime();
 
 export const mkVoiceBroadcastInfoStateEvent = (
     roomId: Optional<string>,
@@ -30,6 +39,7 @@ export const mkVoiceBroadcastInfoStateEvent = (
     senderId: Optional<string>,
     senderDeviceId: Optional<string>,
     startedInfoEvent?: MatrixEvent,
+    lastChunkSequence?: number,
 ): MatrixEvent => {
     const relationContent = {};
 
@@ -39,6 +49,8 @@ export const mkVoiceBroadcastInfoStateEvent = (
             rel_type: "m.reference",
         };
     }
+
+    const lastChunkSequenceContent = lastChunkSequence ? { last_chunk_sequence: lastChunkSequence } : {};
 
     return mkEvent({
         event: true,
@@ -53,7 +65,9 @@ export const mkVoiceBroadcastInfoStateEvent = (
             state,
             device_id: senderDeviceId,
             ...relationContent,
+            ...lastChunkSequenceContent,
         },
+        ts: timestamp++,
     });
 };
 
@@ -88,4 +102,38 @@ export const mkVoiceBroadcastChunkEvent = (
         },
         ts: timestamp,
     });
+};
+
+export const mkVoiceBroadcastPlayback = (stores: SdkContextClass): VoiceBroadcastPlayback => {
+    const infoEvent = mkVoiceBroadcastInfoStateEvent(
+        "!room:example.com",
+        VoiceBroadcastInfoState.Started,
+        "@user:example.com",
+        "ASD123",
+    );
+    return new VoiceBroadcastPlayback(infoEvent, stores.client!, stores.voiceBroadcastRecordingsStore);
+};
+
+export const mkVoiceBroadcastRecording = (stores: SdkContextClass): VoiceBroadcastRecording => {
+    const infoEvent = mkVoiceBroadcastInfoStateEvent(
+        "!room:example.com",
+        VoiceBroadcastInfoState.Started,
+        "@user:example.com",
+        "ASD123",
+    );
+    return new VoiceBroadcastRecording(infoEvent, stores.client!);
+};
+
+export const mkVoiceBroadcastPreRecording = (stores: SdkContextClass): VoiceBroadcastPreRecording => {
+    const roomId = "!room:example.com";
+    const userId = "@user:example.com";
+    const room = new Room(roomId, stores.client!, userId);
+    const roomMember = new RoomMember(roomId, userId);
+    return new VoiceBroadcastPreRecording(
+        room,
+        roomMember,
+        stores.client!,
+        stores.voiceBroadcastPlaybacksStore,
+        stores.voiceBroadcastRecordingsStore,
+    );
 };
