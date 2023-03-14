@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Matrix.org Foundation C.I.C.
+Copyright 2022 - 2023 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,16 +16,16 @@ limitations under the License.
 
 /// <reference types="cypress" />
 
-import { PollResponseEvent } from "matrix-events-sdk";
-
-import { SynapseInstance } from "../../plugins/synapsedocker";
+import { HomeserverInstance } from "../../plugins/utils/homeserver";
 import { MatrixClient } from "../../global";
+import { SettingLevel } from "../../../src/settings/SettingLevel";
+import { Layout } from "../../../src/settings/enums/Layout";
 import Chainable = Cypress.Chainable;
 
-const hideTimestampCSS = ".mx_MessageTimestamp { visibility: hidden !important; }";
+const hidePercyCSS = ".mx_MessageTimestamp, .mx_RoomView_myReadMarker { visibility: hidden !important; }";
 
 describe("Polls", () => {
-    let synapse: SynapseInstance;
+    let homeserver: HomeserverInstance;
 
     type CreatePollOptions = {
         title: string;
@@ -56,12 +56,12 @@ describe("Polls", () => {
     };
 
     const getPollOption = (pollId: string, optionText: string): Chainable<JQuery> => {
-        return getPollTile(pollId).contains(".mx_MPollBody_option .mx_StyledRadioButton", optionText);
+        return getPollTile(pollId).contains(".mx_PollOption .mx_StyledRadioButton", optionText);
     };
 
     const expectPollOptionVoteCount = (pollId: string, optionText: string, votes: number): void => {
         getPollOption(pollId, optionText).within(() => {
-            cy.get(".mx_MPollBody_optionVoteCount").should("contain", `${votes} vote`);
+            cy.get(".mx_PollOption_optionVoteCount").should("contain", `${votes} vote`);
         });
     };
 
@@ -70,31 +70,38 @@ describe("Polls", () => {
             cy.get('input[type="radio"]')
                 .invoke("attr", "value")
                 .then((optionId) => {
-                    const pollVote = PollResponseEvent.from([optionId], pollId).serialize();
-                    bot.sendEvent(roomId, pollVote.type, pollVote.content);
+                    // We can't use the js-sdk types for this stuff directly, so manually construct the event.
+                    bot.sendEvent(roomId, "org.matrix.msc3381.poll.response", {
+                        "m.relates_to": {
+                            rel_type: "m.reference",
+                            event_id: pollId,
+                        },
+                        "org.matrix.msc3381.poll.response": {
+                            answers: [optionId],
+                        },
+                    });
                 });
         });
     };
 
     beforeEach(() => {
-        cy.enableLabsFeature("feature_threadstable");
         cy.window().then((win) => {
             win.localStorage.setItem("mx_lhs_size", "0"); // Collapse left panel for these tests
         });
-        cy.startSynapse("default").then((data) => {
-            synapse = data;
+        cy.startHomeserver("default").then((data) => {
+            homeserver = data;
 
-            cy.initTestUser(synapse, "Tom");
+            cy.initTestUser(homeserver, "Tom");
         });
     });
 
     afterEach(() => {
-        cy.stopSynapse(synapse);
+        cy.stopHomeserver(homeserver);
     });
 
     it("should be creatable and votable", () => {
         let bot: MatrixClient;
-        cy.getBot(synapse, { displayName: "BotBob" }).then((_bot) => {
+        cy.getBot(homeserver, { displayName: "BotBob" }).then((_bot) => {
             bot = _bot;
         });
 
@@ -115,7 +122,10 @@ describe("Polls", () => {
 
         const pollParams = {
             title: "Does the polls feature work?",
-            options: ["Yes", "No", "Maybe"],
+            // Since we're going to take a screenshot anyways, we include some
+            // non-ASCII characters here to stress test the app's font config
+            // while we're at it.
+            options: ["Yes", "Noo⃐o⃑o⃩o⃪o⃫o⃬o⃭o⃮o⃯", "のらねこ Maybe?"],
         };
         createPoll(pollParams);
 
@@ -125,7 +135,7 @@ describe("Polls", () => {
             .as("pollId");
 
         cy.get<string>("@pollId").then((pollId) => {
-            getPollTile(pollId).percySnapshotElement("Polls Timeline tile - no votes", { percyCSS: hideTimestampCSS });
+            getPollTile(pollId).percySnapshotElement("Polls Timeline tile - no votes", { percyCSS: hidePercyCSS });
 
             // Bot votes 'Maybe' in the poll
             botVoteForOption(bot, roomId, pollId, pollParams.options[2]);
@@ -160,7 +170,7 @@ describe("Polls", () => {
 
     it("should be editable from context menu if no votes have been cast", () => {
         let bot: MatrixClient;
-        cy.getBot(synapse, { displayName: "BotBob" }).then((_bot) => {
+        cy.getBot(homeserver, { displayName: "BotBob" }).then((_bot) => {
             bot = _bot;
         });
 
@@ -203,7 +213,7 @@ describe("Polls", () => {
 
     it("should not be editable from context menu if votes have been cast", () => {
         let bot: MatrixClient;
-        cy.getBot(synapse, { displayName: "BotBob" }).then((_bot) => {
+        cy.getBot(homeserver, { displayName: "BotBob" }).then((_bot) => {
             bot = _bot;
         });
 
@@ -253,10 +263,10 @@ describe("Polls", () => {
     it("should be displayed correctly in thread panel", () => {
         let botBob: MatrixClient;
         let botCharlie: MatrixClient;
-        cy.getBot(synapse, { displayName: "BotBob" }).then((_bot) => {
+        cy.getBot(homeserver, { displayName: "BotBob" }).then((_bot) => {
             botBob = _bot;
         });
-        cy.getBot(synapse, { displayName: "BotCharlie" }).then((_bot) => {
+        cy.getBot(homeserver, { displayName: "BotCharlie" }).then((_bot) => {
             botCharlie = _bot;
         });
 
@@ -304,6 +314,18 @@ describe("Polls", () => {
             cy.get(".mx_RoomView_body .mx_MPollBody_totalVotes").should("contain", "2 votes cast");
             // and thread view
             cy.get(".mx_ThreadView .mx_MPollBody_totalVotes").should("contain", "2 votes cast");
+
+            // Take snapshots of poll on ThreadView
+            cy.setSettingValue("layout", null, SettingLevel.DEVICE, Layout.Bubble);
+            cy.get(".mx_ThreadView .mx_EventTile[data-layout='bubble']").should("be.visible");
+            cy.get(".mx_ThreadView").percySnapshotElement("ThreadView with a poll on bubble layout", {
+                percyCSS: hidePercyCSS,
+            });
+            cy.setSettingValue("layout", null, SettingLevel.DEVICE, Layout.Group);
+            cy.get(".mx_ThreadView .mx_EventTile[data-layout='group']").should("be.visible");
+            cy.get(".mx_ThreadView").percySnapshotElement("ThreadView with a poll on group layout", {
+                percyCSS: hidePercyCSS,
+            });
 
             cy.get(".mx_RoomView_body").within(() => {
                 // vote 'Maybe' in the main timeline poll

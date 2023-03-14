@@ -108,7 +108,7 @@ limitations under the License.
     display: flex;
     user-select: none;
 
-    &:not(.mx_RoomHeader_name--textonly):hover {
+    &:hover {
         background-color: $quinary-content;
     }
 
@@ -191,12 +191,13 @@ limitations under the License.
 }
 
 .mx_RoomHeader_button {
-    position: relative;
+    cursor: pointer;
+    flex: 0 0 auto;
     margin-left: 1px;
     margin-right: 1px;
-    cursor: pointer;
     height: 32px;
     width: 32px;
+    position: relative;
     border-radius: 100%;
 
     &::before {

@@ -21,6 +21,7 @@ import { SERVICE_TYPES } from "matrix-js-sdk/src/service-types";
 import { _t, pickBestLanguage } from "../../../languageHandler";
 import DialogButtons from "../elements/DialogButtons";
 import BaseDialog from "./BaseDialog";
+import { ServicePolicyPair } from "../../../Terms";
 
 interface ITermsCheckboxProps {
     onChange: (url: string, checked: boolean) => void;
@@ -33,7 +34,7 @@ class TermsCheckbox extends React.PureComponent<ITermsCheckboxProps> {
         this.props.onChange(this.props.url, ev.currentTarget.checked);
     };
 
-    public render() {
+    public render(): React.ReactNode {
         return <input type="checkbox" onChange={this.onChange} checked={this.props.checked} />;
     }
 }
@@ -43,7 +44,7 @@ interface ITermsDialogProps {
      * Array of [Service, policies] pairs, where policies is the response from the
      * /terms endpoint for that service
      */
-    policiesAndServicePairs: any[];
+    policiesAndServicePairs: ServicePolicyPair[];
 
     /**
      * urls that the user has already agreed to
@@ -63,7 +64,7 @@ interface IState {
 }
 
 export default class TermsDialog extends React.PureComponent<ITermsDialogProps, IState> {
-    public constructor(props) {
+    public constructor(props: ITermsDialogProps) {
         super(props);
         this.state = {
             // url -> boolean
@@ -119,13 +120,13 @@ export default class TermsDialog extends React.PureComponent<ITermsDialogProps, 
         }
     }
 
-    private onTermsCheckboxChange = (url: string, checked: boolean) => {
+    private onTermsCheckboxChange = (url: string, checked: boolean): void => {
         this.setState({
             agreedUrls: Object.assign({}, this.state.agreedUrls, { [url]: checked }),
         });
     };
 
-    public render() {
+    public render(): React.ReactNode {
         const rows = [];
         for (const policiesAndService of this.props.policiesAndServicePairs) {
             const parsedBaseUrl = url.parse(policiesAndService.service.baseUrl);

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { createContext, useState } from "react";
+import React, { createContext, ReactNode, useState } from "react";
 import { Room } from "matrix-js-sdk/src/models/room";
 import classNames from "classnames";
 
@@ -29,6 +29,7 @@ export interface IDevtoolsProps {
 
 interface IMinProps extends Pick<IDevtoolsProps, "onBack"> {
     className?: string;
+    children?: ReactNode;
 }
 
 interface IProps extends IMinProps {
@@ -39,7 +40,7 @@ interface IProps extends IMinProps {
 const BaseTool: React.FC<XOR<IMinProps, IProps>> = ({ className, actionLabel, onBack, onAction, children }) => {
     const [message, setMessage] = useState<string>(null);
 
-    const onBackClick = () => {
+    const onBackClick = (): void => {
         if (message) {
             setMessage(null);
         } else {
@@ -51,7 +52,7 @@ const BaseTool: React.FC<XOR<IMinProps, IProps>> = ({ className, actionLabel, on
     if (message) {
         children = message;
     } else if (onAction) {
-        const onActionClick = () => {
+        const onActionClick = (): void => {
             onAction().then((msg) => {
                 if (typeof msg === "string") {
                     setMessage(msg);

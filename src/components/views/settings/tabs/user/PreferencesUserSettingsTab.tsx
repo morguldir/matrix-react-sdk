@@ -89,13 +89,15 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
         "useOnlyCurrentProfiles",
     ];
 
+    private static ROOM_DIRECTORY_SETTINGS = ["SpotlightSearch.showNsfwPublicRooms"];
+
     private static GENERAL_SETTINGS = [
         "promptBeforeInviteUnknownUsers",
         // Start automatically after startup (electron-only)
         // Autocomplete delay (niche text box)
     ];
 
-    public constructor(props) {
+    public constructor(props: IProps) {
         super(props);
 
         this.state = {
@@ -122,17 +124,17 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
         });
     }
 
-    private onAutocompleteDelayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    private onAutocompleteDelayChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
         this.setState({ autocompleteDelay: e.target.value });
         SettingsStore.setValue("autocompleteDelay", null, SettingLevel.DEVICE, e.target.value);
     };
 
-    private onReadMarkerInViewThresholdMs = (e: React.ChangeEvent<HTMLInputElement>) => {
+    private onReadMarkerInViewThresholdMs = (e: React.ChangeEvent<HTMLInputElement>): void => {
         this.setState({ readMarkerInViewThresholdMs: e.target.value });
         SettingsStore.setValue("readMarkerInViewThresholdMs", null, SettingLevel.DEVICE, e.target.value);
     };
 
-    private onReadMarkerOutOfViewThresholdMs = (e: React.ChangeEvent<HTMLInputElement>) => {
+    private onReadMarkerOutOfViewThresholdMs = (e: React.ChangeEvent<HTMLInputElement>): void => {
         this.setState({ readMarkerOutOfViewThresholdMs: e.target.value });
         SettingsStore.setValue("readMarkerOutOfViewThresholdMs", null, SettingLevel.DEVICE, e.target.value);
     };
@@ -151,7 +153,7 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
         });
     };
 
-    public render() {
+    public render(): React.ReactNode {
         const useCase = SettingsStore.getValue<UseCase | null>("FTUE.useCaseSelection");
         const roomListSettings = PreferencesUserSettingsTab.ROOM_LIST_SETTINGS
             // Only show the breadcrumbs setting if breadcrumbs v2 is disabled
@@ -232,6 +234,11 @@ export default class PreferencesUserSettingsTab extends React.Component<IProps, 
                 <div className="mx_SettingsTab_section">
                     <span className="mx_SettingsTab_subheading">{_t("Timeline")}</span>
                     {this.renderGroup(PreferencesUserSettingsTab.TIMELINE_SETTINGS)}
+                </div>
+
+                <div className="mx_SettingsTab_section">
+                    <span className="mx_SettingsTab_subheading">{_t("Room directory")}</span>
+                    {this.renderGroup(PreferencesUserSettingsTab.ROOM_DIRECTORY_SETTINGS)}
                 </div>
 
                 <div className="mx_SettingsTab_section">

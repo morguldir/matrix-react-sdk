@@ -37,17 +37,17 @@ interface IProps {
     closeSettingsFn(): void;
 }
 
-const SpaceSettingsVisibilityTab = ({ matrixClient: cli, space, closeSettingsFn }: IProps) => {
+const SpaceSettingsVisibilityTab: React.FC<IProps> = ({ matrixClient: cli, space, closeSettingsFn }) => {
     const [error, setError] = useState("");
     const serverSupportsExploringSpaces = useAsyncMemo<boolean>(
-        async () => {
+        async (): Promise<boolean> => {
             return cli.doesServerSupportUnstableFeature("org.matrix.msc3827.stable");
         },
         [cli],
         false,
     );
 
-    const userId = cli.getUserId();
+    const userId = cli.getUserId()!;
 
     const joinRule = useRoomState(space, (state) => state.getJoinRule());
     const [guestAccessEnabled, setGuestAccessEnabled] = useLocalEcho<boolean>(
@@ -93,7 +93,7 @@ const SpaceSettingsVisibilityTab = ({ matrixClient: cli, space, closeSettingsFn 
         advancedSection = (
             <div>
                 <AccessibleButton
-                    data-test-id="toggle-guest-access-btn"
+                    data-testid="toggle-guest-access-btn"
                     onClick={toggleAdvancedSection}
                     kind="link"
                     className="mx_SettingsTab_showAdvanced"
@@ -120,7 +120,7 @@ const SpaceSettingsVisibilityTab = ({ matrixClient: cli, space, closeSettingsFn 
         );
     }
 
-    let addressesSection;
+    let addressesSection: JSX.Element | undefined;
     if (space.getJoinRule() === JoinRule.Public) {
         addressesSection = (
             <>
@@ -129,7 +129,7 @@ const SpaceSettingsVisibilityTab = ({ matrixClient: cli, space, closeSettingsFn 
                     roomId={space.roomId}
                     canSetCanonicalAlias={canSetCanonical}
                     canSetAliases={true}
-                    canonicalAliasEvent={canonicalAliasEv}
+                    canonicalAliasEvent={canonicalAliasEv ?? undefined}
                     hidePublishSetting={!serverSupportsExploringSpaces}
                 />
             </>
@@ -141,26 +141,26 @@ const SpaceSettingsVisibilityTab = ({ matrixClient: cli, space, closeSettingsFn 
             <div className="mx_SettingsTab_heading">{_t("Visibility")}</div>
 
             {error && (
-                <div data-test-id="space-settings-error" className="mx_SpaceRoomView_errorText">
+                <div data-testid="space-settings-error" className="mx_SpaceRoomView_errorText">
                     {error}
                 </div>
             )}
 
             <SettingsFieldset
-                data-test-id="access-fieldset"
+                data-testid="access-fieldset"
                 legend={_t("Access")}
                 description={_t("Decide who can view and join %(spaceName)s.", { spaceName: space.name })}
             >
                 <JoinRuleSettings
                     room={space}
-                    onError={() => setError(_t("Failed to update the visibility of this space"))}
+                    onError={(): void => setError(_t("Failed to update the visibility of this space"))}
                     closeSettingsFn={closeSettingsFn}
                 />
                 {advancedSection}
                 <div className="mx_SettingsTab_toggleWithDescription">
                     <LabelledToggleSwitch
                         value={historyVisibility === HistoryVisibility.WorldReadable}
-                        onChange={(checked: boolean) => {
+                        onChange={(checked: boolean): void => {
                             setHistoryVisibility(checked ? HistoryVisibility.WorldReadable : HistoryVisibility.Shared);
                         }}
                         disabled={!canSetHistoryVisibility}

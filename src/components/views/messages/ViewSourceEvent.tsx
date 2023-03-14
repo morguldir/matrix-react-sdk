@@ -31,7 +31,7 @@ interface IState {
 }
 
 export default class ViewSourceEvent extends React.PureComponent<IProps, IState> {
-    public constructor(props) {
+    public constructor(props: IProps) {
         super(props);
 
         this.state = {
@@ -50,7 +50,7 @@ export default class ViewSourceEvent extends React.PureComponent<IProps, IState>
         }
     }
 
-    private onToggle = (ev: React.MouseEvent) => {
+    private onToggle = (ev: React.MouseEvent): void => {
         ev.preventDefault();
         const { expanded } = this.state;
         this.setState({

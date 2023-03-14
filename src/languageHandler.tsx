@@ -87,7 +87,7 @@ export function _td(s: string): string {
  * for this reason, force fallbackLocale === locale in the first call to translate
  * and fallback 'manually' so we can mark fallback strings appropriately
  * */
-const translateWithFallback = (text: string, options?: object): { translated?: string; isFallback?: boolean } => {
+const translateWithFallback = (text: string, options?: IVariables): { translated: string; isFallback?: boolean } => {
     const translated = counterpart.translate(text, { ...options, fallbackLocale: counterpart.getLocale() });
     if (!translated || translated.startsWith("missing translation:")) {
         const fallbackTranslated = counterpart.translate(text, { ...options, locale: FALLBACK_LOCALE });
@@ -117,11 +117,13 @@ const translateWithFallback = (text: string, options?: object): { translated?: s
 
 // Wrapper for counterpart's translation function so that it handles nulls and undefineds properly
 // Takes the same arguments as counterpart.translate()
-function safeCounterpartTranslate(text: string, variables?: object) {
+function safeCounterpartTranslate(text: string, variables?: IVariables): { translated: string; isFallback?: boolean } {
     // Don't do substitutions in counterpart. We handle it ourselves so we can replace with React components
     // However, still pass the variables to counterpart so that it can choose the correct plural if count is given
     // It is enough to pass the count variable, but in the future counterpart might make use of other information too
-    const options = { ...variables, interpolate: false };
+    const options: IVariables & {
+        interpolate: boolean;
+    } = { ...variables, interpolate: false };
 
     // Horrible hack to avoid https://github.com/vector-im/element-web/issues/4191
     // The interpolation library that counterpart uses does not support undefined/null
@@ -192,7 +194,7 @@ const annotateStrings = (result: TranslatedString, translationKey: string): Tran
  */
 // eslint-next-line @typescript-eslint/naming-convention
 export function _t(text: string, variables?: IVariables): string;
-export function _t(text: string, variables: IVariables, tags: Tags): React.ReactNode;
+export function _t(text: string, variables: IVariables | undefined, tags: Tags): React.ReactNode;
 export function _t(text: string, variables?: IVariables, tags?: Tags): TranslatedString {
     // The translation returns text so there's no XSS vector here (no unsafe HTML, no code execution)
     const { translated } = safeCounterpartTranslate(text, variables);
@@ -249,7 +251,7 @@ export function sanitizeForTranslation(text: string): string {
  * @return a React <span> component if any non-strings were used in substitutions, otherwise a string
  */
 export function substitute(text: string, variables?: IVariables): string;
-export function substitute(text: string, variables: IVariables, tags: Tags): string;
+export function substitute(text: string, variables: IVariables | undefined, tags: Tags | undefined): string;
 export function substitute(text: string, variables?: IVariables, tags?: Tags): string | React.ReactNode {
     let result: React.ReactNode | string = text;
 
@@ -286,7 +288,7 @@ export function replaceByRegexes(text: string, mapping: Tags): React.ReactNode;
 export function replaceByRegexes(text: string, mapping: IVariables | Tags): string | React.ReactNode {
     // We initially store our output as an array of strings and objects (e.g. React components).
     // This will then be converted to a string or a <span> at the end
-    const output = [text];
+    const output: SubstitutionValue[] = [text];
 
     // If we insert any components we need to wrap the output in a span. React doesn't like just an array of components.
     let shouldWrapInSpan = false;
@@ -317,7 +319,7 @@ export function replaceByRegexes(text: string, mapping: IVariables | Tags): stri
             // The textual part before the first match
             const head = inputText.slice(0, match.index);
 
-            const parts = [];
+            const parts: SubstitutionValue[] = [];
             // keep track of prevMatch
             let prevMatch;
             while (match) {
@@ -325,7 +327,7 @@ export function replaceByRegexes(text: string, mapping: IVariables | Tags): stri
                 prevMatch = match;
                 const capturedGroups = match.slice(2);
 
-                let replaced;
+                let replaced: SubstitutionValue;
                 // If substitution is a function, call it
                 if (mapping[regexpString] instanceof Function) {
                     replaced = ((mapping as Tags)[regexpString] as Function)(...capturedGroups);
@@ -391,7 +393,7 @@ export function replaceByRegexes(text: string, mapping: IVariables | Tags): stri
 // Allow overriding the text displayed when no translation exists
 // Currently only used in unit tests to avoid having to load
 // the translations in element-web
-export function setMissingEntryGenerator(f: (value: string) => void) {
+export function setMissingEntryGenerator(f: (value: string) => void): void {
     counterpart.setMissingEntryGenerator(f);
 }
 
@@ -402,7 +404,7 @@ type Languages = {
     };
 };
 
-export function setLanguage(preferredLangs: string | string[]) {
+export function setLanguage(preferredLangs: string | string[]): Promise<void> {
     if (!Array.isArray(preferredLangs)) {
         preferredLangs = [preferredLangs];
     }
@@ -432,7 +434,7 @@ export function setLanguage(preferredLangs: string | string[]) {
 
             return getLanguageRetry(i18nFolder + availLangs[langToUse].fileName);
         })
-        .then(async (langData) => {
+        .then(async (langData): Promise<ICounterpartTranslation | undefined> => {
             counterpart.registerTranslations(langToUse, langData);
             await registerCustomTranslations();
             counterpart.setLocale(langToUse);
@@ -447,7 +449,7 @@ export function setLanguage(preferredLangs: string | string[]) {
                 return getLanguageRetry(i18nFolder + availLangs["en"].fileName);
             }
         })
-        .then(async (langData) => {
+        .then(async (langData): Promise<void> => {
             if (langData) counterpart.registerTranslations("en", langData);
             await registerCustomTranslations();
         });
@@ -473,13 +475,13 @@ export function getAllLanguagesFromJson(): Promise<Language[]> {
     });
 }
 
-export function getLanguagesFromBrowser() {
+export function getLanguagesFromBrowser(): readonly string[] {
     if (navigator.languages && navigator.languages.length) return navigator.languages;
     if (navigator.language) return [navigator.language];
     return [navigator.userLanguage || "en"];
 }
 
-export function getLanguageFromBrowser() {
+export function getLanguageFromBrowser(): string {
     return getLanguagesFromBrowser()[0];
 }
 
@@ -492,7 +494,7 @@ export function getLanguageFromBrowser() {
  * @param {string} language The input language string
  * @return {string[]} List of normalised languages
  */
-export function getNormalizedLanguageKeys(language: string) {
+export function getNormalizedLanguageKeys(language: string): string[] {
     const languageKeys: string[] = [];
     const normalizedLanguage = normalizeLanguageKey(language);
     const languageParts = normalizedLanguage.split("-");
@@ -514,11 +516,11 @@ export function getNormalizedLanguageKeys(language: string) {
  * @param {string} language The language string to be normalized
  * @returns {string} The normalized language string
  */
-export function normalizeLanguageKey(language: string) {
+export function normalizeLanguageKey(language: string): string {
     return language.toLowerCase().replace("_", "-");
 }
 
-export function getCurrentLanguage() {
+export function getCurrentLanguage(): string {
     return counterpart.getLocale();
 }
 
@@ -617,14 +619,14 @@ let cachedCustomTranslationsExpire = 0; // zero to trigger expiration right away
 // This awkward class exists so the test runner can get at the function. It is
 // not intended for practical or realistic usage.
 export class CustomTranslationOptions {
-    public static lookupFn: (url: string) => ICustomTranslations;
+    public static lookupFn?: (url: string) => ICustomTranslations;
 
     private constructor() {
         // static access for tests only
     }
 }
 
-function doRegisterTranslations(customTranslations: ICustomTranslations) {
+function doRegisterTranslations(customTranslations: ICustomTranslations): void {
     // We convert the operator-friendly version into something counterpart can
     // consume.
     const langs: {
@@ -654,7 +656,7 @@ function doRegisterTranslations(customTranslations: ICustomTranslations) {
  * This function should be called *after* registering other translations data to
  * ensure it overrides strings properly.
  */
-export async function registerCustomTranslations() {
+export async function registerCustomTranslations(): Promise<void> {
     const moduleTranslations = ModuleRunner.instance.allTranslations;
     doRegisterTranslations(moduleTranslations);
 
@@ -662,7 +664,7 @@ export async function registerCustomTranslations() {
     if (!lookupUrl) return; // easy - nothing to do
 
     try {
-        let json: ICustomTranslations;
+        let json: Optional<ICustomTranslations>;
         if (Date.now() >= cachedCustomTranslationsExpire) {
             json = CustomTranslationOptions.lookupFn
                 ? CustomTranslationOptions.lookupFn(lookupUrl)

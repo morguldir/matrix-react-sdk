@@ -53,10 +53,10 @@ interface IState {
 }
 
 export default class DateSeparator extends React.Component<IProps, IState> {
-    private settingWatcherRef = null;
+    private settingWatcherRef?: string;
 
-    public constructor(props, context) {
-        super(props, context);
+    public constructor(props: IProps) {
+        super(props);
         this.state = {
             jumpToDateEnabled: SettingsStore.getValue("feature_jump_to_date"),
         };
@@ -72,8 +72,8 @@ export default class DateSeparator extends React.Component<IProps, IState> {
         );
     }
 
-    public componentWillUnmount() {
-        SettingsStore.unwatchSetting(this.settingWatcherRef);
+    public componentWillUnmount(): void {
+        if (this.settingWatcherRef) SettingsStore.unwatchSetting(this.settingWatcherRef);
     }
 
     private onContextMenuOpenClick = (e: React.MouseEvent): void => {
@@ -89,7 +89,7 @@ export default class DateSeparator extends React.Component<IProps, IState> {
 
     private closeMenu = (): void => {
         this.setState({
-            contextMenuPosition: null,
+            contextMenuPosition: undefined,
         });
     };
 
@@ -116,7 +116,7 @@ export default class DateSeparator extends React.Component<IProps, IState> {
         }
     }
 
-    private pickDate = async (inputTimestamp): Promise<void> => {
+    private pickDate = async (inputTimestamp: number | string | Date): Promise<void> => {
         const unixTimestamp = new Date(inputTimestamp).getTime();
 
         const cli = MatrixClientPeg.get();
@@ -175,13 +175,13 @@ export default class DateSeparator extends React.Component<IProps, IState> {
         this.closeMenu();
     };
 
-    private onDatePicked = (dateString): void => {
+    private onDatePicked = (dateString: string): void => {
         this.pickDate(dateString);
         this.closeMenu();
     };
 
     private renderJumpToDateMenu(): React.ReactElement {
-        let contextMenu: JSX.Element;
+        let contextMenu: JSX.Element | undefined;
         if (this.state.contextMenuPosition) {
             contextMenu = (
                 <IconizedContextMenu
@@ -218,7 +218,7 @@ export default class DateSeparator extends React.Component<IProps, IState> {
         );
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const label = this.getLabel();
 
         let dateHeaderContent;

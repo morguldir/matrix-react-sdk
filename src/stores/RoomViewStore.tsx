@@ -54,9 +54,13 @@ import { ThreadPayload } from "../dispatcher/payloads/ThreadPayload";
 import {
     doClearCurrentVoiceBroadcastPlaybackIfStopped,
     doMaybeSetCurrentVoiceBroadcastPlayback,
+    VoiceBroadcastRecording,
+    VoiceBroadcastRecordingsStoreEvent,
 } from "../voice-broadcast";
 import { IRoomStateEventsActionPayload } from "../actions/MatrixActionCreators";
 import { showCantStartACallDialog } from "../voice-broadcast/utils/showCantStartACallDialog";
+import { pauseNonLiveBroadcastFromOtherRoom } from "../voice-broadcast/utils/pauseNonLiveBroadcastFromOtherRoom";
+import { ActionPayload } from "../dispatcher/payloads";
 
 const NUM_JOIN_RETRY = 5;
 
@@ -152,6 +156,10 @@ export class RoomViewStore extends EventEmitter {
     public constructor(dis: MatrixDispatcher, private readonly stores: SdkContextClass) {
         super();
         this.resetDispatcher(dis);
+        this.stores.voiceBroadcastRecordingsStore.addListener(
+            VoiceBroadcastRecordingsStoreEvent.CurrentChanged,
+            this.onCurrentBroadcastRecordingChanged,
+        );
     }
 
     public addRoomListener(roomId: string, fn: Listener): void {
@@ -166,13 +174,23 @@ export class RoomViewStore extends EventEmitter {
         this.emit(roomId, isActive);
     }
 
+    private onCurrentBroadcastRecordingChanged = (recording: VoiceBroadcastRecording | null): void => {
+        if (recording === null) {
+            const room = this.stores.client?.getRoom(this.state.roomId || undefined);
+
+            if (room) {
+                this.doMaybeSetCurrentVoiceBroadcastPlayback(room);
+            }
+        }
+    };
+
     private setState(newState: Partial<State>): void {
         // If values haven't changed, there's nothing to do.
         // This only tries a shallow comparison, so unchanged objects will slip
         // through, but that's probably okay for now.
         let stateChanged = false;
         for (const key of Object.keys(newState)) {
-            if (this.state[key] !== newState[key]) {
+            if (this.state[key as keyof State] !== newState[key as keyof State]) {
                 stateChanged = true;
                 break;
             }
@@ -231,7 +249,7 @@ export class RoomViewStore extends EventEmitter {
         }
     }
 
-    private onDispatch(payload): void {
+    private onDispatch(payload: ActionPayload): void {
         // eslint-disable-line @typescript-eslint/naming-convention
         switch (payload.action) {
             // view_room:
@@ -241,10 +259,10 @@ export class RoomViewStore extends EventEmitter {
             //      - event_offset: 100
             //      - highlighted:  true
             case Action.ViewRoom:
-                this.viewRoom(payload);
+                this.viewRoom(payload as ViewRoomPayload);
                 break;
             case Action.ViewThread:
-                this.viewThread(payload);
+                this.viewThread(payload as ThreadPayload);
                 break;
             // for these events blank out the roomId as we are no longer in the RoomView
             case "view_welcome_page":
@@ -262,7 +280,7 @@ export class RoomViewStore extends EventEmitter {
                 this.onRoomStateEvents((payload as IRoomStateEventsActionPayload).event);
                 break;
             case Action.ViewRoomError:
-                this.viewRoomError(payload);
+                this.viewRoomError(payload as ViewRoomErrorPayload);
                 break;
             case "will_join":
                 this.setState({
@@ -277,10 +295,10 @@ export class RoomViewStore extends EventEmitter {
             // join_room:
             //      - opts: options for joinRoom
             case Action.JoinRoom:
-                this.joinRoom(payload);
+                this.joinRoom(payload as JoinRoomPayload);
                 break;
             case Action.JoinRoomError:
-                this.joinRoomError(payload);
+                this.joinRoomError(payload as JoinRoomErrorPayload);
                 break;
             case Action.JoinRoomReady: {
                 if (this.state.roomId === payload.roomId) {
@@ -318,10 +336,11 @@ export class RoomViewStore extends EventEmitter {
                 this.reset();
                 break;
             case "reply_to_event":
-                // If currently viewed room does not match the room in which we wish to reply then change rooms
-                // this can happen when performing a search across all rooms. Persist the data from this event for
-                // both room and search timeline rendering types, search will get auto-closed by RoomView at this time.
-                if ([TimelineRenderingType.Room, TimelineRenderingType.Search].includes(payload.context)) {
+                // Thread timeline view handles its own reply-to-state
+                if (TimelineRenderingType.Thread !== payload.context) {
+                    // If currently viewed room does not match the room in which we wish to reply then change rooms this
+                    // can happen when performing a search across all rooms. Persist the data from this event for both
+                    // room and search timeline rendering types, search will get auto-closed by RoomView at this time.
                     if (payload.event && payload.event.getRoomId() !== this.state.roomId) {
                         this.dis.dispatch<ViewRoomPayload>({
                             action: Action.ViewRoom,
@@ -445,6 +464,7 @@ export class RoomViewStore extends EventEmitter {
             }
 
             if (room) {
+                pauseNonLiveBroadcastFromOtherRoom(room, this.stores.voiceBroadcastPlaybacksStore);
                 this.doMaybeSetCurrentVoiceBroadcastPlayback(room);
             }
         } else if (payload.room_alias) {
@@ -573,7 +593,7 @@ export class RoomViewStore extends EventEmitter {
             );
         } else if (err.httpStatus === 404) {
             const invitingUserId = this.getInvitingUserId(roomId);
-            // only provide a better error message for invites
+            // provide a better error message for invites
             if (invitingUserId) {
                 // if the inviting user is on the same HS, there can only be one cause: they left.
                 if (invitingUserId.endsWith(`:${MatrixClientPeg.get().getDomain()}`)) {
@@ -581,6 +601,23 @@ export class RoomViewStore extends EventEmitter {
                 } else {
                     description = _t("The person who invited you has already left, or their server is offline.");
                 }
+            }
+
+            // provide a more detailed error than "No known servers" when attempting to
+            // join using a room ID and no via servers
+            if (roomId === this.state.roomId && this.state.viaServers.length === 0) {
+                description = (
+                    <div>
+                        {_t(
+                            "You attempted to join using a room ID without providing a list " +
+                                "of servers to join through. Room IDs are internal identifiers and " +
+                                "cannot be used to join a room without additional information.",
+                        )}
+                        <br />
+                        <br />
+                        {_t("If you know a room address, try joining through that instead.")}
+                    </div>
+                );
             }
         }
 
@@ -595,7 +632,9 @@ export class RoomViewStore extends EventEmitter {
             joining: false,
             joinError: payload.err,
         });
-        this.showJoinRoomError(payload.err, payload.roomId);
+        if (payload.err) {
+            this.showJoinRoomError(payload.err, payload.roomId);
+        }
     }
 
     public reset(): void {
@@ -607,7 +646,7 @@ export class RoomViewStore extends EventEmitter {
      * unregistered.
      * @param dis The new dispatcher to use.
      */
-    public resetDispatcher(dis: MatrixDispatcher) {
+    public resetDispatcher(dis: MatrixDispatcher): void {
         if (this.dispatchToken) {
             this.dis.unregister(this.dispatchToken);
         }
@@ -692,7 +731,7 @@ export class RoomViewStore extends EventEmitter {
     }
 
     // The mxEvent if one is currently being replied to/quoted
-    public getQuotingEvent(): Optional<MatrixEvent> {
+    public getQuotingEvent(): MatrixEvent | null {
         return this.state.replyingToEvent;
     }
 

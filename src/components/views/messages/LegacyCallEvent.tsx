@@ -61,7 +61,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
         };
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         this.props.callEventGrouper.addListener(LegacyCallEventGrouperEvent.StateChanged, this.onStateChanged);
         this.props.callEventGrouper.addListener(LegacyCallEventGrouperEvent.SilencedChanged, this.onSilencedChanged);
         this.props.callEventGrouper.addListener(LegacyCallEventGrouperEvent.LengthChanged, this.onLengthChanged);
@@ -70,7 +70,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
         this.wrapperElement.current && this.resizeObserver.observe(this.wrapperElement.current);
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.props.callEventGrouper.removeListener(LegacyCallEventGrouperEvent.StateChanged, this.onStateChanged);
         this.props.callEventGrouper.removeListener(LegacyCallEventGrouperEvent.SilencedChanged, this.onSilencedChanged);
         this.props.callEventGrouper.removeListener(LegacyCallEventGrouperEvent.LengthChanged, this.onLengthChanged);
@@ -89,11 +89,11 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
         this.setState({ narrow: wrapperElementEntry.contentRect.width < MAX_NON_NARROW_WIDTH });
     };
 
-    private onSilencedChanged = (newState) => {
+    private onSilencedChanged = (newState: boolean): void => {
         this.setState({ silenced: newState });
     };
 
-    private onStateChanged = (newState: CallState) => {
+    private onStateChanged = (newState: CallState): void => {
         this.setState({ callState: newState });
     };
 
@@ -165,7 +165,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                         {this.props.timestamp}
                     </div>
                 );
-            } else if ([CallErrorCode.UserHangup, "user hangup"].includes(hangupReason) || !hangupReason) {
+            } else if (!hangupReason || [CallErrorCode.UserHangup, "user hangup"].includes(hangupReason)) {
                 // workaround for https://github.com/vector-im/element-web/issues/5178
                 // it seems Android randomly sets a reason of "user hangup" which is
                 // interpreted as an error code :(
@@ -188,6 +188,13 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                     <div className="mx_LegacyCallEvent_content">
                         {_t("No answer")}
                         {this.renderCallBackButton(_t("Call back"))}
+                        {this.props.timestamp}
+                    </div>
+                );
+            } else if (hangupReason === CallErrorCode.AnsweredElsewhere) {
+                return (
+                    <div className="mx_LegacyCallEvent_content">
+                        {_t("Answered elsewhere")}
                         {this.props.timestamp}
                     </div>
                 );
@@ -261,7 +268,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
         );
     }
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         const event = this.props.mxEvent;
         const sender = event.sender ? event.sender.name : event.getSender();
         const isVoice = this.props.callEventGrouper.isVoice;

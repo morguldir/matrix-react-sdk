@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Matrix.org Foundation C.I.C.
+Copyright 2022 - 2023 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import EventTile, { EventTileProps } from "../../../../src/components/views/room
 import MatrixClientContext from "../../../../src/contexts/MatrixClientContext";
 import RoomContext, { TimelineRenderingType } from "../../../../src/contexts/RoomContext";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
-import SettingsStore from "../../../../src/settings/SettingsStore";
 import { getRoomContext, mkEncryptedEvent, mkEvent, mkMessage, stubClient } from "../../../test-utils";
 import { mkThread } from "../../../test-utils/threads";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
@@ -80,7 +79,6 @@ describe("EventTile", () => {
 
         jest.spyOn(client, "getRoom").mockReturnValue(room);
         jest.spyOn(client, "decryptEventIfNeeded").mockResolvedValue();
-        jest.spyOn(SettingsStore, "getValue").mockImplementation((name) => name === "feature_threadstable");
 
         mxEvent = mkMessage({
             room: room.roomId,
@@ -92,7 +90,7 @@ describe("EventTile", () => {
 
     describe("EventTile thread summary", () => {
         beforeEach(() => {
-            jest.spyOn(client, "supportsExperimentalThreads").mockReturnValue(true);
+            jest.spyOn(client, "supportsThreads").mockReturnValue(true);
         });
 
         it("removes the thread summary when thread is deleted", async () => {
@@ -141,9 +139,10 @@ describe("EventTile", () => {
             mxEvent = rootEvent;
         });
 
-        it("shows an unread notification bage", () => {
+        it("shows an unread notification badge", () => {
             const { container } = getComponent({}, TimelineRenderingType.ThreadsList);
 
+            // By default, the thread will assume it is read.
             expect(container.getElementsByClassName("mx_NotificationBadge")).toHaveLength(0);
 
             act(() => {

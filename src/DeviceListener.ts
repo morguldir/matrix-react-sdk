@@ -19,6 +19,7 @@ import { logger } from "matrix-js-sdk/src/logger";
 import { CryptoEvent } from "matrix-js-sdk/src/crypto";
 import { ClientEvent, EventType, RoomStateEvent } from "matrix-js-sdk/src/matrix";
 import { SyncState } from "matrix-js-sdk/src/sync";
+import { IKeyBackupInfo } from "matrix-js-sdk/src/crypto/keybackup";
 
 import { MatrixClientPeg } from "./MatrixClientPeg";
 import dis from "./dispatcher/dispatcher";
@@ -50,19 +51,19 @@ import { isBulkUnverifiedDeviceReminderSnoozed } from "./utils/device/snoozeBulk
 const KEY_BACKUP_POLL_INTERVAL = 5 * 60 * 1000;
 
 export default class DeviceListener {
-    private dispatcherRef: string;
+    private dispatcherRef: string | null;
     // device IDs for which the user has dismissed the verify toast ('Later')
     private dismissed = new Set<string>();
     // has the user dismissed any of the various nag toasts to setup encryption on this device?
     private dismissedThisDeviceToast = false;
     // cache of the key backup info
-    private keyBackupInfo: object = null;
-    private keyBackupFetchedAt: number = null;
+    private keyBackupInfo: IKeyBackupInfo | null = null;
+    private keyBackupFetchedAt: number | null = null;
     private keyBackupStatusChecked = false;
     // We keep a list of our own device IDs so we can batch ones that were already
     // there the last time the app launched into a single toast, but display new
     // ones in their own toasts.
-    private ourDeviceIdsAtStart: Set<string> = null;
+    private ourDeviceIdsAtStart: Set<string> | null = null;
     // The set of device IDs we're currently displaying toasts for
     private displayingToastsForDeviceIds = new Set<string>();
     private running = false;
@@ -70,12 +71,12 @@ export default class DeviceListener {
     private enableBulkUnverifiedSessionsReminder = true;
     private deviceClientInformationSettingWatcherRef: string | undefined;
 
-    public static sharedInstance() {
+    public static sharedInstance(): DeviceListener {
         if (!window.mxDeviceListener) window.mxDeviceListener = new DeviceListener();
         return window.mxDeviceListener;
     }
 
-    public start() {
+    public start(): void {
         this.running = true;
         MatrixClientPeg.get().on(CryptoEvent.WillUpdateDevices, this.onWillUpdateDevices);
         MatrixClientPeg.get().on(CryptoEvent.DevicesUpdated, this.onDevicesUpdated);
@@ -98,7 +99,7 @@ export default class DeviceListener {
         this.updateClientInformation();
     }
 
-    public stop() {
+    public stop(): void {
         this.running = false;
         if (MatrixClientPeg.get()) {
             MatrixClientPeg.get().removeListener(CryptoEvent.WillUpdateDevices, this.onWillUpdateDevices);
@@ -134,7 +135,7 @@ export default class DeviceListener {
      *
      * @param {String[]} deviceIds List of device IDs to dismiss notifications for
      */
-    public async dismissUnverifiedSessions(deviceIds: Iterable<string>) {
+    public async dismissUnverifiedSessions(deviceIds: Iterable<string>): Promise<void> {
         logger.log("Dismissing unverified sessions: " + Array.from(deviceIds).join(","));
         for (const d of deviceIds) {
             this.dismissed.add(d);
@@ -143,51 +144,51 @@ export default class DeviceListener {
         this.recheck();
     }
 
-    public dismissEncryptionSetup() {
+    public dismissEncryptionSetup(): void {
         this.dismissedThisDeviceToast = true;
         this.recheck();
     }
 
-    private ensureDeviceIdsAtStartPopulated() {
+    private ensureDeviceIdsAtStartPopulated(): void {
         if (this.ourDeviceIdsAtStart === null) {
             const cli = MatrixClientPeg.get();
-            this.ourDeviceIdsAtStart = new Set(cli.getStoredDevicesForUser(cli.getUserId()).map((d) => d.deviceId));
+            this.ourDeviceIdsAtStart = new Set(cli.getStoredDevicesForUser(cli.getUserId()!).map((d) => d.deviceId));
         }
     }
 
-    private onWillUpdateDevices = async (users: string[], initialFetch?: boolean) => {
+    private onWillUpdateDevices = async (users: string[], initialFetch?: boolean): Promise<void> => {
         // If we didn't know about *any* devices before (ie. it's fresh login),
         // then they are all pre-existing devices, so ignore this and set the
         // devicesAtStart list to the devices that we see after the fetch.
         if (initialFetch) return;
 
-        const myUserId = MatrixClientPeg.get().getUserId();
+        const myUserId = MatrixClientPeg.get().getUserId()!;
         if (users.includes(myUserId)) this.ensureDeviceIdsAtStartPopulated();
 
         // No need to do a recheck here: we just need to get a snapshot of our devices
         // before we download any new ones.
     };
 
-    private onDevicesUpdated = (users: string[]) => {
-        if (!users.includes(MatrixClientPeg.get().getUserId())) return;
+    private onDevicesUpdated = (users: string[]): void => {
+        if (!users.includes(MatrixClientPeg.get().getUserId()!)) return;
         this.recheck();
     };
 
-    private onDeviceVerificationChanged = (userId: string) => {
+    private onDeviceVerificationChanged = (userId: string): void => {
         if (userId !== MatrixClientPeg.get().getUserId()) return;
         this.recheck();
     };
 
-    private onUserTrustStatusChanged = (userId: string) => {
+    private onUserTrustStatusChanged = (userId: string): void => {
         if (userId !== MatrixClientPeg.get().getUserId()) return;
         this.recheck();
     };
 
-    private onCrossSingingKeysChanged = () => {
+    private onCrossSingingKeysChanged = (): void => {
         this.recheck();
     };
 
-    private onAccountData = (ev: MatrixEvent) => {
+    private onAccountData = (ev: MatrixEvent): void => {
         // User may have:
         // * migrated SSSS to symmetric
         // * uploaded keys to secret storage
@@ -202,13 +203,13 @@ export default class DeviceListener {
         }
     };
 
-    private onSync = (state: SyncState, prevState?: SyncState) => {
+    private onSync = (state: SyncState, prevState: SyncState | null): void => {
         if (state === "PREPARED" && prevState === null) {
             this.recheck();
         }
     };
 
-    private onRoomStateEvents = (ev: MatrixEvent) => {
+    private onRoomStateEvents = (ev: MatrixEvent): void => {
         if (ev.getType() !== EventType.RoomEncryption) return;
 
         // If a room changes to encrypted, re-check as it may be our first
@@ -216,7 +217,7 @@ export default class DeviceListener {
         this.recheck();
     };
 
-    private onAction = ({ action }: ActionPayload) => {
+    private onAction = ({ action }: ActionPayload): void => {
         if (action !== Action.OnLoggedIn) return;
         this.recheck();
         this.updateClientInformation();
@@ -224,16 +225,20 @@ export default class DeviceListener {
 
     // The server doesn't tell us when key backup is set up, so we poll
     // & cache the result
-    private async getKeyBackupInfo() {
+    private async getKeyBackupInfo(): Promise<IKeyBackupInfo | null> {
         const now = new Date().getTime();
-        if (!this.keyBackupInfo || this.keyBackupFetchedAt < now - KEY_BACKUP_POLL_INTERVAL) {
+        if (
+            !this.keyBackupInfo ||
+            !this.keyBackupFetchedAt ||
+            this.keyBackupFetchedAt < now - KEY_BACKUP_POLL_INTERVAL
+        ) {
             this.keyBackupInfo = await MatrixClientPeg.get().getKeyBackupVersion();
             this.keyBackupFetchedAt = now;
         }
         return this.keyBackupInfo;
     }
 
-    private shouldShowSetupEncryptionToast() {
+    private shouldShowSetupEncryptionToast(): boolean {
         // If we're in the middle of a secret storage operation, we're likely
         // modifying the state involved here, so don't add new toasts to setup.
         if (isSecretStorageBeingAccessed()) return false;
@@ -242,7 +247,7 @@ export default class DeviceListener {
         return cli && cli.getRooms().some((r) => cli.isRoomEncrypted(r.roomId));
     }
 
-    private async recheck() {
+    private async recheck(): Promise<void> {
         if (!this.running) return; // we have been stopped
         const cli = MatrixClientPeg.get();
 
@@ -264,10 +269,10 @@ export default class DeviceListener {
             this.checkKeyBackupStatus();
         } else if (this.shouldShowSetupEncryptionToast()) {
             // make sure our keys are finished downloading
-            await cli.downloadKeys([cli.getUserId()]);
+            await cli.downloadKeys([cli.getUserId()!]);
             // cross signing isn't enabled - nag to enable it
             // There are 3 different toasts for:
-            if (!cli.getCrossSigningId() && cli.getStoredCrossSigningForUser(cli.getUserId())) {
+            if (!cli.getCrossSigningId() && cli.getStoredCrossSigningForUser(cli.getUserId()!)) {
                 // Cross-signing on account but this device doesn't trust the master key (verify this session)
                 showSetupEncryptionToast(SetupKind.VERIFY_THIS_SESSION);
                 this.checkKeyBackupStatus();
@@ -309,13 +314,13 @@ export default class DeviceListener {
         // as long as cross-signing isn't ready,
         // you can't see or dismiss any device toasts
         if (crossSigningReady) {
-            const devices = cli.getStoredDevicesForUser(cli.getUserId());
+            const devices = cli.getStoredDevicesForUser(cli.getUserId()!);
             for (const device of devices) {
                 if (device.deviceId === cli.deviceId) continue;
 
                 const deviceTrust = await cli.checkDeviceTrust(cli.getUserId()!, device.deviceId!);
                 if (!deviceTrust.isCrossSigningVerified() && !this.dismissed.has(device.deviceId)) {
-                    if (this.ourDeviceIdsAtStart.has(device.deviceId)) {
+                    if (this.ourDeviceIdsAtStart?.has(device.deviceId)) {
                         oldUnverifiedDeviceIds.add(device.deviceId);
                     } else {
                         newUnverifiedDeviceIds.add(device.deviceId);
@@ -359,7 +364,7 @@ export default class DeviceListener {
         this.displayingToastsForDeviceIds = newUnverifiedDeviceIds;
     }
 
-    private checkKeyBackupStatus = async () => {
+    private checkKeyBackupStatus = async (): Promise<void> => {
         if (this.keyBackupStatusChecked) {
             return;
         }
@@ -388,10 +393,10 @@ export default class DeviceListener {
         }
     };
 
-    private updateClientInformation = async () => {
+    private updateClientInformation = async (): Promise<void> => {
         try {
             if (this.shouldRecordClientInformation) {
-                await recordClientInformation(MatrixClientPeg.get(), SdkConfig.get(), PlatformPeg.get());
+                await recordClientInformation(MatrixClientPeg.get(), SdkConfig.get(), PlatformPeg.get() ?? undefined);
             } else {
                 await removeClientInformation(MatrixClientPeg.get());
             }

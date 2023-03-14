@@ -29,15 +29,14 @@ import InfoDialog from "../dialogs/InfoDialog";
 import { useDispatcher } from "../../../hooks/useDispatcher";
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
 import AccessibleButton from "./AccessibleButton";
-import { Linkify } from "./Linkify";
 import TooltipTarget from "./TooltipTarget";
-import { topicToHtml } from "../../../HtmlUtils";
+import { Linkify, topicToHtml } from "../../../HtmlUtils";
 
 interface IProps extends React.HTMLProps<HTMLDivElement> {
-    room?: Room;
+    room: Room;
 }
 
-export default function RoomTopic({ room, ...props }: IProps) {
+export default function RoomTopic({ room, ...props }: IProps): JSX.Element {
     const client = useContext(MatrixClientContext);
     const ref = useRef<HTMLDivElement>();
 
@@ -63,7 +62,7 @@ export default function RoomTopic({ room, ...props }: IProps) {
 
     useDispatcher(dis, (payload) => {
         if (payload.action === Action.ShowRoomTopic) {
-            const canSetTopic = room.currentState.maySendStateEvent(EventType.RoomTopic, client.getUserId());
+            const canSetTopic = room.currentState.maySendStateEvent(EventType.RoomTopic, client.getSafeUserId());
             const body = topicToHtml(topic?.text, topic?.html, ref, true);
 
             const modal = Modal.createDialog(InfoDialog, {
@@ -71,12 +70,14 @@ export default function RoomTopic({ room, ...props }: IProps) {
                 description: (
                     <div>
                         <Linkify
-                            as="p"
-                            onClick={(ev: MouseEvent) => {
-                                if ((ev.target as HTMLElement).tagName.toUpperCase() === "A") {
-                                    modal.close();
-                                }
+                            options={{
+                                attributes: {
+                                    onClick() {
+                                        modal.close();
+                                    },
+                                },
                             }}
+                            as="p"
                         >
                             {body}
                         </Linkify>

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { SyntheticEvent } from "react";
 import classNames from "classnames";
 import { MatrixEvent, MatrixEventEvent } from "matrix-js-sdk/src/models/event";
 import { Relations, RelationsEvent } from "matrix-js-sdk/src/models/relations";
@@ -31,7 +31,7 @@ import AccessibleButton from "../elements/AccessibleButton";
 // The maximum number of reactions to initially show on a message.
 const MAX_ITEMS_WHEN_LIMITED = 8;
 
-const ReactButton = ({ mxEvent, reactions }: IProps) => {
+const ReactButton: React.FC<IProps> = ({ mxEvent, reactions }) => {
     const [menuDisplayed, button, openMenu, closeMenu] = useContextMenu();
 
     let contextMenu;
@@ -52,7 +52,7 @@ const ReactButton = ({ mxEvent, reactions }: IProps) => {
                 })}
                 title={_t("Add reaction")}
                 onClick={openMenu}
-                onContextMenu={(e) => {
+                onContextMenu={(e: SyntheticEvent): void => {
                     e.preventDefault();
                     openMenu();
                 }}
@@ -91,7 +91,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         };
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         const { mxEvent, reactions } = this.props;
 
         if (mxEvent.isBeingDecrypted() || mxEvent.shouldAttemptDecryption()) {
@@ -105,7 +105,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         }
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         const { mxEvent, reactions } = this.props;
 
         mxEvent.off(MatrixEventEvent.Decrypted, this.onDecrypted);
@@ -117,7 +117,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         }
     }
 
-    public componentDidUpdate(prevProps: IProps) {
+    public componentDidUpdate(prevProps: IProps): void {
         if (this.props.reactions && prevProps.reactions !== this.props.reactions) {
             this.props.reactions.on(RelationsEvent.Add, this.onReactionsChange);
             this.props.reactions.on(RelationsEvent.Remove, this.onReactionsChange);
@@ -126,12 +126,12 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         }
     }
 
-    private onDecrypted = () => {
+    private onDecrypted = (): void => {
         // Decryption changes whether the event is actionable
         this.forceUpdate();
     };
 
-    private onReactionsChange = () => {
+    private onReactionsChange = (): void => {
         // TODO: Call `onHeightChanged` as needed
         this.setState({
             myReactions: this.getMyReactions(),
@@ -142,7 +142,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         this.forceUpdate();
     };
 
-    private getMyReactions() {
+    private getMyReactions(): MatrixEvent[] | null {
         const reactions = this.props.reactions;
         if (!reactions) {
             return null;
@@ -155,13 +155,13 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         return [...myReactions.values()];
     }
 
-    private onShowAllClick = () => {
+    private onShowAllClick = (): void => {
         this.setState({
             showAll: true,
         });
     };
 
-    public render() {
+    public render(): React.ReactNode {
         const { mxEvent, reactions } = this.props;
         const { myReactions, showAll } = this.state;
 
@@ -206,7 +206,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         // Show the first MAX_ITEMS if there are MAX_ITEMS + 1 or more items.
         // The "+ 1" ensure that the "show all" reveals something that takes up
         // more space than the button itself.
-        let showAllButton: JSX.Element;
+        let showAllButton: JSX.Element | undefined;
         if (items.length > MAX_ITEMS_WHEN_LIMITED + 1 && !showAll) {
             items = items.slice(0, MAX_ITEMS_WHEN_LIMITED);
             showAllButton = (

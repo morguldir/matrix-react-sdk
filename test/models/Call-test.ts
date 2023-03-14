@@ -107,7 +107,7 @@ const setUpClientRoomAndStores = (): {
             content,
         });
         room.addLiveEvents([event]);
-        return { event_id: event.getId() };
+        return { event_id: event.getId()! };
     });
 
     setupAsyncStoreWithClient(WidgetStore.instance, client);
@@ -383,7 +383,7 @@ describe("JitsiCall", () => {
             await waitFor(
                 () =>
                     expect(
-                        room.currentState.getStateEvents(JitsiCall.MEMBER_EVENT_TYPE, alice.userId).getContent(),
+                        room.currentState.getStateEvents(JitsiCall.MEMBER_EVENT_TYPE, alice.userId)?.getContent(),
                     ).toEqual({
                         devices: [client.getDeviceId()],
                         expires_ts: now1 + call.STUCK_DEVICE_TIMEOUT_MS,
@@ -396,7 +396,7 @@ describe("JitsiCall", () => {
             await waitFor(
                 () =>
                     expect(
-                        room.currentState.getStateEvents(JitsiCall.MEMBER_EVENT_TYPE, alice.userId).getContent(),
+                        room.currentState.getStateEvents(JitsiCall.MEMBER_EVENT_TYPE, alice.userId)?.getContent(),
                     ).toEqual({
                         devices: [],
                         expires_ts: now2 + call.STUCK_DEVICE_TIMEOUT_MS,
@@ -495,7 +495,7 @@ describe("JitsiCall", () => {
             });
             const expectDevices = (devices: IMyDevice[]) =>
                 expect(
-                    room.currentState.getStateEvents(JitsiCall.MEMBER_EVENT_TYPE, alice.userId).getContent(),
+                    room.currentState.getStateEvents(JitsiCall.MEMBER_EVENT_TYPE, alice.userId)?.getContent(),
                 ).toEqual({
                     expires_ts: expect.any(Number),
                     devices: devices.map((d) => d.device_id),
@@ -784,6 +784,13 @@ describe("ElementCall", () => {
             expect(call.connectionState).toBe(ConnectionState.Connected);
         });
 
+        it("disconnects if the widget dies", async () => {
+            await call.connect();
+            expect(call.connectionState).toBe(ConnectionState.Connected);
+            WidgetMessagingStore.instance.stopMessaging(widget, room.roomId);
+            expect(call.connectionState).toBe(ConnectionState.Disconnected);
+        });
+
         it("tracks participants in room state", async () => {
             expect(call.participants).toEqual(new Map());
 
@@ -915,8 +922,8 @@ describe("ElementCall", () => {
                 const sourceId = "source_id";
                 jest.spyOn(Modal, "createDialog").mockReturnValue({
                     finished: new Promise((r) => r([sourceId])),
-                } as IHandle<any[]>);
-                jest.spyOn(PlatformPeg.get(), "supportsDesktopCapturer").mockReturnValue(true);
+                } as IHandle<any>);
+                jest.spyOn(PlatformPeg.get()!, "supportsDesktopCapturer").mockReturnValue(true);
 
                 await call.connect();
 
@@ -943,8 +950,8 @@ describe("ElementCall", () => {
             it("sends ScreenshareStop if we couldn't get a source id", async () => {
                 jest.spyOn(Modal, "createDialog").mockReturnValue({
                     finished: new Promise((r) => r([null])),
-                } as IHandle<any[]>);
-                jest.spyOn(PlatformPeg.get(), "supportsDesktopCapturer").mockReturnValue(true);
+                } as IHandle<any>);
+                jest.spyOn(PlatformPeg.get()!, "supportsDesktopCapturer").mockReturnValue(true);
 
                 await call.connect();
 
@@ -969,7 +976,7 @@ describe("ElementCall", () => {
             });
 
             it("replies with pending: false if we don't support desktop capturer", async () => {
-                jest.spyOn(PlatformPeg.get(), "supportsDesktopCapturer").mockReturnValue(false);
+                jest.spyOn(PlatformPeg.get()!, "supportsDesktopCapturer").mockReturnValue(false);
 
                 await call.connect();
 

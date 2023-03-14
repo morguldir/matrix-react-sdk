@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useContext, useMemo, useRef, useState } from "react";
+import React, { ChangeEvent, useContext, useMemo, useRef, useState } from "react";
 import { IContent, MatrixEvent } from "matrix-js-sdk/src/models/event";
 
 import { _t, _td } from "../../../../languageHandler";
@@ -72,7 +72,7 @@ const validateEventContent = withValidation<any, Error | undefined>({
     ],
 });
 
-export const EventEditor = ({ fieldDefs, defaultContent = "{\n\n}", onSend, onBack }: IEventEditorProps) => {
+export const EventEditor: React.FC<IEventEditorProps> = ({ fieldDefs, defaultContent = "{\n\n}", onSend, onBack }) => {
     const [fieldData, setFieldData] = useState<string[]>(fieldDefs.map((def) => def.default ?? ""));
     const [content, setContent] = useState<string>(defaultContent);
     const contentField = useRef<Field>();
@@ -87,7 +87,7 @@ export const EventEditor = ({ fieldDefs, defaultContent = "{\n\n}", onSend, onBa
             type="text"
             autoComplete="on"
             value={fieldData[i]}
-            onChange={(ev) =>
+            onChange={(ev: ChangeEvent<HTMLInputElement>) =>
                 setFieldData((data) => {
                     data[i] = ev.target.value;
                     return [...data];
@@ -96,7 +96,7 @@ export const EventEditor = ({ fieldDefs, defaultContent = "{\n\n}", onSend, onBa
         />
     ));
 
-    const onAction = async () => {
+    const onAction = async (): Promise<string> => {
         const valid = await contentField.current.validate({});
 
         if (!valid) {
@@ -143,17 +143,17 @@ interface IViewerProps extends Required<IEditorProps> {
     Editor: React.FC<Required<IEditorProps>>;
 }
 
-export const EventViewer = ({ mxEvent, onBack, Editor }: IViewerProps) => {
+export const EventViewer: React.FC<IViewerProps> = ({ mxEvent, onBack, Editor }) => {
     const [editing, setEditing] = useState(false);
 
     if (editing) {
-        const onBack = () => {
+        const onBack = (): void => {
             setEditing(false);
         };
         return <Editor mxEvent={mxEvent} onBack={onBack} />;
     }
 
-    const onAction = async () => {
+    const onAction = async (): Promise<void> => {
         setEditing(true);
     };
 
@@ -171,13 +171,13 @@ const getBaseEventId = (baseEvent: MatrixEvent): string => {
     return mxEvent.getWireContent()["m.relates_to"]?.event_id ?? baseEvent.getId();
 };
 
-export const TimelineEventEditor = ({ mxEvent, onBack }: IEditorProps) => {
+export const TimelineEventEditor: React.FC<IEditorProps> = ({ mxEvent, onBack }) => {
     const context = useContext(DevtoolsContext);
     const cli = useContext(MatrixClientContext);
 
     const fields = useMemo(() => [eventTypeField(mxEvent?.getType())], [mxEvent]);
 
-    const onSend = ([eventType]: string[], content?: IContent) => {
+    const onSend = ([eventType]: string[], content?: IContent): Promise<unknown> => {
         return cli.sendEvent(context.room.roomId, eventType, content);
     };
 

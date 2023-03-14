@@ -21,6 +21,7 @@ import defaultDispatcher from "../dispatcher/dispatcher";
 import LegacyCallHandler from "../LegacyCallHandler";
 import { PosthogAnalytics } from "../PosthogAnalytics";
 import { SlidingSyncManager } from "../SlidingSyncManager";
+import { AccountPasswordStore } from "../stores/AccountPasswordStore";
 import { MemberListStore } from "../stores/MemberListStore";
 import { RoomNotificationStateStore } from "../stores/notifications/RoomNotificationStateStore";
 import RightPanelStore from "../stores/right-panel/RightPanelStore";
@@ -73,12 +74,13 @@ export class SdkContextClass {
     protected _VoiceBroadcastRecordingsStore?: VoiceBroadcastRecordingsStore;
     protected _VoiceBroadcastPreRecordingStore?: VoiceBroadcastPreRecordingStore;
     protected _VoiceBroadcastPlaybacksStore?: VoiceBroadcastPlaybacksStore;
+    protected _AccountPasswordStore?: AccountPasswordStore;
 
     /**
      * Automatically construct stores which need to be created eagerly so they can register with
      * the dispatcher.
      */
-    public constructEagerStores() {
+    public constructEagerStores(): void {
         this._RoomViewStore = this.roomViewStore;
     }
 
@@ -158,7 +160,7 @@ export class SdkContextClass {
 
     public get voiceBroadcastRecordingsStore(): VoiceBroadcastRecordingsStore {
         if (!this._VoiceBroadcastRecordingsStore) {
-            this._VoiceBroadcastRecordingsStore = VoiceBroadcastRecordingsStore.instance();
+            this._VoiceBroadcastRecordingsStore = new VoiceBroadcastRecordingsStore();
         }
         return this._VoiceBroadcastRecordingsStore;
     }
@@ -172,8 +174,15 @@ export class SdkContextClass {
 
     public get voiceBroadcastPlaybacksStore(): VoiceBroadcastPlaybacksStore {
         if (!this._VoiceBroadcastPlaybacksStore) {
-            this._VoiceBroadcastPlaybacksStore = VoiceBroadcastPlaybacksStore.instance();
+            this._VoiceBroadcastPlaybacksStore = new VoiceBroadcastPlaybacksStore(this.voiceBroadcastRecordingsStore);
         }
         return this._VoiceBroadcastPlaybacksStore;
+    }
+
+    public get accountPasswordStore(): AccountPasswordStore {
+        if (!this._AccountPasswordStore) {
+            this._AccountPasswordStore = new AccountPasswordStore();
+        }
+        return this._AccountPasswordStore;
     }
 }

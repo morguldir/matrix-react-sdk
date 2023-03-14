@@ -43,13 +43,13 @@ interface IState {
 export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
     private unmounted = false;
 
-    public constructor(props) {
+    public constructor(props: {}) {
         super(props);
 
         this.state = {};
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         const cli = MatrixClientPeg.get();
         cli.on(ClientEvent.AccountData, this.onAccountData);
         cli.on(CryptoEvent.UserTrustStatusChanged, this.onStatusChanged);
@@ -57,7 +57,7 @@ export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
         this.getUpdatedStatus();
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.unmounted = true;
         const cli = MatrixClientPeg.get();
         if (!cli) return;
@@ -73,9 +73,9 @@ export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
         }
     };
 
-    private onBootstrapClick = () => {
+    private onBootstrapClick = (): void => {
         if (this.state.crossSigningPrivateKeysInStorage) {
-            Modal.createDialog(SetupEncryptionDialog, {}, null, /* priority = */ false, /* static = */ true);
+            Modal.createDialog(SetupEncryptionDialog, {}, undefined, /* priority = */ false, /* static = */ true);
         } else {
             // Trigger the flow to set up secure backup, which is what this will do when in
             // the appropriate state.
@@ -83,15 +83,15 @@ export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
         }
     };
 
-    private onStatusChanged = () => {
+    private onStatusChanged = (): void => {
         this.getUpdatedStatus();
     };
 
     private async getUpdatedStatus(): Promise<void> {
         const cli = MatrixClientPeg.get();
         const pkCache = cli.getCrossSigningCacheCallbacks();
-        const crossSigning = cli.crypto.crossSigningInfo;
-        const secretStorage = cli.crypto.secretStorage;
+        const crossSigning = cli.crypto!.crossSigningInfo;
+        const secretStorage = cli.crypto!.secretStorage;
         const crossSigningPublicKeysOnDevice = Boolean(crossSigning.getId());
         const crossSigningPrivateKeysInStorage = Boolean(await crossSigning.isStoredInSecretStorage(secretStorage));
         const masterPrivateKeyCached = !!(pkCache && (await pkCache.getCrossSigningKeyCache("master")));
@@ -127,7 +127,7 @@ export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
         try {
             const cli = MatrixClientPeg.get();
             await cli.bootstrapCrossSigning({
-                authUploadDeviceSigningKeys: async (makeRequest) => {
+                authUploadDeviceSigningKeys: async (makeRequest): Promise<void> => {
                     const { finished } = Modal.createDialog(InteractiveAuthDialog, {
                         title: _t("Setting up keys"),
                         matrixClient: cli,
@@ -157,7 +157,7 @@ export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
         });
     };
 
-    public render() {
+    public render(): React.ReactNode {
         const {
             error,
             crossSigningPublicKeysOnDevice,
@@ -209,7 +209,7 @@ export default class CrossSigningPanel extends React.PureComponent<{}, IState> {
             selfSigningPrivateKeyCached &&
             userSigningPrivateKeyCached;
 
-        const actions = [];
+        const actions: JSX.Element[] = [];
 
         // TODO: determine how better to expose this to users in addition to prompts at login/toast
         if (!keysExistEverywhere && homeserverSupportsCrossSigning) {

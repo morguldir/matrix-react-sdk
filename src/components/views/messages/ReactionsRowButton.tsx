@@ -54,7 +54,7 @@ export default class ReactionsRowButton extends React.PureComponent<IProps, ISta
         tooltipVisible: false,
     };
 
-    public onClick = () => {
+    public onClick = (): void => {
         const { mxEvent, myReactionEvent, content } = this.props;
         if (myReactionEvent) {
             this.context.redactEvent(mxEvent.getRoomId(), myReactionEvent.getId());
@@ -70,7 +70,7 @@ export default class ReactionsRowButton extends React.PureComponent<IProps, ISta
         }
     };
 
-    public onMouseOver = () => {
+    public onMouseOver = (): void => {
         this.setState({
             // To avoid littering the DOM with a tooltip for every reaction,
             // only render it on first use.
@@ -79,13 +79,13 @@ export default class ReactionsRowButton extends React.PureComponent<IProps, ISta
         });
     };
 
-    public onMouseLeave = () => {
+    public onMouseLeave = (): void => {
         this.setState({
             tooltipVisible: false,
         });
     };
 
-    public render() {
+    public render(): React.ReactNode {
         const { mxEvent, content, count, reactionEvents, myReactionEvent } = this.props;
 
         const classes = classNames({
@@ -106,9 +106,9 @@ export default class ReactionsRowButton extends React.PureComponent<IProps, ISta
         }
 
         const room = this.context.getRoom(mxEvent.getRoomId());
-        let label: string;
+        let label: string | undefined;
         if (room) {
-            const senders = [];
+            const senders: string[] = [];
             for (const reactionEvent of reactionEvents) {
                 const member = room.getMember(reactionEvent.getSender());
                 senders.push(member?.name || reactionEvent.getSender());

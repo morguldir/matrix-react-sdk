@@ -23,6 +23,7 @@ import { MatrixClient } from "matrix-js-sdk/src/client";
 import { decryptAES, encryptAES, IEncryptedPayload } from "matrix-js-sdk/src/crypto/aes";
 import { QueryDict } from "matrix-js-sdk/src/utils";
 import { logger } from "matrix-js-sdk/src/logger";
+import { SSOAction } from "matrix-js-sdk/src/@types/auth";
 
 import { IMatrixClientCreds, MatrixClientPeg } from "./MatrixClientPeg";
 import SecurityCustomisations from "./customisations/Security";
@@ -219,7 +220,7 @@ export function attemptTokenLogin(
     })
         .then(function (creds) {
             logger.log("Logged in with token");
-            return clearStorage().then(async () => {
+            return clearStorage().then(async (): Promise<boolean> => {
                 await persistCredentials(creds);
                 // remember that we just logged in
                 sessionStorage.setItem("mx_fresh_login", String(true));
@@ -248,7 +249,7 @@ export function attemptTokenLogin(
                             idBaseUrl: identityServer,
                         });
                         const idpId = localStorage.getItem(SSO_IDP_ID_KEY) || undefined;
-                        PlatformPeg.get().startSingleSignOn(cli, "sso", fragmentAfterLogin, idpId);
+                        PlatformPeg.get()?.startSingleSignOn(cli, "sso", fragmentAfterLogin, idpId, SSOAction.LOGIN);
                     }
                 },
             });
@@ -264,7 +265,7 @@ export function handleInvalidStoreError(e: InvalidStoreError): Promise<void> {
             .then(() => {
                 const lazyLoadEnabled = e.value;
                 if (lazyLoadEnabled) {
-                    return new Promise((resolve) => {
+                    return new Promise<void>((resolve) => {
                         Modal.createDialog(LazyLoadingResyncDialog, {
                             onFinished: resolve,
                         });
@@ -274,7 +275,7 @@ export function handleInvalidStoreError(e: InvalidStoreError): Promise<void> {
                     // between LL/non-LL version on same host.
                     // as disabling LL when previously enabled
                     // is a strong indicator of this (/develop & /app)
-                    return new Promise((resolve) => {
+                    return new Promise<void>((resolve) => {
                         Modal.createDialog(LazyLoadingDisabledDialog, {
                             onFinished: resolve,
                             host: window.location.host,
@@ -286,7 +287,7 @@ export function handleInvalidStoreError(e: InvalidStoreError): Promise<void> {
                 return MatrixClientPeg.get().store.deleteAllData();
             })
             .then(() => {
-                PlatformPeg.get().reload();
+                PlatformPeg.get()?.reload();
             });
     }
 }
@@ -406,7 +407,7 @@ async function pickleKeyToAesKey(pickleKey: string): Promise<Uint8Array> {
     );
 }
 
-async function abortLogin() {
+async function abortLogin(): Promise<void> {
     const signOut = await showStorageEvictedDialog();
     if (signOut) {
         await clearStorage();
@@ -518,7 +519,7 @@ export async function setLoggedIn(credentials: IMatrixClientCreds): Promise<Matr
     stopMatrixClient();
     const pickleKey =
         credentials.userId && credentials.deviceId
-            ? await PlatformPeg.get().createPickleKey(credentials.userId, credentials.deviceId)
+            ? await PlatformPeg.get()?.createPickleKey(credentials.userId, credentials.deviceId)
             : null;
 
     if (pickleKey) {
@@ -567,7 +568,7 @@ export async function hydrateSession(credentials: IMatrixClientCreds): Promise<M
 }
 
 /**
- * fires on_logging_in, optionally clears localstorage, persists new credentials
+ * optionally clears localstorage, persists new credentials
  * to localstorage, starts the new client.
  *
  * @param {IMatrixClientCreds} credentials
@@ -593,15 +594,6 @@ async function doSetLoggedIn(credentials: IMatrixClientCreds, clearStorageEnable
             softLogout,
         " freshLogin: " + credentials.freshLogin,
     );
-
-    // This is dispatched to indicate that the user is still in the process of logging in
-    // because async code may take some time to resolve, breaking the assumption that
-    // `setLoggedIn` takes an "instant" to complete, and dispatch `on_logged_in` a few ms
-    // later than MatrixChat might assume.
-    //
-    // we fire it *synchronously* to make sure it fires before on_logged_in.
-    // (dis.dispatch uses `window.setTimeout`, which does not guarantee ordering.)
-    dis.dispatch({ action: "on_logging_in" }, true);
 
     if (clearStorageEnabled) {
         await clearStorage();

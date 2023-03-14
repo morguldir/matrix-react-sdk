@@ -49,6 +49,7 @@ describe("PreferencesUserSettingsTab", () => {
             const client = MatrixClientPeg.get();
             jest.spyOn(client, "isVersionSupported").mockImplementation(async (version: string) => {
                 if (version === "v1.4") return val;
+                return false;
             });
         };
 
@@ -61,8 +62,12 @@ describe("PreferencesUserSettingsTab", () => {
             };
         };
 
-        const expectSetValueToHaveBeenCalled = (name: string, roomId: string, level: SettingLevel, value: boolean) =>
-            expect(SettingsStore.setValue).toHaveBeenCalledWith(name, roomId, level, value);
+        const expectSetValueToHaveBeenCalled = (
+            name: string,
+            roomId: string | undefined,
+            level: SettingLevel,
+            value: boolean,
+        ) => expect(SettingsStore.setValue).toHaveBeenCalledWith(name, roomId, level, value);
 
         describe("with server support", () => {
             beforeEach(() => {
@@ -75,7 +80,7 @@ describe("PreferencesUserSettingsTab", () => {
 
                 await waitFor(() => expect(toggle).toHaveAttribute("aria-disabled", "false"));
                 fireEvent.click(toggle);
-                expectSetValueToHaveBeenCalled("sendReadReceipts", undefined, SettingLevel.ACCOUNT, true);
+                expectSetValueToHaveBeenCalled("sendReadReceipts", null, SettingLevel.ACCOUNT, true);
             });
 
             it("can be disabled", async () => {
@@ -84,7 +89,7 @@ describe("PreferencesUserSettingsTab", () => {
 
                 await waitFor(() => expect(toggle).toHaveAttribute("aria-disabled", "false"));
                 fireEvent.click(toggle);
-                expectSetValueToHaveBeenCalled("sendReadReceipts", undefined, SettingLevel.ACCOUNT, false);
+                expectSetValueToHaveBeenCalled("sendReadReceipts", null, SettingLevel.ACCOUNT, false);
             });
         });
 
@@ -99,7 +104,7 @@ describe("PreferencesUserSettingsTab", () => {
 
                 await waitFor(() => expect(toggle).toHaveAttribute("aria-disabled", "false"));
                 fireEvent.click(toggle);
-                expectSetValueToHaveBeenCalled("sendReadReceipts", undefined, SettingLevel.ACCOUNT, true);
+                expectSetValueToHaveBeenCalled("sendReadReceipts", null, SettingLevel.ACCOUNT, true);
             });
 
             it("cannot be disabled", async () => {

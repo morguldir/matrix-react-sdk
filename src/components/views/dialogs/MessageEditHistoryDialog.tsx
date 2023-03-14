@@ -30,10 +30,10 @@ import ScrollPanel from "../../structures/ScrollPanel";
 import Spinner from "../elements/Spinner";
 import EditHistoryMessage from "../messages/EditHistoryMessage";
 import DateSeparator from "../messages/DateSeparator";
-import { IDialogProps } from "./IDialogProps";
 
-interface IProps extends IDialogProps {
+interface IProps {
     mxEvent: MatrixEvent;
+    onFinished(): void;
 }
 
 interface IState {
@@ -121,8 +121,8 @@ export default class MessageEditHistoryDialog extends React.PureComponent<IProps
     }
 
     private renderEdits(): JSX.Element[] {
-        const nodes = [];
-        let lastEvent;
+        const nodes: JSX.Element[] = [];
+        let lastEvent: MatrixEvent;
         let allEvents = this.state.events;
         // append original event when we've done last pagination
         if (this.state.originalEvent && !this.state.nextBatch) {
@@ -130,7 +130,7 @@ export default class MessageEditHistoryDialog extends React.PureComponent<IProps
         }
         const baseEventId = this.props.mxEvent.getId();
         allEvents.forEach((e, i) => {
-            if (!lastEvent || wantsDateSeparator(lastEvent.getDate(), e.getDate())) {
+            if (!lastEvent || wantsDateSeparator(lastEvent.getDate() || undefined, e.getDate() || undefined)) {
                 nodes.push(
                     <li key={e.getTs() + "~"}>
                         <DateSeparator roomId={e.getRoomId()} ts={e.getTs()} />
@@ -152,7 +152,7 @@ export default class MessageEditHistoryDialog extends React.PureComponent<IProps
         return nodes;
     }
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         let content;
         if (this.state.error) {
             const { error } = this.state;

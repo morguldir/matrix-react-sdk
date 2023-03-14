@@ -97,7 +97,7 @@ export default class RoomProfileSettings extends React.Component<IProps, IState>
         });
     };
 
-    private isSaveEnabled = () => {
+    private isSaveEnabled = (): boolean => {
         return Boolean(Object.values(this.state.profileFieldsTouched).length);
     };
 
@@ -218,7 +218,7 @@ export default class RoomProfileSettings extends React.Component<IProps, IState>
         reader.readAsDataURL(file);
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         let profileSettingsButtons;
         if (this.state.canSetName || this.state.canSetTopic || this.state.canSetAvatar) {
             profileSettingsButtons = (

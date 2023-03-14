@@ -38,14 +38,16 @@ import Modal from "../../../Modal";
 import DevtoolsDialog from "../dialogs/DevtoolsDialog";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 
-const QuickSettingsButton = ({ isPanelCollapsed = false }) => {
+const QuickSettingsButton: React.FC<{
+    isPanelCollapsed: boolean;
+}> = ({ isPanelCollapsed = false }) => {
     const [menuDisplayed, handle, openMenu, closeMenu] = useContextMenu<HTMLDivElement>();
 
     const { [MetaSpace.Favourites]: favouritesEnabled, [MetaSpace.People]: peopleEnabled } =
         useSettingValue<Record<MetaSpace, boolean>>("Spaces.enabledMetaSpaces");
 
-    let contextMenu: JSX.Element;
-    if (menuDisplayed) {
+    let contextMenu: JSX.Element | undefined;
+    if (menuDisplayed && handle.current) {
         contextMenu = (
             <ContextMenu
                 {...alwaysAboveRightOf(handle.current.getBoundingClientRect(), ChevronFace.None, 16)}
