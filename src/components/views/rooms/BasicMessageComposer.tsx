@@ -32,7 +32,7 @@ import {
 } from "../../../editor/operations";
 import { getCaretOffsetAndText, getRangeForSelection } from "../../../editor/dom";
 import Autocomplete, { generateCompletionDomId } from "../rooms/Autocomplete";
-import { getAutoCompleteCreator, Part, Type } from "../../../editor/parts";
+import { getAutoCompleteCreator, Part, SerializedPart, Type } from "../../../editor/parts";
 import { parseEvent, parsePlainTextMessage } from "../../../editor/deserialize";
 import { renderModel } from "../../../editor/render";
 import SettingsStore from "../../../settings/SettingsStore";
@@ -107,7 +107,7 @@ interface IProps {
     initialCaret?: DocumentOffset;
     disabled?: boolean;
 
-    onChange?();
+    onChange?(): void;
     onPaste?(event: ClipboardEvent<HTMLDivElement>, model: EditorModel): boolean;
 }
 
@@ -132,7 +132,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
 
     private _isCaretAtEnd: boolean;
     private lastCaret: DocumentOffset;
-    private lastSelection: ReturnType<typeof cloneSelection>;
+    private lastSelection: ReturnType<typeof cloneSelection> | null;
 
     private readonly useMarkdownHandle: string;
     private readonly emoticonSettingHandle: string;
@@ -140,7 +140,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
     private readonly surroundWithHandle: string;
     private readonly historyManager = new HistoryManager();
 
-    public constructor(props) {
+    public constructor(props: IProps) {
         super(props);
         this.state = {
             showPillAvatar: SettingsStore.getValue("Pill.shouldShowPillAvatar"),
@@ -188,19 +188,22 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         }
     }
 
-    public replaceEmoticon(caretPosition: DocumentPosition, regex: RegExp): number {
+    public replaceEmoticon(caretPosition: DocumentPosition, regex: RegExp): number | undefined {
         const { model } = this.props;
         const range = model.startRange(caretPosition);
-        // expand range max 8 characters backwards from caretPosition,
+        // expand range max 9 characters backwards from caretPosition,
         // as a space to look for an emoticon
-        let n = 8;
+        let n = 9;
         range.expandBackwardsWhile((index, offset) => {
             const part = model.parts[index];
             n -= 1;
             return n >= 0 && [Type.Plain, Type.PillCandidate, Type.Newline].includes(part.type);
         });
         const emoticonMatch = regex.exec(range.text);
-        if (emoticonMatch) {
+        // ignore matches at start of proper substrings
+        // so xd will not match if the string was "mixd 123456"
+        // and we are lookinh at xd 123456 part of the string
+        if (emoticonMatch && (n >= 0 || emoticonMatch.index !== 0)) {
             const query = emoticonMatch[1].replace("-", "");
             // try both exact match and lower-case, this means that xd won't match xD but :P will match :p
             const data = EMOTICON_TO_EMOJI.get(query) || EMOTICON_TO_EMOJI.get(query.toLowerCase());
@@ -349,7 +352,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         this.onCutCopy(event, "cut");
     };
 
-    private onPaste = (event: ClipboardEvent<HTMLDivElement>): boolean => {
+    private onPaste = (event: ClipboardEvent<HTMLDivElement>): boolean | undefined => {
         event.preventDefault(); // we always handle the paste ourselves
         if (this.props.onPaste?.(event, this.props.model)) {
             // to prevent double handling, allow props.onPaste to skip internal onPaste
@@ -364,7 +367,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         let parts: Part[];
         if (partsText) {
             const serializedTextParts = JSON.parse(partsText);
-            parts = serializedTextParts.map((p) => partCreator.deserializePart(p));
+            parts = serializedTextParts.map((p: SerializedPart) => partCreator.deserializePart(p));
         } else {
             parts = parsePlainTextMessage(plainText, partCreator, { shouldEscape: false });
         }
@@ -412,7 +415,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         this.lastSelection = cloneSelection(document.getSelection());
     }
 
-    private refreshLastCaretIfNeeded(): DocumentOffset {
+    private refreshLastCaretIfNeeded(): DocumentOffset | undefined {
         // XXX: needed when going up and down in editing messages ... not sure why yet
         // because the editors should stop doing this when when blurred ...
         // maybe it's on focus and the _editorRef isn't available yet or something.
@@ -438,7 +441,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
     }
 
     public isSelectionCollapsed(): boolean {
-        return !this.lastSelection || this.lastSelection.isCollapsed;
+        return !this.lastSelection || !!this.lastSelection.isCollapsed;
     }
 
     public isCaretAtStart(): boolean {
@@ -534,7 +537,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
             // there is no current autocomplete window, try to open it
             this.tabCompleteName();
             handled = true;
-        } else if ([KeyBindingAction.Delete, KeyBindingAction.Backspace].includes(accessibilityAction)) {
+        } else if ([KeyBindingAction.Delete, KeyBindingAction.Backspace].includes(accessibilityAction!)) {
             this.formatBarRef.current.hide();
         }
 
@@ -746,8 +749,8 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         formatRange(range, action);
     };
 
-    public render(): JSX.Element {
-        let autoComplete;
+    public render(): React.ReactNode {
+        let autoComplete: JSX.Element | undefined;
         if (this.state.autoComplete) {
             const query = this.state.query;
             const queryLen = query.length;
@@ -782,7 +785,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
 
         const { completionIndex } = this.state;
         const hasAutocomplete = Boolean(this.state.autoComplete);
-        let activeDescendant: string;
+        let activeDescendant: string | undefined;
         if (hasAutocomplete && completionIndex >= 0) {
             activeDescendant = generateCompletionDomId(completionIndex);
         }
@@ -797,7 +800,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                 />
                 <div
                     className={classes}
-                    contentEditable={this.props.disabled ? null : true}
+                    contentEditable={this.props.disabled ? undefined : true}
                     tabIndex={0}
                     onBlur={this.onBlur}
                     onFocus={this.onFocus}

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { MutableRefObject, useContext, useRef } from "react";
+import React, { MutableRefObject, ReactNode, useContext, useRef } from "react";
 import { CallEvent, CallState, MatrixCall } from "matrix-js-sdk/src/webrtc/call";
 import { logger } from "matrix-js-sdk/src/logger";
 import { Optional } from "matrix-events-sdk";
@@ -192,10 +192,7 @@ class PipContainerInner extends React.Component<IProps, IState> {
     };
 
     private onWidgetPersistence = (): void => {
-        this.updateShowWidgetInPip(
-            ActiveWidgetStore.instance.getPersistentWidgetId(),
-            ActiveWidgetStore.instance.getPersistentRoomId(),
-        );
+        this.updateShowWidgetInPip();
     };
 
     private onWidgetDockChanges = (): void => {
@@ -234,11 +231,10 @@ class PipContainerInner extends React.Component<IProps, IState> {
         }
     };
 
-    // Accepts a persistentWidgetId to be able to skip awaiting the setState for persistentWidgetId
-    public updateShowWidgetInPip(
-        persistentWidgetId = this.state.persistentWidgetId,
-        persistentRoomId = this.state.persistentRoomId,
-    ): void {
+    public updateShowWidgetInPip(): void {
+        const persistentWidgetId = ActiveWidgetStore.instance.getPersistentWidgetId();
+        const persistentRoomId = ActiveWidgetStore.instance.getPersistentRoomId();
+
         let fromAnotherRoom = false;
         let notDocked = false;
         // Sanity check the room - the widget may have been destroyed between render cycles, and
@@ -258,17 +254,16 @@ class PipContainerInner extends React.Component<IProps, IState> {
     }
 
     private createVoiceBroadcastPlaybackPipContent(voiceBroadcastPlayback: VoiceBroadcastPlayback): CreatePipChildren {
-        if (this.state.viewedRoomId === voiceBroadcastPlayback.infoEvent.getRoomId()) {
-            return ({ onStartMoving }) => (
-                <div onMouseDown={onStartMoving}>
-                    <VoiceBroadcastPlaybackBody playback={voiceBroadcastPlayback} pip={true} />
-                </div>
+        const content =
+            this.state.viewedRoomId === voiceBroadcastPlayback.infoEvent.getRoomId() ? (
+                <VoiceBroadcastPlaybackBody playback={voiceBroadcastPlayback} pip={true} />
+            ) : (
+                <VoiceBroadcastSmallPlaybackBody playback={voiceBroadcastPlayback} />
             );
-        }
 
         return ({ onStartMoving }) => (
-            <div onMouseDown={onStartMoving}>
-                <VoiceBroadcastSmallPlaybackBody playback={voiceBroadcastPlayback} />
+            <div key={voiceBroadcastPlayback.infoEvent.getId()} onMouseDown={onStartMoving}>
+                {content}
             </div>
         );
     }
@@ -293,7 +288,7 @@ class PipContainerInner extends React.Component<IProps, IState> {
         );
     }
 
-    public render(): JSX.Element {
+    public render(): ReactNode {
         const pipMode = true;
         let pipContent: Array<CreatePipChildren> = [];
 

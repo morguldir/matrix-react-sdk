@@ -23,7 +23,7 @@ import { useIsEncrypted } from "../../../hooks/useIsEncrypted";
 import BaseCard, { Group } from "./BaseCard";
 import { _t } from "../../../languageHandler";
 import RoomAvatar from "../avatars/RoomAvatar";
-import AccessibleButton, { ButtonEvent } from "../elements/AccessibleButton";
+import AccessibleButton, { ButtonEvent, IAccessibleButtonProps } from "../elements/AccessibleButton";
 import defaultDispatcher from "../../../dispatcher/dispatcher";
 import { RightPanelPhases } from "../../../stores/right-panel/RightPanelStorePhases";
 import Modal from "../../../Modal";
@@ -37,10 +37,11 @@ import WidgetAvatar from "../avatars/WidgetAvatar";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import WidgetStore, { IApp } from "../../../stores/WidgetStore";
 import { E2EStatus } from "../../../utils/ShieldUtils";
+import { RoomPermalinkCreator } from "../../../utils/permalinks/Permalinks";
 import RoomContext from "../../../contexts/RoomContext";
 import { UIComponent, UIFeature } from "../../../settings/UIFeature";
 import { ChevronFace, ContextMenuTooltipButton, useContextMenu } from "../../structures/ContextMenu";
-import WidgetContextMenu from "../context_menus/WidgetContextMenu";
+import { WidgetContextMenu } from "../context_menus/WidgetContextMenu";
 import { useRoomMemberCount } from "../../../hooks/useRoomMembers";
 import { useFeatureEnabled } from "../../../hooks/useSettings";
 import { usePinnedEvents } from "./PinnedMessagesCard";
@@ -51,9 +52,11 @@ import ExportDialog from "../dialogs/ExportDialog";
 import RightPanelStore from "../../../stores/right-panel/RightPanelStore";
 import PosthogTrackers from "../../../PosthogTrackers";
 import { shouldShowComponent } from "../../../customisations/helpers/UIComponents";
+import { PollHistoryDialog } from "../dialogs/PollHistoryDialog";
 
 interface IProps {
     room: Room;
+    permalinkCreator: RoomPermalinkCreator;
     onClose(): void;
 }
 
@@ -61,14 +64,15 @@ interface IAppsSectionProps {
     room: Room;
 }
 
-interface IButtonProps {
+interface IButtonProps extends IAccessibleButtonProps {
     className: string;
     onClick(ev: ButtonEvent): void;
 }
 
-const Button: React.FC<IButtonProps> = ({ children, className, onClick }) => {
+const Button: React.FC<IButtonProps> = ({ children, className, onClick, ...props }) => {
     return (
         <AccessibleButton
+            {...props}
             className={classNames("mx_BaseCard_Button mx_RoomSummaryCard_Button", className)}
             onClick={onClick}
         >
@@ -266,7 +270,7 @@ const onRoomSettingsClick = (ev: ButtonEvent): void => {
     PosthogTrackers.trackInteraction("WebRightPanelRoomInfoSettingsButton", ev);
 };
 
-const RoomSummaryCard: React.FC<IProps> = ({ room, onClose }) => {
+const RoomSummaryCard: React.FC<IProps> = ({ room, permalinkCreator, onClose }) => {
     const cli = useContext(MatrixClientContext);
 
     const onShareRoomClick = (): void => {
@@ -278,6 +282,14 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, onClose }) => {
     const onRoomExportClick = async (): Promise<void> => {
         Modal.createDialog(ExportDialog, {
             room,
+        });
+    };
+
+    const onRoomPollHistoryClick = (): void => {
+        Modal.createDialog(PollHistoryDialog, {
+            room,
+            matrixClient: cli,
+            permalinkCreator,
         });
     };
 
@@ -313,7 +325,9 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, onClose }) => {
 
     const memberCount = useRoomMemberCount(room);
     const pinningEnabled = useFeatureEnabled("feature_pinning");
-    const pinCount = usePinnedEvents(pinningEnabled && room)?.length;
+    const pinCount = usePinnedEvents(pinningEnabled ? room : undefined)?.length;
+
+    const isPollHistoryEnabled = useFeatureEnabled("feature_poll_history");
 
     return (
         <BaseCard header={header} className="mx_RoomSummaryCard" onClose={onClose}>
@@ -327,6 +341,11 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, onClose }) => {
                         {_t("Files")}
                     </Button>
                 )}
+                {!isVideoRoom && isPollHistoryEnabled && (
+                    <Button className="mx_RoomSummaryCard_icon_poll" onClick={onRoomPollHistoryClick}>
+                        {_t("Polls history")}
+                    </Button>
+                )}
                 {pinningEnabled && !isVideoRoom && (
                     <Button className="mx_RoomSummaryCard_icon_pins" onClick={onRoomPinsClick}>
                         {_t("Pinned")}
@@ -338,7 +357,11 @@ const RoomSummaryCard: React.FC<IProps> = ({ room, onClose }) => {
                         {_t("Export chat")}
                     </Button>
                 )}
-                <Button className="mx_RoomSummaryCard_icon_share" onClick={onShareRoomClick}>
+                <Button
+                    data-testid="shareRoomButton"
+                    className="mx_RoomSummaryCard_icon_share"
+                    onClick={onShareRoomClick}
+                >
                     {_t("Share room")}
                 </Button>
                 <Button className="mx_RoomSummaryCard_icon_settings" onClick={onRoomSettingsClick}>

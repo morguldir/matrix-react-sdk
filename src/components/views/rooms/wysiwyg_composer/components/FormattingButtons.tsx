@@ -28,6 +28,8 @@ import { Icon as LinkIcon } from "../../../../../../res/img/element-icons/room/c
 import { Icon as BulletedListIcon } from "../../../../../../res/img/element-icons/room/composer/bulleted_list.svg";
 import { Icon as NumberedListIcon } from "../../../../../../res/img/element-icons/room/composer/numbered_list.svg";
 import { Icon as CodeBlockIcon } from "../../../../../../res/img/element-icons/room/composer/code_block.svg";
+import { Icon as IndentIcon } from "../../../../../../res/img/element-icons/room/composer/indent_increase.svg";
+import { Icon as UnIndentIcon } from "../../../../../../res/img/element-icons/room/composer/indent_decrease.svg";
 import AccessibleTooltipButton from "../../../elements/AccessibleTooltipButton";
 import { Alignment } from "../../../elements/Tooltip";
 import { KeyboardShortcut } from "../../../settings/KeyboardShortcut";
@@ -86,6 +88,7 @@ interface FormattingButtonsProps {
 
 export function FormattingButtons({ composer, actionStates }: FormattingButtonsProps): JSX.Element {
     const composerContext = useComposerContext();
+    const isInList = actionStates.unorderedList === "reversed" || actionStates.orderedList === "reversed";
     return (
         <div className="mx_FormattingButtons">
             <Button
@@ -127,6 +130,22 @@ export function FormattingButtons({ composer, actionStates }: FormattingButtonsP
                 onClick={() => composer.orderedList()}
                 icon={<NumberedListIcon className="mx_FormattingButtons_Icon" />}
             />
+            {isInList && (
+                <Button
+                    actionState={actionStates.indent}
+                    label={_td("Indent increase")}
+                    onClick={() => composer.indent()}
+                    icon={<IndentIcon className="mx_FormattingButtons_Icon" />}
+                />
+            )}
+            {isInList && (
+                <Button
+                    actionState={actionStates.unindent}
+                    label={_td("Indent decrease")}
+                    onClick={() => composer.unindent()}
+                    icon={<UnIndentIcon className="mx_FormattingButtons_Icon" />}
+                />
+            )}
             <Button
                 actionState={actionStates.quote}
                 label={_td("Quote")}

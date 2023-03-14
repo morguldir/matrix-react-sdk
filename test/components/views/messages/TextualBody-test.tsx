@@ -15,11 +15,11 @@ limitations under the License.
 */
 
 import React from "react";
-import { MatrixClient } from "matrix-js-sdk/src/matrix";
+import { MatrixClient, MatrixEvent } from "matrix-js-sdk/src/matrix";
 import { MockedObject } from "jest-mock";
 import { render } from "@testing-library/react";
 
-import { getMockClientWithEventEmitter, mkEvent, mkStubRoom } from "../../../test-utils";
+import { getMockClientWithEventEmitter, mkEvent, mkMessage, mkStubRoom } from "../../../test-utils";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
 import * as languageHandler from "../../../../src/languageHandler";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
@@ -27,6 +27,15 @@ import TextualBody from "../../../../src/components/views/messages/TextualBody";
 import MatrixClientContext from "../../../../src/contexts/MatrixClientContext";
 import { RoomPermalinkCreator } from "../../../../src/utils/permalinks/Permalinks";
 import { MediaEventHelper } from "../../../../src/utils/MediaEventHelper";
+
+const mkRoomTextMessage = (body: string): MatrixEvent => {
+    return mkMessage({
+        msg: body,
+        room: "room_id",
+        user: "sender",
+        event: true,
+    });
+};
 
 describe("<TextualBody />", () => {
     afterEach(() => {
@@ -38,9 +47,11 @@ describe("<TextualBody />", () => {
     beforeEach(() => {
         defaultMatrixClient = getMockClientWithEventEmitter({
             getRoom: () => defaultRoom,
-            getAccountData: () => undefined,
+            getRooms: () => [defaultRoom],
+            getAccountData: (): MatrixEvent | undefined => undefined,
             isGuest: () => false,
-            mxcUrlToHttp: (s) => s,
+            mxcUrlToHttp: (s: string) => s,
+            getUserId: () => "@user:example.com",
         });
     });
 
@@ -56,7 +67,7 @@ describe("<TextualBody />", () => {
     });
     const defaultProps = {
         mxEvent: defaultEvent,
-        highlights: [],
+        highlights: [] as string[],
         highlightLink: "",
         onMessageAllowed: jest.fn(),
         onHeightChanged: jest.fn(),
@@ -116,17 +127,7 @@ describe("<TextualBody />", () => {
         });
 
         it("simple message renders as expected", () => {
-            const ev = mkEvent({
-                type: "m.room.message",
-                room: "room_id",
-                user: "sender",
-                content: {
-                    body: "this is a plaintext message",
-                    msgtype: "m.text",
-                },
-                event: true,
-            });
-
+            const ev = mkRoomTextMessage("this is a plaintext message");
             const { container } = getComponent({ mxEvent: ev });
             expect(container).toHaveTextContent(ev.getContent().body);
             const content = container.querySelector(".mx_EventTile_body");
@@ -135,17 +136,7 @@ describe("<TextualBody />", () => {
 
         // If pills were rendered within a Portal/same shadow DOM then it'd be easier to test
         it("linkification get applied correctly into the DOM", () => {
-            const ev = mkEvent({
-                type: "m.room.message",
-                room: "room_id",
-                user: "sender",
-                content: {
-                    body: "Visit https://matrix.org/",
-                    msgtype: "m.text",
-                },
-                event: true,
-            });
-
+            const ev = mkRoomTextMessage("Visit https://matrix.org/");
             const { container } = getComponent({ mxEvent: ev });
             expect(container).toHaveTextContent(ev.getContent().body);
             const content = container.querySelector(".mx_EventTile_body");
@@ -155,20 +146,38 @@ describe("<TextualBody />", () => {
                     "https://matrix.org/</a></span>",
             );
         });
+
+        it("should not pillify MXIDs", () => {
+            const ev = mkRoomTextMessage("Chat with @user:example.com");
+            const { container } = getComponent({ mxEvent: ev });
+            const content = container.querySelector(".mx_EventTile_body");
+            expect(content.innerHTML).toMatchInlineSnapshot(
+                `"Chat with <a href="https://matrix.to/#/@user:example.com" class="linkified" rel="noreferrer noopener">@user:example.com</a>"`,
+            );
+        });
+
+        it("should not pillify room aliases", () => {
+            const ev = mkRoomTextMessage("Visit #room:example.com");
+            const { container } = getComponent({ mxEvent: ev });
+            const content = container.querySelector(".mx_EventTile_body");
+            expect(content.innerHTML).toMatchInlineSnapshot(
+                `"Visit <a href="https://matrix.to/#/#room:example.com" class="linkified" rel="noreferrer noopener">#room:example.com</a>"`,
+            );
+        });
     });
 
     describe("renders formatted m.text correctly", () => {
-        let matrixClient;
+        let matrixClient: MatrixClient;
         beforeEach(() => {
             matrixClient = getMockClientWithEventEmitter({
                 getRoom: () => mkStubRoom("room_id", "room name", undefined),
-                getAccountData: () => undefined,
+                getAccountData: (): MatrixEvent | undefined => undefined,
                 getUserId: () => "@me:my_server",
                 getHomeserverUrl: () => "https://my_server/",
-                on: () => undefined,
-                removeListener: () => undefined,
+                on: (): void => undefined,
+                removeListener: (): void => undefined,
                 isGuest: () => false,
-                mxcUrlToHttp: (s) => s,
+                mxcUrlToHttp: (s: string) => s,
             });
             DMRoomMap.makeShared();
         });
@@ -375,24 +384,14 @@ describe("<TextualBody />", () => {
 
         const matrixClient = getMockClientWithEventEmitter({
             getRoom: () => mkStubRoom("room_id", "room name", undefined),
-            getAccountData: () => undefined,
-            getUrlPreview: (url) => new Promise(() => {}),
+            getAccountData: (): MatrixClient | undefined => undefined,
+            getUrlPreview: (url: string) => new Promise(() => {}),
             isGuest: () => false,
-            mxcUrlToHttp: (s) => s,
+            mxcUrlToHttp: (s: string) => s,
         });
         DMRoomMap.makeShared();
 
-        const ev = mkEvent({
-            type: "m.room.message",
-            room: "room_id",
-            user: "sender",
-            content: {
-                body: "Visit https://matrix.org/",
-                msgtype: "m.text",
-            },
-            event: true,
-        });
-
+        const ev = mkRoomTextMessage("Visit https://matrix.org/");
         const { container, rerender } = getComponent(
             { mxEvent: ev, showUrlPreview: true, onHeightChanged: jest.fn() },
             matrixClient,

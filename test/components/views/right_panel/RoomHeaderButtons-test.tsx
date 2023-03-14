@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Matrix.org Foundation C.I.C.
+Copyright 2022 - 2023 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,14 +17,12 @@ limitations under the License.
 import { render } from "@testing-library/react";
 import { MatrixEvent, MsgType, RelationType } from "matrix-js-sdk/src/matrix";
 import { MatrixClient, PendingEventOrdering } from "matrix-js-sdk/src/client";
-import { Feature, ServerSupport } from "matrix-js-sdk/src/feature";
 import { NotificationCountType, Room } from "matrix-js-sdk/src/models/room";
 import { ReceiptType } from "matrix-js-sdk/src/@types/read_receipts";
 import React from "react";
 
 import RoomHeaderButtons from "../../../../src/components/views/right_panel/RoomHeaderButtons";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
-import SettingsStore from "../../../../src/settings/SettingsStore";
 import { mkEvent, stubClient } from "../../../test-utils";
 import { mkThread } from "../../../test-utils/threads";
 
@@ -41,10 +39,6 @@ describe("RoomHeaderButtons-test.tsx", function () {
         client.supportsThreads = () => true;
         room = new Room(ROOM_ID, client, client.getUserId() ?? "", {
             pendingEventOrdering: PendingEventOrdering.Detached,
-        });
-
-        jest.spyOn(SettingsStore, "getValue").mockImplementation((name: string) => {
-            if (name === "feature_threadenabled") return true;
         });
     });
 
@@ -63,12 +57,6 @@ describe("RoomHeaderButtons-test.tsx", function () {
     it("shows the thread button", () => {
         const { container } = getComponent(room);
         expect(getThreadButton(container)).not.toBeNull();
-    });
-
-    it("hides the thread button", () => {
-        jest.spyOn(SettingsStore, "getValue").mockReset().mockReturnValue(false);
-        const { container } = getComponent(room);
-        expect(getThreadButton(container)).toBeNull();
     });
 
     it("room wide notification does not change the thread button", () => {
@@ -172,10 +160,5 @@ describe("RoomHeaderButtons-test.tsx", function () {
         });
         room.addReceipt(receipt);
         expect(container.querySelector(".mx_RightPanel_threadsButton .mx_Indicator")).toBeNull();
-    });
-
-    it("does not explode without a room", () => {
-        client.canSupport.set(Feature.ThreadUnreadNotifications, ServerSupport.Unsupported);
-        expect(() => getComponent()).not.toThrow();
     });
 });
