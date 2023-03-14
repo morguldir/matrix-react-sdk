@@ -16,10 +16,10 @@ limitations under the License.
 */
 
 import * as linkifyjs from "linkifyjs";
-import { registerCustomProtocol, registerPlugin } from "linkifyjs";
+import { Opts, registerCustomProtocol, registerPlugin } from "linkifyjs";
 import linkifyElement from "linkify-element";
 import linkifyString from "linkify-string";
-import { RoomMember } from "matrix-js-sdk/src/models/room-member";
+import { User } from "matrix-js-sdk/src/matrix";
 
 import {
     parsePermalink,
@@ -105,13 +105,9 @@ function matrixOpaqueIdLinkifyParser({
 
 function onUserClick(event: MouseEvent, userId: string): void {
     event.preventDefault();
-    const member = new RoomMember(null, userId);
-    if (!member) {
-        return;
-    }
     dis.dispatch<ViewUserPayload>({
         action: Action.ViewUser,
-        member: member,
+        member: new User(userId),
     });
 }
 
@@ -139,9 +135,9 @@ export const ELEMENT_URL_PATTERN =
     "(?:app|beta|staging|develop)\\.element\\.io/" +
     ")(#.*)";
 
-export const options = {
-    events: function (href: string, type: Type | string): Partial<GlobalEventHandlers> {
-        switch (type) {
+export const options: Opts = {
+    events: function (href: string, type: string): Partial<GlobalEventHandlers> {
+        switch (type as Type) {
             case Type.URL: {
                 // intercept local permalinks to users and show them like userids (in userinfo of current room)
                 try {
@@ -176,16 +172,16 @@ export const options = {
                 return {
                     // @ts-ignore see https://linkify.js.org/docs/options.html
                     click: function (e: MouseEvent) {
-                        const userId = parsePermalink(href).userId;
-                        onUserClick(e, userId);
+                        const userId = parsePermalink(href)?.userId;
+                        if (userId) onUserClick(e, userId);
                     },
                 };
             case Type.RoomAlias:
                 return {
                     // @ts-ignore see https://linkify.js.org/docs/options.html
                     click: function (e: MouseEvent) {
-                        const alias = parsePermalink(href).roomIdOrAlias;
-                        onAliasClick(e, alias);
+                        const alias = parsePermalink(href)?.roomIdOrAlias;
+                        if (alias) onAliasClick(e, alias);
                     },
                 };
         }
@@ -230,7 +226,7 @@ export const options = {
 };
 
 // Run the plugins
-registerPlugin(Type.RoomAlias, ({ scanner, parser, utils }) => {
+registerPlugin(Type.RoomAlias, ({ scanner, parser, utils }: any) => {
     const token = scanner.tokens.POUND as "#";
     matrixOpaqueIdLinkifyParser({
         scanner,
@@ -241,7 +237,7 @@ registerPlugin(Type.RoomAlias, ({ scanner, parser, utils }) => {
     });
 });
 
-registerPlugin(Type.UserId, ({ scanner, parser, utils }) => {
+registerPlugin(Type.UserId, ({ scanner, parser, utils }: any) => {
     const token = scanner.tokens.AT as "@";
     matrixOpaqueIdLinkifyParser({
         scanner,

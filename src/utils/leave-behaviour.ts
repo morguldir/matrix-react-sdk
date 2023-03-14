@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { sleep } from "matrix-js-sdk/src/utils";
-import React from "react";
+import React, { ReactNode } from "react";
 import { EventStatus } from "matrix-js-sdk/src/models/event-status";
 import { MatrixEventEvent } from "matrix-js-sdk/src/models/event";
 import { Room } from "matrix-js-sdk/src/models/room";
@@ -35,16 +35,21 @@ import LeaveSpaceDialog from "../components/views/dialogs/LeaveSpaceDialog";
 import { AfterLeaveRoomPayload } from "../dispatcher/payloads/AfterLeaveRoomPayload";
 import { bulkSpaceBehaviour } from "./space";
 import { SdkContextClass } from "../contexts/SDKContext";
+import SettingsStore from "../settings/SettingsStore";
 
 export async function leaveRoomBehaviour(roomId: string, retry = true, spinner = true): Promise<void> {
-    let spinnerModal: IHandle<any>;
+    let spinnerModal: IHandle<any> | undefined;
     if (spinner) {
-        spinnerModal = Modal.createDialog(Spinner, null, "mx_Dialog_spinner");
+        spinnerModal = Modal.createDialog(Spinner, undefined, "mx_Dialog_spinner");
     }
 
     const cli = MatrixClientPeg.get();
     let leavingAllVersions = true;
-    const history = cli.getRoomUpgradeHistory(roomId);
+    const history = cli.getRoomUpgradeHistory(
+        roomId,
+        false,
+        SettingsStore.getValue("feature_dynamic_room_predecessors"),
+    );
     if (history && history.length > 0) {
         const currentRoom = history[history.length - 1];
         if (currentRoom.roomId !== roomId) {
@@ -60,7 +65,7 @@ export async function leaveRoomBehaviour(roomId: string, retry = true, spinner =
         room
             .getPendingEvents()
             .filter((ev) => {
-                return [EventStatus.QUEUED, EventStatus.ENCRYPTING, EventStatus.SENDING].includes(ev.status);
+                return [EventStatus.QUEUED, EventStatus.ENCRYPTING, EventStatus.SENDING].includes(ev.status!);
             })
             .map(
                 (ev) =>
@@ -110,7 +115,7 @@ export async function leaveRoomBehaviour(roomId: string, retry = true, spinner =
 
     const errors = Object.entries(results).filter((r) => !!r[1]);
     if (errors.length > 0) {
-        const messages = [];
+        const messages: ReactNode[] = [];
         for (const roomErr of errors) {
             const err = roomErr[1]; // [0] is the roomId
             let message = _t("Unexpected server error trying to leave the room");

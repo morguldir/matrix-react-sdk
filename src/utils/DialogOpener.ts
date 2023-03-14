@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import classnames from "classnames";
+import { ComponentProps } from "react";
 
 import defaultDispatcher from "../dispatcher/dispatcher";
 import { ActionPayload } from "../dispatcher/payloads";
@@ -62,7 +63,7 @@ export class DialogOpener {
                         roomId: payload.room_id || SdkContextClass.instance.roomViewStore.getRoomId(),
                         initialTabId: payload.initial_tab_id,
                     },
-                    /*className=*/ null,
+                    /*className=*/ undefined,
                     /*isPriority=*/ false,
                     /*isStatic=*/ true,
                 );
@@ -90,7 +91,7 @@ export class DialogOpener {
                         initialTabId: payload.initalTabId,
                         space: payload.space,
                     },
-                    null,
+                    undefined,
                     false,
                     true,
                 );
@@ -102,7 +103,7 @@ export class DialogOpener {
                         matrixClient: payload.space.client,
                         space: payload.space,
                     },
-                    /*className=*/ null,
+                    /*className=*/ undefined,
                     /*isPriority=*/ false,
                     /*isStatic=*/ true,
                 );
@@ -114,7 +115,7 @@ export class DialogOpener {
                         kind: payload.kind,
                         call: payload.call,
                         roomId: payload.roomId,
-                    },
+                    } as Omit<ComponentProps<typeof InviteDialog>, "onFinished">,
                     classnames("mx_InviteDialog_flexWrapper", payload.className),
                     false,
                     true,

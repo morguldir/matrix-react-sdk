@@ -1,5 +1,6 @@
 /*
-Copyright 2019, 2023 The Matrix.org Foundation C.I.C.
+Copyright 2019 New Vector Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +27,8 @@ import * as Avatar from "../Avatar";
 import defaultDispatcher from "../dispatcher/dispatcher";
 import { Action } from "../dispatcher/actions";
 import SettingsStore from "../settings/SettingsStore";
+
+const REGIONAL_EMOJI_SEPARATOR = String.fromCodePoint(0x200b);
 
 interface ISerializedPart {
     type: Type.Plain | Type.Newline | Type.Emoji | Type.Command | Type.PillCandidate;
@@ -67,6 +70,8 @@ interface IBasePart {
     updateDOMNode(node: Node): void;
     canUpdateDOMNode(node: Node): boolean;
     toDOMNode(): Node;
+
+    merge?(part: Part): boolean;
 }
 
 interface IPillCandidatePart extends Omit<IBasePart, "type" | "createAutoComplete"> {
@@ -209,9 +214,13 @@ abstract class PlainBasePart extends BasePart {
                 return false;
             }
 
-            // or split if the previous character is a space
+            // or split if the previous character is a space or regional emoji separator
             // or if it is a + and this is a :
-            return this._text[offset - 1] !== " " && (this._text[offset - 1] !== "+" || chr !== ":");
+            return (
+                this._text[offset - 1] !== " " &&
+                this._text[offset - 1] !== REGIONAL_EMOJI_SEPARATOR &&
+                (this._text[offset - 1] !== "+" || chr !== ":")
+            );
         }
         return true;
     }
@@ -220,7 +229,7 @@ abstract class PlainBasePart extends BasePart {
         return document.createTextNode(this.text);
     }
 
-    public merge(part): boolean {
+    public merge(part: Part): boolean {
         if (part.type === this.type) {
             this._text = this.text + part.text;
             return true;
@@ -247,7 +256,7 @@ export class PlainPart extends PlainBasePart implements IBasePart {
 }
 
 export abstract class PillPart extends BasePart implements IPillPart {
-    public constructor(public resourceId: string, label) {
+    public constructor(public resourceId: string, label: string) {
         super(label);
     }
 
@@ -294,9 +303,9 @@ export abstract class PillPart extends BasePart implements IPillPart {
     }
 
     // helper method for subclasses
-    protected setAvatarVars(node: HTMLElement, avatarBackground: string, initialLetter: string | undefined): void {
-        // const avatarBackground = `url('${avatarUrl}')`;
-        const avatarLetter = `'${initialLetter || ""}'`;
+    protected setAvatarVars(node: HTMLElement, avatarUrl: string, initialLetter: string): void {
+        const avatarBackground = `url('${avatarUrl}')`;
+        const avatarLetter = `'${initialLetter}'`;
         // check if the value is changing,
         // otherwise the avatars flicker on every keystroke while updating.
         if (node.style.getPropertyValue("--avatar-background") !== avatarBackground) {
@@ -412,15 +421,13 @@ class RoomPillPart extends PillPart {
     }
 
     protected setAvatar(node: HTMLElement): void {
-        const avatarUrl = Avatar.avatarUrlForRoom(this.room, 16, 16, "crop");
-        if (avatarUrl) {
-            this.setAvatarVars(node, `url('${avatarUrl}')`, "");
-            return;
+        let initialLetter = "";
+        let avatarUrl = Avatar.avatarUrlForRoom(this.room ?? null, 16, 16, "crop");
+        if (!avatarUrl) {
+            initialLetter = Avatar.getInitialLetter(this.room?.name || this.resourceId) ?? "";
+            avatarUrl = Avatar.defaultAvatarUrlForString(this.room?.roomId ?? this.resourceId);
         }
-
-        const initialLetter = Avatar.getInitialLetter(this.room?.name || this.resourceId);
-        const color = Avatar.getColorForString(this.room?.roomId ?? this.resourceId);
-        this.setAvatarVars(node, color, initialLetter);
+        this.setAvatarVars(node, avatarUrl, initialLetter);
     }
 
     public get type(): IPillPart["type"] {
@@ -450,7 +457,7 @@ class AtRoomPillPart extends RoomPillPart {
 }
 
 class UserPillPart extends PillPart {
-    public constructor(userId, displayName, private member: RoomMember) {
+    public constructor(userId: string, displayName: string, private member?: RoomMember) {
         super(userId, displayName);
     }
 
@@ -466,17 +473,14 @@ class UserPillPart extends PillPart {
         if (!this.member) {
             return;
         }
-
-        const avatar = Avatar.getMemberAvatar(this.member, 16, 16, "crop");
-        if (avatar) {
-            this.setAvatarVars(node, `url('${avatar}')`, "");
-            return;
-        }
-
         const name = this.member.name || this.member.userId;
-        const initialLetter = Avatar.getInitialLetter(name);
-        const color = Avatar.getColorForString(this.member.userId);
-        this.setAvatarVars(node, color, initialLetter);
+        const defaultAvatarUrl = Avatar.defaultAvatarUrlForString(this.member.userId);
+        const avatarUrl = Avatar.avatarUrlForMember(this.member, 16, 16, "crop");
+        let initialLetter = "";
+        if (avatarUrl === defaultAvatarUrl) {
+            initialLetter = Avatar.getInitialLetter(name) ?? "";
+        }
+        this.setAvatarVars(node, avatarUrl, initialLetter);
     }
 
     protected onClick = (): void => {
@@ -537,7 +541,7 @@ export class PartCreator {
     public constructor(
         private readonly room: Room,
         private readonly client: MatrixClient,
-        autoCompleteCreator: AutoCompleteCreator = null,
+        autoCompleteCreator: AutoCompleteCreator | null = null,
     ) {
         // pre-create the creator as an object even without callback so it can already be passed
         // to PillCandidatePart (e.g. while deserializing) and set later on
@@ -570,7 +574,7 @@ export class PartCreator {
         return this.plain(text);
     }
 
-    public deserializePart(part: SerializedPart): Part {
+    public deserializePart(part: SerializedPart): Part | undefined {
         switch (part.type) {
             case Type.Plain:
                 return this.plain(part.text);
@@ -608,7 +612,7 @@ export class PartCreator {
     public roomPill(alias: string, roomId?: string): RoomPillPart {
         let room: Room | undefined;
         if (roomId || alias[0] !== "#") {
-            room = this.client.getRoom(roomId || alias);
+            room = this.client.getRoom(roomId || alias) ?? undefined;
         } else {
             room = this.client.getRooms().find((r) => {
                 return r.getCanonicalAlias() === alias || r.getAltAliases().includes(alias);
@@ -623,11 +627,16 @@ export class PartCreator {
 
     public userPill(displayName: string, userId: string): UserPillPart {
         const member = this.room.getMember(userId);
-        return new UserPillPart(userId, displayName, member);
+        return new UserPillPart(userId, displayName, member || undefined);
+    }
+
+    private static isRegionalIndicator(c: string): boolean {
+        const codePoint = c.codePointAt(0) ?? 0;
+        return codePoint != 0 && c.length == 2 && 0x1f1e6 <= codePoint && codePoint <= 0x1f1ff;
     }
 
     public plainWithEmoji(text: string): (PlainPart | EmojiPart)[] {
-        const parts = [];
+        const parts: (PlainPart | EmojiPart)[] = [];
         let plainText = "";
 
         // We use lodash's grapheme splitter to avoid breaking apart compound emojis
@@ -638,6 +647,9 @@ export class PartCreator {
                     plainText = "";
                 }
                 parts.push(this.emoji(char));
+                if (PartCreator.isRegionalIndicator(text)) {
+                    parts.push(this.plain(REGIONAL_EMOJI_SEPARATOR));
+                }
             } else {
                 plainText += char;
             }
@@ -679,7 +691,7 @@ export class CommandPartCreator extends PartCreator {
         return new CommandPart(text, this.autoCompleteCreator);
     }
 
-    public deserializePart(part: SerializedPart): Part {
+    public deserializePart(part: SerializedPart): Part | undefined {
         if (part.type === Type.Command) {
             return this.command(part.text);
         } else {

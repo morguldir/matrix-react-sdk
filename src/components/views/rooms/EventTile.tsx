@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { createRef, forwardRef, MouseEvent, RefObject } from "react";
+import React, { createRef, forwardRef, MouseEvent, ReactNode, RefObject } from "react";
 import classNames from "classnames";
 import { EventType, MsgType, RelationType } from "matrix-js-sdk/src/@types/event";
 import { EventStatus, MatrixEvent, MatrixEventEvent } from "matrix-js-sdk/src/models/event";
@@ -27,7 +27,6 @@ import { NotificationCountType, Room, RoomEvent } from "matrix-js-sdk/src/models
 import { CallErrorCode } from "matrix-js-sdk/src/webrtc/call";
 import { CryptoEvent } from "matrix-js-sdk/src/crypto";
 import { UserTrustLevel } from "matrix-js-sdk/src/crypto/CrossSigning";
-import { Feature, ServerSupport } from "matrix-js-sdk/src/feature";
 
 import ReplyChain from "../elements/ReplyChain";
 import { _t } from "../../../languageHandler";
@@ -36,7 +35,7 @@ import { Layout } from "../../../settings/enums/Layout";
 import { formatTime } from "../../../DateUtils";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
-import DecryptionFailureBody from "../messages/DecryptionFailureBody";
+import { DecryptionFailureBody } from "../messages/DecryptionFailureBody";
 import { E2EState } from "./E2EIcon";
 import RoomAvatar from "../avatars/RoomAvatar";
 import MessageContextMenu from "../context_menus/MessageContextMenu";
@@ -58,14 +57,9 @@ import { IReadReceiptInfo } from "./ReadReceiptMarker";
 import MessageActionBar from "../messages/MessageActionBar";
 import ReactionsRow from "../messages/ReactionsRow";
 import { getEventDisplayInfo } from "../../../utils/EventRenderingUtils";
-import SettingsStore from "../../../settings/SettingsStore";
 import { MessagePreviewStore } from "../../../stores/room-list/MessagePreviewStore";
 import RoomContext, { TimelineRenderingType } from "../../../contexts/RoomContext";
 import { MediaEventHelper } from "../../../utils/MediaEventHelper";
-import { ThreadNotificationState } from "../../../stores/notifications/ThreadNotificationState";
-import { RoomNotificationStateStore } from "../../../stores/notifications/RoomNotificationStateStore";
-import { NotificationStateEvents } from "../../../stores/notifications/NotificationState";
-import { NotificationColor } from "../../../stores/notifications/NotificationColor";
 import { ButtonEvent } from "../elements/AccessibleButton";
 import { copyPlaintext, getSelectedText } from "../../../utils/strings";
 import { DecryptionFailureTracker } from "../../../DecryptionFailureTracker";
@@ -254,7 +248,6 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
     private isListeningForReceipts: boolean;
     private tile = React.createRef<IEventTileType>();
     private replyChain = React.createRef<ReplyChain>();
-    private threadState: ThreadNotificationState;
 
     public readonly ref = createRef<HTMLElement>();
 
@@ -281,8 +274,6 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             verified: null,
             // The Relations model from the JS SDK for reactions to `mxEvent`
             reactions: this.getReactions(),
-            // Context menu position
-            contextMenu: null,
 
             hover: false,
 
@@ -387,13 +378,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             }
         }
 
-        if (SettingsStore.getValue("feature_threadenabled")) {
-            this.props.mxEvent.on(ThreadEvent.Update, this.updateThread);
-
-            if (this.thread && !this.supportsThreadNotifications) {
-                this.setupNotificationListener(this.thread);
-            }
-        }
+        this.props.mxEvent.on(ThreadEvent.Update, this.updateThread);
 
         client.decryptEventIfNeeded(this.props.mxEvent);
 
@@ -403,47 +388,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         this.verifyEvent();
     }
 
-    private get supportsThreadNotifications(): boolean {
-        const client = MatrixClientPeg.get();
-        return client.canSupport.get(Feature.ThreadUnreadNotifications) !== ServerSupport.Unsupported;
-    }
-
-    private setupNotificationListener(thread: Thread): void {
-        if (!this.supportsThreadNotifications) {
-            const notifications = RoomNotificationStateStore.instance.getThreadsRoomState(thread.room);
-            this.threadState = notifications.getThreadRoomState(thread);
-            this.threadState.on(NotificationStateEvents.Update, this.onThreadStateUpdate);
-            this.onThreadStateUpdate();
-        }
-    }
-
-    private onThreadStateUpdate = (): void => {
-        if (!this.supportsThreadNotifications) {
-            let threadNotification = null;
-            switch (this.threadState?.color) {
-                case NotificationColor.Grey:
-                    threadNotification = NotificationCountType.Total;
-                    break;
-                case NotificationColor.Red:
-                    threadNotification = NotificationCountType.Highlight;
-                    break;
-            }
-
-            this.setState({
-                threadNotification,
-            });
-        }
-    };
-
     private updateThread = (thread: Thread): void => {
-        if (thread !== this.state.thread && !this.supportsThreadNotifications) {
-            if (this.threadState) {
-                this.threadState.off(NotificationStateEvents.Update, this.onThreadStateUpdate);
-            }
-
-            this.setupNotificationListener(thread);
-        }
-
         this.setState({ thread });
     };
 
@@ -470,10 +415,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         if (this.props.showReactions) {
             this.props.mxEvent.removeListener(MatrixEventEvent.RelationsCreated, this.onReactionsCreated);
         }
-        if (SettingsStore.getValue("feature_threadenabled")) {
-            this.props.mxEvent.off(ThreadEvent.Update, this.updateThread);
-        }
-        this.threadState?.off(NotificationStateEvents.Update, this.onThreadStateUpdate);
+        this.props.mxEvent.off(ThreadEvent.Update, this.updateThread);
     }
 
     public componentDidUpdate(prevProps: Readonly<EventTileProps>, prevState: Readonly<IState>): void {
@@ -501,10 +443,6 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
     };
 
     private get thread(): Thread | null {
-        if (!SettingsStore.getValue("feature_threadenabled")) {
-            return null;
-        }
-
         let thread = this.props.mxEvent.getThread();
         /**
          * Accessing the threads value through the room due to a race condition
@@ -668,8 +606,8 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
     }
 
     private propsEqual(objA: EventTileProps, objB: EventTileProps): boolean {
-        const keysA = Object.keys(objA);
-        const keysB = Object.keys(objB);
+        const keysA = Object.keys(objA) as Array<keyof EventTileProps>;
+        const keysB = Object.keys(objB) as Array<keyof EventTileProps>;
 
         if (keysA.length !== keysB.length) {
             return false;
@@ -757,13 +695,13 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         });
     };
 
-    private renderE2EPadlock(): JSX.Element {
+    private renderE2EPadlock(): ReactNode {
         // if the event was edited, show the verification info for the edit, not
         // the original
         const ev = this.props.mxEvent.replacingEvent() ?? this.props.mxEvent;
 
         // no icon for local rooms
-        if (isLocalRoom(ev.getRoomId()!)) return;
+        if (isLocalRoom(ev.getRoomId()!)) return null;
 
         // event could not be decrypted
         if (ev.isDecryptionFailure()) {
@@ -773,9 +711,9 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         // event is encrypted and not redacted, display padlock corresponding to whether or not it is verified
         if (ev.isEncrypted() && !ev.isRedacted()) {
             if (this.state.verified === E2EState.Normal) {
-                return; // no icon if we've not even cross-signed the user
+                return null; // no icon if we've not even cross-signed the user
             } else if (this.state.verified === E2EState.Verified) {
-                return; // no icon for verified
+                return null; // no icon for verified
             } else if (this.state.verified === E2EState.Unauthenticated) {
                 return <E2ePadlockUnauthenticated />;
             } else if (this.state.verified === E2EState.Unknown) {
@@ -789,16 +727,16 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             // else if room is encrypted
             // and event is being encrypted or is not_sent (Unknown Devices/Network Error)
             if (ev.status === EventStatus.ENCRYPTING) {
-                return;
+                return null;
             }
             if (ev.status === EventStatus.NOT_SENT) {
-                return;
+                return null;
             }
             if (ev.isState()) {
-                return; // we expect this to be unencrypted
+                return null; // we expect this to be unencrypted
             }
             if (ev.isRedacted()) {
-                return; // we expect this to be unencrypted
+                return null; // we expect this to be unencrypted
             }
             // if the event is not encrypted, but it's an e2e room, show the open padlock
             return <E2ePadlockUnencrypted />;
@@ -812,16 +750,16 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         this.setState({ actionBarFocused });
     };
 
-    private getTile: () => IEventTileType = () => this.tile.current;
+    private getTile: () => IEventTileType | null = () => this.tile.current;
 
-    private getReplyChain = (): ReplyChain => this.replyChain.current;
+    private getReplyChain = (): ReplyChain | null => this.replyChain.current;
 
-    private getReactions = (): Relations => {
+    private getReactions = (): Relations | null => {
         if (!this.props.showReactions || !this.props.getRelationsForEvent) {
             return null;
         }
         const eventId = this.props.mxEvent.getId();
-        return this.props.getRelationsForEvent(eventId, "m.annotation", "m.reaction");
+        return this.props.getRelationsForEvent(eventId, "m.annotation", "m.reaction") ?? null;
     };
 
     private onReactionsCreated = (relationType: string, eventType: string): void => {
@@ -855,7 +793,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         // Return if we're in a browser and click either an a tag or we have
         // selected text, as in those cases we want to use the native browser
         // menu
-        if (!PlatformPeg.get().allowOverridingNativeContextMenus() && (getSelectedText() || anchorElement)) return;
+        if (!PlatformPeg.get()?.allowOverridingNativeContextMenus() && (getSelectedText() || anchorElement)) return;
 
         // We don't want to show the menu when editing a message
         if (this.props.editState) return;
@@ -877,7 +815,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
 
     private onCloseMenu = (): void => {
         this.setState({
-            contextMenu: null,
+            contextMenu: undefined,
             actionBarFocused: false,
         });
     };
@@ -900,7 +838,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         return false;
     }
 
-    private renderContextMenu(): React.ReactFragment {
+    private renderContextMenu(): ReactNode {
         if (!this.state.contextMenu) return null;
 
         const tile = this.getTile();
@@ -924,7 +862,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         );
     }
 
-    public render(): JSX.Element {
+    public render(): ReactNode {
         const msgtype = this.props.mxEvent.getContent().msgtype;
         const eventType = this.props.mxEvent.getType();
         const {
@@ -961,7 +899,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
                 this.props.mxEvent.getContent().msgtype === MsgType.Emote,
         });
 
-        const isSending = ["sending", "queued", "encrypting"].indexOf(this.props.eventSendStatus) !== -1;
+        const isSending = ["sending", "queued", "encrypting"].includes(this.props.eventSendStatus!);
         const isRedacted = isMessageEvent(this.props.mxEvent) && this.props.isRedacted;
         const isEncryptionFailure = this.props.mxEvent.isDecryptionFailure();
 
@@ -1170,7 +1108,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         const groupPadlock = !useIRCLayout && !isBubbleMessage && this.renderE2EPadlock();
         const ircPadlock = useIRCLayout && !isBubbleMessage && this.renderE2EPadlock();
 
-        let msgOption;
+        let msgOption: JSX.Element | undefined;
         if (this.props.showReadReceipts) {
             if (this.shouldShowSentReceipt || this.shouldShowSendingReceipt) {
                 msgOption = <SentReceipt messageState={this.props.mxEvent.getAssociatedStatus()} />;
@@ -1187,7 +1125,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             }
         }
 
-        let replyChain;
+        let replyChain: JSX.Element | undefined;
         if (
             haveRendererForEvent(this.props.mxEvent, this.context.showHiddenEvents) &&
             shouldDisplayReply(this.props.mxEvent)
@@ -1280,9 +1218,6 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
                         "data-shape": this.context.timelineRenderingType,
                         "data-self": isOwnEvent,
                         "data-has-reply": !!replyChain,
-                        "data-notification": !this.supportsThreadNotifications
-                            ? this.state.threadNotification
-                            : undefined,
                         "onMouseEnter": () => this.setState({ hover: true }),
                         "onMouseLeave": () => this.setState({ hover: false }),
                         "onClick": (ev: MouseEvent) => {
@@ -1333,7 +1268,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
                                 {this.props.mxEvent.isRedacted() ? (
                                     <RedactedBody mxEvent={this.props.mxEvent} />
                                 ) : this.props.mxEvent.isDecryptionFailure() ? (
-                                    <DecryptionFailureBody />
+                                    <DecryptionFailureBody mxEvent={this.props.mxEvent} />
                                 ) : (
                                     MessagePreviewStore.instance.generatePreviewForEvent(this.props.mxEvent)
                                 )}
@@ -1348,7 +1283,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
                         )}
 
                         {msgOption}
-                        <UnreadNotificationBadge room={room} threadId={this.props.mxEvent.getId()} />
+                        <UnreadNotificationBadge room={room || undefined} threadId={this.props.mxEvent.getId()} />
                     </>,
                 );
             }
@@ -1542,8 +1477,8 @@ class E2ePadlock extends React.Component<IE2ePadlockProps, IE2ePadlockState> {
         this.setState({ hover: false });
     };
 
-    public render(): JSX.Element {
-        let tooltip = null;
+    public render(): React.ReactNode {
+        let tooltip: JSX.Element | undefined;
         if (this.state.hover) {
             tooltip = <Tooltip className="mx_EventTile_e2eIcon_tooltip" label={this.props.title} />;
         }
@@ -1569,14 +1504,14 @@ function SentReceipt({ messageState }: ISentReceiptProps): JSX.Element {
         mx_EventTile_receiptSending: !isSent && !isFailed,
     });
 
-    let nonCssBadge = null;
+    let nonCssBadge: JSX.Element | undefined;
     if (isFailed) {
         nonCssBadge = <NotificationBadge notification={StaticNotificationState.RED_EXCLAMATION} />;
     }
 
-    let label = _t("Sending your message...");
+    let label = _t("Sending your message…");
     if (messageState === "encrypting") {
-        label = _t("Encrypting your message...");
+        label = _t("Encrypting your message…");
     } else if (isSent) {
         label = _t("Your message was sent");
     } else if (isFailed) {

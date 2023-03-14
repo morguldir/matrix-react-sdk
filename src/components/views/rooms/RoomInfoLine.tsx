@@ -37,7 +37,7 @@ const RoomInfoLine: FC<IProps> = ({ room }) => {
     const summary = useAsyncMemo(async (): Promise<Awaited<ReturnType<MatrixClient["getRoomSummary"]>> | null> => {
         if (room.getMyMembership() !== "invite") return null;
         try {
-            return room.client.getRoomSummary(room.roomId);
+            return await room.client.getRoomSummary(room.roomId);
         } catch (e) {
             return null;
         }
@@ -62,7 +62,7 @@ const RoomInfoLine: FC<IProps> = ({ room }) => {
         roomType = room.isSpaceRoom() ? _t("Private space") : _t("Private room");
     }
 
-    let members: JSX.Element;
+    let members: JSX.Element | undefined;
     if (membership === "invite" && summary) {
         // Don't trust local state and instead use the summary API
         members = (

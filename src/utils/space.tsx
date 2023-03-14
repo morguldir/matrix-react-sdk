@@ -23,7 +23,7 @@ import { ICreateRoomStateEvent } from "matrix-js-sdk/src/matrix";
 import { calculateRoomVia } from "./permalinks/Permalinks";
 import Modal from "../Modal";
 import CreateRoomDialog from "../components/views/dialogs/CreateRoomDialog";
-import createRoom, { IOpts } from "../createRoom";
+import createRoom from "../createRoom";
 import { _t } from "../languageHandler";
 import SpacePublicShare from "../components/views/spaces/SpacePublicShare";
 import InfoDialog from "../components/views/dialogs/InfoDialog";
@@ -41,7 +41,7 @@ import { OpenAddExistingToSpaceDialogPayload } from "../dispatcher/payloads/Open
 import { SdkContextClass } from "../contexts/SDKContext";
 
 export const shouldShowSpaceSettings = (space: Room): boolean => {
-    const userId = space.client.getUserId();
+    const userId = space.client.getUserId()!;
     return (
         space.getMyMembership() === "join" &&
         (space.currentState.maySendStateEvent(EventType.RoomAvatar, userId) ||
@@ -75,7 +75,7 @@ export const showAddExistingRooms = (space: Room): void => {
 };
 
 export const showCreateNewRoom = async (space: Room, type?: RoomType): Promise<boolean> => {
-    const modal = Modal.createDialog<[boolean, IOpts]>(CreateRoomDialog, {
+    const modal = Modal.createDialog(CreateRoomDialog, {
         type,
         defaultPublic: space.getJoinRule() === JoinRule.Public,
         parentSpace: space,
@@ -88,7 +88,7 @@ export const showCreateNewRoom = async (space: Room, type?: RoomType): Promise<b
 };
 
 export const shouldShowSpaceInvite = (space: Room): boolean =>
-    ((space?.getMyMembership() === "join" && space.canInvite(space.client.getUserId())) ||
+    ((space?.getMyMembership() === "join" && space.canInvite(space.client.getUserId()!)) ||
         space.getJoinRule() === JoinRule.Public) &&
     shouldShowComponent(UIComponent.InviteUsers);
 
@@ -149,7 +149,7 @@ export const bulkSpaceBehaviour = async (
     children: Room[],
     fn: (room: Room) => Promise<unknown>,
 ): Promise<void> => {
-    const modal = Modal.createDialog(Spinner, null, "mx_Dialog_spinner");
+    const modal = Modal.createDialog(Spinner, undefined, "mx_Dialog_spinner");
     try {
         for (const room of children) {
             await fn(room);
