@@ -15,13 +15,12 @@ limitations under the License.
 */
 
 import React from "react";
-import { fireEvent, render, RenderResult } from "@testing-library/react";
-import { act } from "react-dom/test-utils";
+import { act, fireEvent, render, RenderResult } from "@testing-library/react";
 import { DeviceInfo } from "matrix-js-sdk/src/crypto/deviceinfo";
 import { logger } from "matrix-js-sdk/src/logger";
 import { DeviceTrustLevel } from "matrix-js-sdk/src/crypto/CrossSigning";
 import { VerificationRequest } from "matrix-js-sdk/src/crypto/verification/request/VerificationRequest";
-import { sleep } from "matrix-js-sdk/src/utils";
+import { defer, sleep } from "matrix-js-sdk/src/utils";
 import {
     ClientEvent,
     IMyDevice,
@@ -46,6 +45,7 @@ import LogoutDialog from "../../../../../../src/components/views/dialogs/LogoutD
 import { DeviceSecurityVariation, ExtendedDevice } from "../../../../../../src/components/views/settings/devices/types";
 import { INACTIVE_DEVICE_AGE_MS } from "../../../../../../src/components/views/settings/devices/filter";
 import SettingsStore from "../../../../../../src/settings/SettingsStore";
+import { getClientInformationEventType } from "../../../../../../src/utils/device/clientInformation";
 
 mockPlatformPeg();
 
@@ -87,6 +87,7 @@ describe("<SessionManagerTab />", () => {
         generateClientSecret: jest.fn(),
         setDeviceDetails: jest.fn(),
         getAccountData: jest.fn(),
+        deleteAccountData: jest.fn(),
         doesServerSupportUnstableFeature: jest.fn().mockResolvedValue(true),
         getPushers: jest.fn(),
         setPusher: jest.fn(),
@@ -182,6 +183,9 @@ describe("<SessionManagerTab />", () => {
             ],
         });
 
+        // @ts-ignore mock
+        mockClient.store = { accountData: {} };
+
         mockClient.getAccountData.mockReset().mockImplementation((eventType) => {
             if (eventType.startsWith(LOCAL_NOTIFICATION_SETTINGS_PREFIX.name)) {
                 return new MatrixEvent({
@@ -201,17 +205,6 @@ describe("<SessionManagerTab />", () => {
     it("renders spinner while devices load", () => {
         const { container } = render(getComponent());
         expect(container.getElementsByClassName("mx_Spinner").length).toBeTruthy();
-    });
-
-    it("removes spinner when device fetch fails", async () => {
-        mockClient.getDevices.mockRejectedValue({ httpStatus: 404 });
-        const { container } = render(getComponent());
-        expect(mockClient.getDevices).toHaveBeenCalled();
-
-        await act(async () => {
-            await flushPromises();
-        });
-        expect(container.getElementsByClassName("mx_Spinner").length).toBeFalsy();
     });
 
     it("removes spinner when device fetch fails", async () => {
@@ -643,7 +636,7 @@ describe("<SessionManagerTab />", () => {
             });
 
             fireEvent.click(getByTestId("current-session-menu"));
-            expect(queryByLabelText("Sign out all other sessions")).toBeFalsy();
+            expect(queryByLabelText("Sign out of all other sessions")).toBeFalsy();
         });
 
         it("signs out of all other devices from current session context menu", async () => {
@@ -657,7 +650,7 @@ describe("<SessionManagerTab />", () => {
             });
 
             fireEvent.click(getByTestId("current-session-menu"));
-            fireEvent.click(getByLabelText("Sign out all other sessions"));
+            fireEvent.click(getByLabelText("Sign out of all other sessions (2)"));
             await confirmSignout(getByTestId);
 
             // other devices deleted, excluding current device
@@ -665,6 +658,47 @@ describe("<SessionManagerTab />", () => {
                 [alicesMobileDevice.device_id, alicesOlderMobileDevice.device_id],
                 undefined,
             );
+        });
+
+        it("removes account data events for devices after sign out", async () => {
+            const mobileDeviceClientInfo = new MatrixEvent({
+                type: getClientInformationEventType(alicesMobileDevice.device_id),
+                content: {
+                    name: "test",
+                },
+            });
+            // @ts-ignore setup mock
+            mockClient.store = {
+                // @ts-ignore setup mock
+                accountData: {
+                    [mobileDeviceClientInfo.getType()]: mobileDeviceClientInfo,
+                },
+            };
+
+            mockClient.getDevices
+                .mockResolvedValueOnce({
+                    devices: [alicesDevice, alicesMobileDevice, alicesOlderMobileDevice],
+                })
+                .mockResolvedValueOnce({
+                    // refreshed devices after sign out
+                    devices: [alicesDevice],
+                });
+
+            const { getByTestId, getByLabelText } = render(getComponent());
+
+            await act(async () => {
+                await flushPromises();
+            });
+
+            expect(mockClient.deleteAccountData).not.toHaveBeenCalled();
+
+            fireEvent.click(getByTestId("current-session-menu"));
+            fireEvent.click(getByLabelText("Sign out of all other sessions (2)"));
+            await confirmSignout(getByTestId);
+
+            // only called once for signed out device with account data event
+            expect(mockClient.deleteAccountData).toHaveBeenCalledTimes(1);
+            expect(mockClient.deleteAccountData).toHaveBeenCalledWith(mobileDeviceClientInfo.getType());
         });
 
         describe("other devices", () => {
@@ -715,7 +749,7 @@ describe("<SessionManagerTab />", () => {
                 expect(mockClient.getDevices).toHaveBeenCalled();
             });
 
-            it("deletes a device when interactive auth is not required", async () => {
+            it("does not delete a device when interactive auth is not required", async () => {
                 const { getByTestId } = render(getComponent());
 
                 await act(async () => {
@@ -881,12 +915,9 @@ describe("<SessionManagerTab />", () => {
                 // get a handle for resolving the delete call
                 // because promise flushing after the confirm modal is resolving this too
                 // and we want to test the loading state here
-                let resolveDeleteRequest;
+                const resolveDeleteRequest = defer<IAuthData>();
                 mockClient.deleteMultipleDevices.mockImplementation(() => {
-                    const promise = new Promise<IAuthData>((resolve) => {
-                        resolveDeleteRequest = resolve;
-                    });
-                    return promise;
+                    return resolveDeleteRequest.promise;
                 });
 
                 const { getByTestId } = render(getComponent());
@@ -926,7 +957,28 @@ describe("<SessionManagerTab />", () => {
                     undefined,
                 );
 
-                resolveDeleteRequest?.();
+                resolveDeleteRequest.resolve({});
+            });
+
+            it("signs out of all other devices from other sessions context menu", async () => {
+                mockClient.getDevices.mockResolvedValue({
+                    devices: [alicesDevice, alicesMobileDevice, alicesOlderMobileDevice],
+                });
+                const { getByTestId, getByLabelText } = render(getComponent());
+
+                await act(async () => {
+                    await flushPromises();
+                });
+
+                fireEvent.click(getByTestId("other-sessions-menu"));
+                fireEvent.click(getByLabelText("Sign out of 2 sessions"));
+                await confirmSignout(getByTestId);
+
+                // other devices deleted, excluding current device
+                expect(mockClient.deleteMultipleDevices).toHaveBeenCalledWith(
+                    [alicesMobileDevice.device_id, alicesOlderMobileDevice.device_id],
+                    undefined,
+                );
             });
         });
     });
@@ -1284,17 +1336,7 @@ describe("<SessionManagerTab />", () => {
             });
         });
 
-        it("does not render qr code login section when disabled", () => {
-            settingsValueSpy.mockReturnValue(false);
-            const { queryByText } = render(getComponent());
-
-            expect(settingsValueSpy).toHaveBeenCalledWith("feature_qr_signin_reciprocate_show");
-
-            expect(queryByText("Sign in with QR code")).toBeFalsy();
-        });
-
-        it("renders qr code login section when enabled", async () => {
-            settingsValueSpy.mockImplementation((settingName) => settingName === "feature_qr_signin_reciprocate_show");
+        it("renders qr code login section", async () => {
             const { getByText } = render(getComponent());
 
             // wait for versions call to settle
@@ -1304,7 +1346,6 @@ describe("<SessionManagerTab />", () => {
         });
 
         it("enters qr code login section when show QR code button clicked", async () => {
-            settingsValueSpy.mockImplementation((settingName) => settingName === "feature_qr_signin_reciprocate_show");
             const { getByText, getByTestId } = render(getComponent());
             // wait for versions call to settle
             await flushPromises();

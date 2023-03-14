@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { createRef } from "react";
+import React, { createRef, CSSProperties } from "react";
 import FocusLock from "react-focus-lock";
 import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 
@@ -33,7 +33,6 @@ import dis from "../../../dispatcher/dispatcher";
 import { Action } from "../../../dispatcher/actions";
 import { RoomPermalinkCreator } from "../../../utils/permalinks/Permalinks";
 import { normalizeWheelEvent } from "../../../utils/Mouse";
-import { IDialogProps } from "../dialogs/IDialogProps";
 import UIStore from "../../../stores/UIStore";
 import { ViewRoomPayload } from "../../../dispatcher/payloads/ViewRoomPayload";
 import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
@@ -56,7 +55,7 @@ const getPanelHeight = (): number => {
     return parseInt(value.slice(0, value.length - 2));
 };
 
-interface IProps extends IDialogProps {
+interface IProps {
     src: string; // the source of the image being displayed
     name?: string; // the main title ('name') for the image
     link?: string; // the link (if any) applied to the name of the image
@@ -77,6 +76,7 @@ interface IProps extends IDialogProps {
         width: number;
         height: number;
     };
+    onFinished(): void;
 }
 
 interface IState {
@@ -91,7 +91,7 @@ interface IState {
 }
 
 export default class ImageView extends React.Component<IProps, IState> {
-    public constructor(props) {
+    public constructor(props: IProps) {
         super(props);
 
         const { thumbnailInfo } = this.props;
@@ -126,7 +126,7 @@ export default class ImageView extends React.Component<IProps, IState> {
     private animatingLoading = false;
     private imageIsLoaded = false;
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         // We have to use addEventListener() because the listener
         // needs to be passive in order to work with Chromium
         this.focusLock.current.addEventListener("wheel", this.onWheel, { passive: false });
@@ -136,13 +136,13 @@ export default class ImageView extends React.Component<IProps, IState> {
         this.image.current.addEventListener("load", this.imageLoaded);
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.focusLock.current.removeEventListener("wheel", this.onWheel);
         window.removeEventListener("resize", this.recalculateZoom);
         this.image.current.removeEventListener("load", this.imageLoaded);
     }
 
-    private imageLoaded = () => {
+    private imageLoaded = (): void => {
         // First, we calculate the zoom, so that the image has the same size as
         // the thumbnail
         const { thumbnailInfo } = this.props;
@@ -164,11 +164,11 @@ export default class ImageView extends React.Component<IProps, IState> {
         this.animatingLoading = false;
     };
 
-    private recalculateZoom = () => {
+    private recalculateZoom = (): void => {
         this.setZoomAndRotation();
     };
 
-    private setZoomAndRotation = (inputRotation?: number) => {
+    private setZoomAndRotation = (inputRotation?: number): void => {
         const image = this.image.current;
         const imageWrapper = this.imageWrapper.current;
 
@@ -210,11 +210,11 @@ export default class ImageView extends React.Component<IProps, IState> {
         });
     };
 
-    private zoomDelta(delta: number, anchorX?: number, anchorY?: number) {
+    private zoomDelta(delta: number, anchorX?: number, anchorY?: number): void {
         this.zoom(this.state.zoom + delta, anchorX, anchorY);
     }
 
-    private zoom(zoomLevel: number, anchorX?: number, anchorY?: number) {
+    private zoom(zoomLevel: number, anchorX?: number, anchorY?: number): void {
         const oldZoom = this.state.zoom;
         const maxZoom = this.state.maxZoom === this.state.minZoom ? 2 * this.state.maxZoom : this.state.maxZoom;
         const newZoom = Math.min(zoomLevel, maxZoom);
@@ -267,7 +267,7 @@ export default class ImageView extends React.Component<IProps, IState> {
         }
     }
 
-    private onWheel = (ev: WheelEvent) => {
+    private onWheel = (ev: WheelEvent): void => {
         if (ev.target === this.image.current) {
             ev.stopPropagation();
             ev.preventDefault();
@@ -278,15 +278,15 @@ export default class ImageView extends React.Component<IProps, IState> {
         }
     };
 
-    private onZoomInClick = () => {
+    private onZoomInClick = (): void => {
         this.zoomDelta(ZOOM_STEP);
     };
 
-    private onZoomOutClick = () => {
+    private onZoomOutClick = (): void => {
         this.zoomDelta(-ZOOM_STEP);
     };
 
-    private onKeyDown = (ev: KeyboardEvent) => {
+    private onKeyDown = (ev: KeyboardEvent): void => {
         const action = getKeyBindingsManager().getAccessibilityAction(ev);
         switch (action) {
             case KeyBindingAction.Escape:
@@ -297,17 +297,17 @@ export default class ImageView extends React.Component<IProps, IState> {
         }
     };
 
-    private onRotateCounterClockwiseClick = () => {
+    private onRotateCounterClockwiseClick = (): void => {
         const cur = this.state.rotation;
         this.setZoomAndRotation(cur - 90);
     };
 
-    private onRotateClockwiseClick = () => {
+    private onRotateClockwiseClick = (): void => {
         const cur = this.state.rotation;
         this.setZoomAndRotation(cur + 90);
     };
 
-    private onDownloadClick = () => {
+    private onDownloadClick = (): void => {
         const a = document.createElement("a");
         a.href = this.props.src;
         a.download = this.props.name;
@@ -316,19 +316,19 @@ export default class ImageView extends React.Component<IProps, IState> {
         a.click();
     };
 
-    private onOpenContextMenu = () => {
+    private onOpenContextMenu = (): void => {
         this.setState({
             contextMenuDisplayed: true,
         });
     };
 
-    private onCloseContextMenu = () => {
+    private onCloseContextMenu = (): void => {
         this.setState({
             contextMenuDisplayed: false,
         });
     };
 
-    private onPermalinkClicked = (ev: React.MouseEvent) => {
+    private onPermalinkClicked = (ev: React.MouseEvent): void => {
         // This allows the permalink to be opened in a new tab/window or copied as
         // matrix.to, but also for it to enable routing within Element when clicked.
         ev.preventDefault();
@@ -342,7 +342,7 @@ export default class ImageView extends React.Component<IProps, IState> {
         this.props.onFinished();
     };
 
-    private onStartMoving = (ev: React.MouseEvent) => {
+    private onStartMoving = (ev: React.MouseEvent): void => {
         ev.stopPropagation();
         ev.preventDefault();
 
@@ -368,7 +368,7 @@ export default class ImageView extends React.Component<IProps, IState> {
         this.initY = ev.pageY - this.state.translationY;
     };
 
-    private onMoving = (ev: React.MouseEvent) => {
+    private onMoving = (ev: React.MouseEvent): void => {
         ev.stopPropagation();
         ev.preventDefault();
 
@@ -380,7 +380,7 @@ export default class ImageView extends React.Component<IProps, IState> {
         });
     };
 
-    private onEndMoving = () => {
+    private onEndMoving = (): void => {
         // Zoom out if we haven't moved much
         if (
             this.state.moving === true &&
@@ -394,8 +394,8 @@ export default class ImageView extends React.Component<IProps, IState> {
         this.setState({ moving: false });
     };
 
-    private renderContextMenu() {
-        let contextMenu = null;
+    private renderContextMenu(): JSX.Element {
+        let contextMenu: JSX.Element | undefined;
         if (this.state.contextMenuDisplayed) {
             contextMenu = (
                 <MessageContextMenu
@@ -411,18 +411,13 @@ export default class ImageView extends React.Component<IProps, IState> {
         return <React.Fragment>{contextMenu}</React.Fragment>;
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const showEventMeta = !!this.props.mxEvent;
 
         let transitionClassName;
         if (this.animatingLoading) transitionClassName = "mx_ImageView_image_animatingLoading";
         else if (this.state.moving || !this.imageIsLoaded) transitionClassName = "";
         else transitionClassName = "mx_ImageView_image_animating";
-
-        let cursor;
-        if (this.state.moving) cursor = "grabbing";
-        else if (this.state.zoom === this.state.minZoom) cursor = "zoom-in";
-        else cursor = "zoom-out";
 
         const rotationDegrees = this.state.rotation + "deg";
         const zoom = this.state.zoom;
@@ -432,15 +427,18 @@ export default class ImageView extends React.Component<IProps, IState> {
         // First, we translate and only then we rotate, otherwise
         // we would apply the translation to an already rotated
         // image causing it translate in the wrong direction.
-        const style = {
-            cursor: cursor,
+        const style: CSSProperties = {
             transform: `translateX(${translatePixelsX})
                         translateY(${translatePixelsY})
                         scale(${zoom})
                         rotate(${rotationDegrees})`,
         };
 
-        let info;
+        if (this.state.moving) style.cursor = "grabbing";
+        else if (this.state.zoom === this.state.minZoom) style.cursor = "zoom-in";
+        else style.cursor = "zoom-out";
+
+        let info: JSX.Element | undefined;
         if (showEventMeta) {
             const mxEvent = this.props.mxEvent;
             const showTwelveHour = SettingsStore.getValue("showTwelveHourTimestamps");
@@ -449,7 +447,7 @@ export default class ImageView extends React.Component<IProps, IState> {
                 permalink = this.props.permalinkCreator.forEvent(this.props.mxEvent.getId());
             }
 
-            const senderName = mxEvent.sender ? mxEvent.sender.name : mxEvent.getSender();
+            const senderName = mxEvent.sender?.name ?? mxEvent.getSender();
             const sender = <div className="mx_ImageView_info_sender">{senderName}</div>;
             const messageTimestamp = (
                 <a
@@ -491,7 +489,7 @@ export default class ImageView extends React.Component<IProps, IState> {
             info = <div />;
         }
 
-        let contextMenuButton;
+        let contextMenuButton: JSX.Element | undefined;
         if (this.props.mxEvent) {
             contextMenuButton = (
                 <ContextMenuTooltipButton
@@ -519,7 +517,7 @@ export default class ImageView extends React.Component<IProps, IState> {
             />
         );
 
-        let title: JSX.Element;
+        let title: JSX.Element | undefined;
         if (this.props.mxEvent?.getContent()) {
             title = (
                 <div className="mx_ImageView_title">

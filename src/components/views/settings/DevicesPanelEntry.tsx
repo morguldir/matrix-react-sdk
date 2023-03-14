@@ -69,7 +69,7 @@ export default class DevicesPanelEntry extends React.Component<IProps, IState> {
         });
     };
 
-    private onRenameSubmit = async () => {
+    private onRenameSubmit = async (): Promise<void> => {
         this.setState({ renaming: false });
         await MatrixClientPeg.get()
             .setDeviceDetails(this.props.device.device_id, {
@@ -90,25 +90,25 @@ export default class DevicesPanelEntry extends React.Component<IProps, IState> {
         Modal.createDialog(
             LogoutDialog,
             /* props= */ {},
-            /* className= */ null,
+            /* className= */ undefined,
             /* isPriority= */ false,
             /* isStatic= */ true,
         );
     };
 
-    private verify = async () => {
+    private verify = async (): Promise<void> => {
         if (this.props.isOwnDevice) {
             Modal.createDialog(SetupEncryptionDialog, {
                 onFinished: this.props.onDeviceChange,
             });
         } else {
             const cli = MatrixClientPeg.get();
-            const userId = cli.getUserId();
+            const userId = cli.getUserId()!;
             const verificationRequestPromise = cli.requestVerification(userId, [this.props.device.device_id]);
             Modal.createDialog(VerificationRequestDialog, {
                 verificationRequestPromise,
                 member: cli.getUser(userId),
-                onFinished: async () => {
+                onFinished: async (): Promise<void> => {
                     const request = await verificationRequestPromise;
                     request.cancel();
                     this.props.onDeviceChange();
@@ -117,9 +117,9 @@ export default class DevicesPanelEntry extends React.Component<IProps, IState> {
         }
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         let iconClass = "";
-        let verifyButton: JSX.Element;
+        let verifyButton: JSX.Element | undefined;
         if (this.props.verified !== null) {
             iconClass = this.props.verified ? "mx_E2EIcon_verified" : "mx_E2EIcon_warning";
             if (!this.props.verified && this.props.canBeVerified) {
@@ -131,7 +131,7 @@ export default class DevicesPanelEntry extends React.Component<IProps, IState> {
             }
         }
 
-        let signOutButton: JSX.Element;
+        let signOutButton: JSX.Element | undefined;
         if (this.props.isOwnDevice) {
             signOutButton = (
                 <AccessibleButton kind="danger_outline" onClick={this.onOwnDeviceSignOut}>

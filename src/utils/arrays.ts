@@ -266,7 +266,7 @@ export class ArrayUtil<T> {
         const obj = this.a.reduce((rv: Map<K, T[]>, val: T) => {
             const k = fn(val);
             if (!rv.has(k)) rv.set(k, []);
-            rv.get(k).push(val);
+            rv.get(k)!.push(val);
             return rv;
         }, new Map<K, T[]>());
         return new GroupedArray(obj);
@@ -299,7 +299,7 @@ export class GroupedArray<K, T> {
         const a: T[] = [];
         for (const k of keyOrder) {
             if (!this.val.has(k)) continue;
-            a.push(...this.val.get(k));
+            a.push(...this.val.get(k)!);
         }
         return new ArrayUtil(a);
     }
@@ -322,4 +322,8 @@ export async function asyncEvery<T>(values: T[], predicate: (value: T) => Promis
         if (!(await predicate(value))) return false;
     }
     return true;
+}
+
+export function filterBoolean<T>(values: Array<T | null | undefined>): T[] {
+    return values.filter(Boolean) as T[];
 }

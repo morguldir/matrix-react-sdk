@@ -26,6 +26,7 @@ import { useTypedEventEmitter, useTypedEventEmitterState } from "../../../../hoo
 import { _t, _td } from "../../../../languageHandler";
 import MatrixClientContext from "../../../../contexts/MatrixClientContext";
 import BaseTool, { DevtoolsContext, IDevtoolsProps } from "./BaseTool";
+import { Tool } from "../DevtoolsDialog";
 
 const PHASE_MAP: Record<Phase, string> = {
     [Phase.Unsent]: _td("Unsent"),
@@ -80,7 +81,7 @@ const VerificationRequestExplorer: React.FC<{
     );
 };
 
-const VerificationExplorer = ({ onBack }: IDevtoolsProps) => {
+const VerificationExplorer: Tool = ({ onBack }: IDevtoolsProps) => {
     const cli = useContext(MatrixClientContext);
     const context = useContext(DevtoolsContext);
 

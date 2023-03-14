@@ -55,15 +55,15 @@ interface IProps extends IContextMenuProps {
     room: Room;
 }
 
-const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
+const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
     const cli = useContext(MatrixClientContext);
     const roomTags = useEventEmitterState(RoomListStore.instance, LISTS_UPDATE_EVENT, () =>
         RoomListStore.instance.getTagsForRoom(room),
     );
 
-    let leaveOption: JSX.Element;
+    let leaveOption: JSX.Element | undefined;
     if (roomTags.includes(DefaultTagID.Archived)) {
-        const onForgetRoomClick = (ev: ButtonEvent) => {
+        const onForgetRoomClick = (ev: ButtonEvent): void => {
             ev.preventDefault();
             ev.stopPropagation();
 
@@ -83,7 +83,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
             />
         );
     } else {
-        const onLeaveRoomClick = (ev: ButtonEvent) => {
+        const onLeaveRoomClick = (ev: ButtonEvent): void => {
             ev.preventDefault();
             ev.stopPropagation();
 
@@ -112,9 +112,9 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
     const isVideoRoom =
         videoRoomsEnabled && (room.isElementVideoRoom() || (elementCallVideoRoomsEnabled && room.isCallRoom()));
 
-    let inviteOption: JSX.Element;
+    let inviteOption: JSX.Element | undefined;
     if (room.canInvite(cli.getUserId()!) && !isDm) {
-        const onInviteClick = (ev: ButtonEvent) => {
+        const onInviteClick = (ev: ButtonEvent): void => {
             ev.preventDefault();
             ev.stopPropagation();
 
@@ -136,9 +136,9 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         );
     }
 
-    let favouriteOption: JSX.Element;
-    let lowPriorityOption: JSX.Element;
-    let notificationOption: JSX.Element;
+    let favouriteOption: JSX.Element | undefined;
+    let lowPriorityOption: JSX.Element | undefined;
+    let notificationOption: JSX.Element | undefined;
     if (room.getMyMembership() === "join") {
         const isFavorite = roomTags.includes(DefaultTagID.Favourite);
         favouriteOption = (
@@ -208,8 +208,8 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         );
     }
 
-    let peopleOption: JSX.Element;
-    let copyLinkOption: JSX.Element;
+    let peopleOption: JSX.Element | undefined;
+    let copyLinkOption: JSX.Element | undefined;
     if (!isDm) {
         peopleOption = (
             <IconizedContextMenuOption
@@ -247,7 +247,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         );
     }
 
-    let filesOption: JSX.Element;
+    let filesOption: JSX.Element | undefined;
     if (!isVideoRoom) {
         filesOption = (
             <IconizedContextMenuOption
@@ -266,9 +266,9 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
     }
 
     const pinningEnabled = useFeatureEnabled("feature_pinning");
-    const pinCount = usePinnedEvents(pinningEnabled && room)?.length;
+    const pinCount = usePinnedEvents(pinningEnabled ? room : undefined)?.length;
 
-    let pinsOption: JSX.Element;
+    let pinsOption: JSX.Element | undefined;
     if (pinningEnabled && !isVideoRoom) {
         pinsOption = (
             <IconizedContextMenuOption
@@ -288,7 +288,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         );
     }
 
-    let widgetsOption: JSX.Element;
+    let widgetsOption: JSX.Element | undefined;
     if (!isVideoRoom) {
         widgetsOption = (
             <IconizedContextMenuOption
@@ -306,7 +306,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         );
     }
 
-    let exportChatOption: JSX.Element;
+    let exportChatOption: JSX.Element | undefined;
     if (!isVideoRoom) {
         exportChatOption = (
             <IconizedContextMenuOption
@@ -323,7 +323,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         );
     }
 
-    const onTagRoom = (ev: ButtonEvent, tagId: TagID) => {
+    const onTagRoom = (ev: ButtonEvent, tagId: TagID): void => {
         ev.preventDefault();
         ev.stopPropagation();
 
@@ -346,7 +346,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
         }
     };
 
-    const ensureViewingRoom = (ev: ButtonEvent) => {
+    const ensureViewingRoom = (ev: ButtonEvent): void => {
         if (SdkContextClass.instance.roomViewStore.getRoomId() === room.roomId) return;
         dis.dispatch<ViewRoomPayload>(
             {
@@ -399,7 +399,7 @@ const RoomContextMenu = ({ room, onFinished, ...props }: IProps) => {
                             Modal.createDialog(
                                 DevtoolsDialog,
                                 {
-                                    roomId: SdkContextClass.instance.roomViewStore.getRoomId(),
+                                    roomId: room.roomId,
                                 },
                                 "mx_DevtoolsDialog_wrapper",
                             );

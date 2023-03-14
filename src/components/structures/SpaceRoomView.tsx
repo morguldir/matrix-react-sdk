@@ -103,7 +103,7 @@ enum Phase {
     PrivateExistingRooms,
 }
 
-const SpaceLandingAddButton = ({ space }) => {
+const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
     const [menuDisplayed, handle, openMenu, closeMenu] = useContextMenu();
     const canCreateRoom = shouldShowComponent(UIComponent.CreateRooms);
     const canCreateSpace = shouldShowComponent(UIComponent.CreateSpaces);
@@ -128,7 +128,7 @@ const SpaceLandingAddButton = ({ space }) => {
                             <IconizedContextMenuOption
                                 label={_t("New room")}
                                 iconClassName="mx_RoomList_iconNewRoom"
-                                onClick={async (e) => {
+                                onClick={async (e): Promise<void> => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     closeMenu();
@@ -143,7 +143,7 @@ const SpaceLandingAddButton = ({ space }) => {
                                 <IconizedContextMenuOption
                                     label={_t("New video room")}
                                     iconClassName="mx_RoomList_iconNewVideoRoom"
-                                    onClick={async (e) => {
+                                    onClick={async (e): Promise<void> => {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         closeMenu();
@@ -210,7 +210,7 @@ const SpaceLandingAddButton = ({ space }) => {
     );
 };
 
-const SpaceLanding = ({ space }: { space: Room }) => {
+const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
     const cli = useContext(MatrixClientContext);
     const myMembership = useMyRoomMembership(space);
     const userId = cli.getUserId();
@@ -259,7 +259,7 @@ const SpaceLanding = ({ space }: { space: Room }) => {
         );
     }
 
-    const onMembersClick = () => {
+    const onMembersClick = (): void => {
         RightPanelStore.instance.setCard({ phase: RightPanelPhases.SpaceMemberList });
     };
 
@@ -297,7 +297,12 @@ const SpaceLanding = ({ space }: { space: Room }) => {
     );
 };
 
-const SpaceSetupFirstRooms = ({ space, title, description, onFinished }) => {
+const SpaceSetupFirstRooms: React.FC<{
+    space: Room;
+    title: string;
+    description: JSX.Element;
+    onFinished(firstRoomId?: string): void;
+}> = ({ space, title, description, onFinished }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const numFields = 3;
@@ -313,7 +318,7 @@ const SpaceSetupFirstRooms = ({ space, title, description, onFinished }) => {
                 label={_t("Room name")}
                 placeholder={placeholders[i]}
                 value={roomNames[i]}
-                onChange={(ev) => setRoomName(i, ev.target.value)}
+                onChange={(ev: React.ChangeEvent<HTMLInputElement>) => setRoomName(i, ev.target.value)}
                 autoFocus={i === 2}
                 disabled={busy}
                 autoComplete="off"
@@ -321,7 +326,7 @@ const SpaceSetupFirstRooms = ({ space, title, description, onFinished }) => {
         );
     });
 
-    const onNextClick = async (ev: ButtonEvent) => {
+    const onNextClick = async (ev: ButtonEvent): Promise<void> => {
         ev.preventDefault();
         if (busy) return;
         setError("");
@@ -354,14 +359,14 @@ const SpaceSetupFirstRooms = ({ space, title, description, onFinished }) => {
         setBusy(false);
     };
 
-    let onClick = (ev: ButtonEvent) => {
+    let onClick = (ev: ButtonEvent): void => {
         ev.preventDefault();
         onFinished();
     };
     let buttonLabel = _t("Skip for now");
     if (roomNames.some((name) => name.trim())) {
         onClick = onNextClick;
-        buttonLabel = busy ? _t("Creating rooms...") : _t("Continue");
+        buttonLabel = busy ? _t("Creating rooms…") : _t("Continue");
     }
 
     return (
@@ -389,7 +394,10 @@ const SpaceSetupFirstRooms = ({ space, title, description, onFinished }) => {
     );
 };
 
-const SpaceAddExistingRooms = ({ space, onFinished }) => {
+const SpaceAddExistingRooms: React.FC<{
+    space: Room;
+    onFinished(): void;
+}> = ({ space, onFinished }) => {
     return (
         <div>
             <h1>{_t("What do you want to organise?")}</h1>
@@ -407,7 +415,7 @@ const SpaceAddExistingRooms = ({ space, onFinished }) => {
                         {_t("Skip for now")}
                     </AccessibleButton>
                 }
-                filterPlaceholder={_t("Search for rooms or spaces")}
+                filterPlaceholder={_t("Search for rooms")}
                 onFinished={onFinished}
                 roomsRenderer={defaultRoomsRenderer}
                 dmsRenderer={defaultDmsRenderer}
@@ -420,7 +428,12 @@ interface ISpaceSetupPublicShareProps extends Pick<IProps & IState, "justCreated
     onFinished(): void;
 }
 
-const SpaceSetupPublicShare = ({ justCreatedOpts, space, onFinished, firstRoomId }: ISpaceSetupPublicShareProps) => {
+const SpaceSetupPublicShare: React.FC<ISpaceSetupPublicShareProps> = ({
+    justCreatedOpts,
+    space,
+    onFinished,
+    firstRoomId,
+}) => {
     return (
         <div className="mx_SpaceRoomView_publicShare">
             <h1>
@@ -443,7 +456,11 @@ const SpaceSetupPublicShare = ({ justCreatedOpts, space, onFinished, firstRoomId
     );
 };
 
-const SpaceSetupPrivateScope = ({ space, justCreatedOpts, onFinished }) => {
+const SpaceSetupPrivateScope: React.FC<{
+    space: Room;
+    justCreatedOpts: IOpts;
+    onFinished(createRooms: boolean): void;
+}> = ({ space, justCreatedOpts, onFinished }) => {
     return (
         <div className="mx_SpaceRoomView_privateScope">
             <h1>{_t("Who are you working with?")}</h1>
@@ -485,7 +502,10 @@ const validateEmailRules = withValidation({
     ],
 });
 
-const SpaceSetupPrivateInvite = ({ space, onFinished }) => {
+const SpaceSetupPrivateInvite: React.FC<{
+    space: Room;
+    onFinished(): void;
+}> = ({ space, onFinished }) => {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const numFields = 3;
@@ -501,7 +521,7 @@ const SpaceSetupPrivateInvite = ({ space, onFinished }) => {
                 label={_t("Email address")}
                 placeholder={_t("Email")}
                 value={emailAddresses[i]}
-                onChange={(ev) => setEmailAddress(i, ev.target.value)}
+                onChange={(ev: React.ChangeEvent<HTMLInputElement>) => setEmailAddress(i, ev.target.value)}
                 ref={fieldRefs[i]}
                 onValidate={validateEmailRules}
                 autoFocus={i === 0}
@@ -510,7 +530,7 @@ const SpaceSetupPrivateInvite = ({ space, onFinished }) => {
         );
     });
 
-    const onNextClick = async (ev) => {
+    const onNextClick = async (ev: ButtonEvent): Promise<void> => {
         ev.preventDefault();
         if (busy) return;
         setError("");
@@ -548,14 +568,14 @@ const SpaceSetupPrivateInvite = ({ space, onFinished }) => {
         setBusy(false);
     };
 
-    let onClick = (ev) => {
+    let onClick = (ev: ButtonEvent): void => {
         ev.preventDefault();
         onFinished();
     };
     let buttonLabel = _t("Skip for now");
     if (emailAddresses.some((name) => name.trim())) {
         onClick = onNextClick;
-        buttonLabel = busy ? _t("Inviting...") : _t("Continue");
+        buttonLabel = busy ? _t("Inviting…") : _t("Continue");
     }
 
     return (
@@ -642,29 +662,29 @@ export default class SpaceRoomView extends React.PureComponent<IProps, IState> {
         RightPanelStore.instance.on(UPDATE_EVENT, this.onRightPanelStoreUpdate);
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         this.context.on(RoomEvent.MyMembership, this.onMyMembership);
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         defaultDispatcher.unregister(this.dispatcherRef);
         RightPanelStore.instance.off(UPDATE_EVENT, this.onRightPanelStoreUpdate);
         this.context.off(RoomEvent.MyMembership, this.onMyMembership);
     }
 
-    private onMyMembership = (room: Room, myMembership: string) => {
+    private onMyMembership = (room: Room, myMembership: string): void => {
         if (room.roomId === this.props.space.roomId) {
             this.setState({ myMembership });
         }
     };
 
-    private onRightPanelStoreUpdate = () => {
+    private onRightPanelStoreUpdate = (): void => {
         this.setState({
             showRightPanel: RightPanelStore.instance.isOpenForRoom(this.props.space.roomId),
         });
     };
 
-    private onAction = (payload: ActionPayload) => {
+    private onAction = (payload: ActionPayload): void => {
         if (payload.action === Action.ViewRoom && payload.room_id === this.props.space.roomId) {
             this.setState({ phase: Phase.Landing });
             return;
@@ -698,7 +718,7 @@ export default class SpaceRoomView extends React.PureComponent<IProps, IState> {
         }
     };
 
-    private goToFirstRoom = async () => {
+    private goToFirstRoom = async (): Promise<void> => {
         if (this.state.firstRoomId) {
             defaultDispatcher.dispatch<ViewRoomPayload>({
                 action: Action.ViewRoom,
@@ -711,7 +731,7 @@ export default class SpaceRoomView extends React.PureComponent<IProps, IState> {
         this.setState({ phase: Phase.Landing });
     };
 
-    private renderBody() {
+    private renderBody(): JSX.Element {
         switch (this.state.phase) {
             case Phase.Landing:
                 if (this.state.myMembership === "join") {
@@ -794,7 +814,7 @@ export default class SpaceRoomView extends React.PureComponent<IProps, IState> {
         }
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const rightPanel =
             this.state.showRightPanel && this.state.phase === Phase.Landing ? (
                 <RightPanel room={this.props.space} resizeNotifier={this.props.resizeNotifier} />

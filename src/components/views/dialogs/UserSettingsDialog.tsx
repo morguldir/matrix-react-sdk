@@ -32,14 +32,15 @@ import SdkConfig from "../../../SdkConfig";
 import MjolnirUserSettingsTab from "../settings/tabs/user/MjolnirUserSettingsTab";
 import { UIFeature } from "../../../settings/UIFeature";
 import BaseDialog from "./BaseDialog";
-import { IDialogProps } from "./IDialogProps";
 import SidebarUserSettingsTab from "../settings/tabs/user/SidebarUserSettingsTab";
 import KeyboardUserSettingsTab from "../settings/tabs/user/KeyboardUserSettingsTab";
 import SessionManagerTab from "../settings/tabs/user/SessionManagerTab";
 import { UserTab } from "./UserTab";
+import { NonEmptyArray } from "../../../@types/common";
 
-interface IProps extends IDialogProps {
+interface IProps {
     initialTabId?: UserTab;
+    onFinished(): void;
 }
 
 interface IState {
@@ -50,7 +51,7 @@ interface IState {
 export default class UserSettingsDialog extends React.Component<IProps, IState> {
     private settingsWatchers: string[] = [];
 
-    public constructor(props) {
+    public constructor(props: IProps) {
         super(props);
 
         this.state = {
@@ -80,7 +81,7 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
         this.setState({ newSessionManagerEnabled: newValue });
     };
 
-    private getTabs() {
+    private getTabs(): NonEmptyArray<Tab> {
         const tabs: Tab[] = [];
 
         tabs.push(
@@ -164,7 +165,7 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
                 new Tab(
                     UserTab.SessionManager,
                     _td("Sessions"),
-                    "mx_UserSettingsDialog_securityIcon",
+                    "mx_UserSettingsDialog_sessionsIcon",
                     <SessionManagerTab />,
                     // don't track with posthog while under construction
                     undefined,
@@ -202,15 +203,15 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
                 UserTab.Help,
                 _td("Help & About"),
                 "mx_UserSettingsDialog_helpIcon",
-                <HelpUserSettingsTab closeSettingsFn={() => this.props.onFinished(true)} />,
+                <HelpUserSettingsTab closeSettingsFn={() => this.props.onFinished()} />,
                 "UserSettingsHelpAbout",
             ),
         );
 
-        return tabs;
+        return tabs as NonEmptyArray<Tab>;
     }
 
-    public render() {
+    public render(): React.ReactNode {
         return (
             <BaseDialog
                 className="mx_UserSettingsDialog"

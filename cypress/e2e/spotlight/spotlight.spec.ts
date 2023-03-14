@@ -17,14 +17,14 @@ limitations under the License.
 /// <reference types="cypress" />
 
 import { MatrixClient } from "../../global";
-import { SynapseInstance } from "../../plugins/synapsedocker";
+import { HomeserverInstance } from "../../plugins/utils/homeserver";
 import Chainable = Cypress.Chainable;
 import Loggable = Cypress.Loggable;
 import Timeoutable = Cypress.Timeoutable;
 import Withinable = Cypress.Withinable;
 import Shadow = Cypress.Shadow;
 
-export enum Filter {
+enum Filter {
     People = "people",
     PublicRooms = "public_rooms",
 }
@@ -136,7 +136,7 @@ Cypress.Commands.add("startDM", (name: string) => {
 });
 
 describe("Spotlight", () => {
-    let synapse: SynapseInstance;
+    let homeserver: HomeserverInstance;
 
     const bot1Name = "BotBob";
     let bot1: MatrixClient;
@@ -154,16 +154,16 @@ describe("Spotlight", () => {
     let room3Id: string;
 
     beforeEach(() => {
-        cy.startSynapse("default").then((data) => {
-            synapse = data;
-            cy.initTestUser(synapse, "Jim")
+        cy.startHomeserver("default").then((data) => {
+            homeserver = data;
+            cy.initTestUser(homeserver, "Jim")
                 .then(() =>
-                    cy.getBot(synapse, { displayName: bot1Name }).then((_bot1) => {
+                    cy.getBot(homeserver, { displayName: bot1Name }).then((_bot1) => {
                         bot1 = _bot1;
                     }),
                 )
                 .then(() =>
-                    cy.getBot(synapse, { displayName: bot2Name }).then((_bot2) => {
+                    cy.getBot(homeserver, { displayName: bot2Name }).then((_bot2) => {
                         // eslint-disable-next-line @typescript-eslint/no-unused-vars
                         bot2 = _bot2;
                     }),
@@ -205,7 +205,7 @@ describe("Spotlight", () => {
 
     afterEach(() => {
         cy.visit("/#/home");
-        cy.stopSynapse(synapse);
+        cy.stopHomeserver(homeserver);
     });
 
     it("should be able to add and remove filters via keyboard", () => {
@@ -297,27 +297,28 @@ describe("Spotlight", () => {
 
     // TODO: We currently can’t test finding rooms on other homeservers/other protocols
     // We obviously don’t have federation or bridges in cypress tests
-    /*
-    const room3Name = "Matrix HQ";
-    const room3Id = "#matrix:matrix.org";
-
-    it("should find unknown public rooms on other homeservers", () => {
-        cy.openSpotlightDialog().within(() => {
-            cy.spotlightFilter(Filter.PublicRooms);
-            cy.spotlightSearch().clear().type(room3Name);
-            cy.get("[aria-haspopup=true][role=button]").click();
-        }).then(() => {
-            cy.contains(".mx_GenericDropdownMenu_Option--header", "matrix.org")
-                .next("[role=menuitemradio]")
-                .click();
-            cy.wait(3_600_000);
-        }).then(() => cy.spotlightDialog().within(() => {
-            cy.spotlightResults().should("have.length", 1);
-            cy.spotlightResults().eq(0).should("contain", room3Name);
-            cy.spotlightResults().eq(0).should("contain", room3Id);
-        }));
+    it.skip("should find unknown public rooms on other homeservers", () => {
+        cy.openSpotlightDialog()
+            .within(() => {
+                cy.spotlightFilter(Filter.PublicRooms);
+                cy.spotlightSearch().clear().type(room3Name);
+                cy.get("[aria-haspopup=true][role=button]").click();
+            })
+            .then(() => {
+                cy.contains(".mx_GenericDropdownMenu_Option--header", "matrix.org")
+                    .next("[role=menuitemradio]")
+                    .click();
+                cy.wait(3_600_000);
+            })
+            .then(() =>
+                cy.spotlightDialog().within(() => {
+                    cy.spotlightResults().should("have.length", 1);
+                    cy.spotlightResults().eq(0).should("contain", room3Name);
+                    cy.spotlightResults().eq(0).should("contain", room3Id);
+                }),
+            );
     });
-    */
+
     it("should find known people", () => {
         cy.openSpotlightDialog()
             .within(() => {

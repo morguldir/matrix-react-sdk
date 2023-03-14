@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { ComponentProps } from "react";
+import React, { ComponentProps, ReactNode } from "react";
 import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { RoomMember } from "matrix-js-sdk/src/models/room-member";
 import { EventType } from "matrix-js-sdk/src/@types/event";
@@ -113,7 +113,7 @@ export default class EventListSummary extends React.Component<IProps> {
     private generateSummary(
         eventAggregates: Record<string, string[]>,
         orderedTransitionSequences: string[],
-    ): string | JSX.Element {
+    ): ReactNode {
         const summaries = orderedTransitionSequences.map((transitions) => {
             const userNames = eventAggregates[transitions];
             const nameList = this.renderNameList(userNames);
@@ -149,7 +149,7 @@ export default class EventListSummary extends React.Component<IProps> {
      * more items in `users` than `this.props.summaryLength`, which is the number of names
      * included before "and [n] others".
      */
-    private renderNameList(users: string[]) {
+    private renderNameList(users: string[]): string {
         return formatCommaSeparatedList(users, this.props.summaryLength);
     }
 
@@ -161,7 +161,15 @@ export default class EventListSummary extends React.Component<IProps> {
      * @returns {string[]} an array of transitions.
      */
     private static getCanonicalTransitions(transitions: TransitionType[]): TransitionType[] {
-        const modMap = {
+        const modMap: Partial<
+            Record<
+                TransitionType,
+                {
+                    after: TransitionType;
+                    newTransition: TransitionType;
+                }
+            >
+        > = {
             [TransitionType.Joined]: {
                 after: TransitionType.Left,
                 newTransition: TransitionType.JoinedAndLeft,
@@ -170,10 +178,6 @@ export default class EventListSummary extends React.Component<IProps> {
                 after: TransitionType.Joined,
                 newTransition: TransitionType.LeftAndJoined,
             },
-            // $currentTransition : {
-            //     'after' : $nextTransition,
-            //     'newTransition' : 'new_transition_type',
-            // },
         };
         const res: TransitionType[] = [];
 
@@ -207,7 +211,10 @@ export default class EventListSummary extends React.Component<IProps> {
      * @param {string[]} transitions the array of transitions to transform.
      * @returns {object[]} an array of coalesced transitions.
      */
-    private static coalesceRepeatedTransitions(transitions: TransitionType[]) {
+    private static coalesceRepeatedTransitions(transitions: TransitionType[]): {
+        transitionType: TransitionType;
+        repeats: number;
+    }[] {
         const res: {
             transitionType: TransitionType;
             repeats: number;
@@ -234,15 +241,11 @@ export default class EventListSummary extends React.Component<IProps> {
      * @param {number} repeats the number of times the transition was repeated in a row.
      * @returns {string} the written Human Readable equivalent of the transition.
      */
-    private static getDescriptionForTransition(
-        t: TransitionType,
-        userCount: number,
-        count: number,
-    ): string | JSX.Element {
+    private static getDescriptionForTransition(t: TransitionType, userCount: number, count: number): ReactNode | null {
         // The empty interpolations 'severalUsers' and 'oneUser'
         // are there only to show translators to non-English languages
         // that the verb is conjugated to plural or singular Subject.
-        let res = null;
+        let res: ReactNode | undefined;
         switch (t) {
             case TransitionType.Joined:
                 res =
@@ -374,10 +377,10 @@ export default class EventListSummary extends React.Component<IProps> {
                 break;
         }
 
-        return res;
+        return res ?? null;
     }
 
-    private static getTransitionSequence(events: IUserEvents[]) {
+    private static getTransitionSequence(events: IUserEvents[]): TransitionType[] {
         return events.map(EventListSummary.getTransition);
     }
 
@@ -389,7 +392,7 @@ export default class EventListSummary extends React.Component<IProps> {
      * @returns {string?} the transition type given to this event. This defaults to `null`
      * if a transition is not recognised.
      */
-    private static getTransition(e: IUserEvents): TransitionType {
+    private static getTransition(e: IUserEvents): TransitionType | null {
         if (e.mxEvent.isRedacted()) {
             return TransitionType.MessageRemoved;
         }
@@ -451,7 +454,10 @@ export default class EventListSummary extends React.Component<IProps> {
         }
     }
 
-    public getAggregate(userEvents: Record<string, IUserEvents[]>) {
+    public getAggregate(userEvents: Record<string, IUserEvents[]>): {
+        names: Record<string, string[]>;
+        indices: Record<string, number>;
+    } {
         // A map of aggregate type to arrays of display names. Each aggregate type
         // is a comma-delimited string of transitions, e.g. "joined,left,kicked".
         // The array of display names is the array of users who went through that
@@ -489,7 +495,7 @@ export default class EventListSummary extends React.Component<IProps> {
         };
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const eventsToRender = this.props.events;
 
         // Map user IDs to latest Avatar Member. ES6 Maps are ordered by when the key was created,
@@ -501,39 +507,36 @@ export default class EventListSummary extends React.Component<IProps> {
         eventsToRender.forEach((e, index) => {
             const type = e.getType();
 
-            let userId = e.getSender();
-            if (type === EventType.RoomMember) {
-                userId = e.getStateKey();
+            let userKey = e.getSender()!;
+            if (type === EventType.RoomThirdPartyInvite) {
+                userKey = e.getContent().display_name;
+            } else if (type === EventType.RoomMember) {
+                userKey = e.getStateKey();
             } else if (e.isRedacted()) {
-                userId = e.getUnsigned()?.redacted_because?.sender;
+                userKey = e.getUnsigned()?.redacted_because?.sender;
             }
 
             // Initialise a user's events
-            if (!userEvents[userId]) {
-                userEvents[userId] = [];
+            if (!userEvents[userKey]) {
+                userEvents[userKey] = [];
             }
 
-            let displayName = userId;
-            if (type === EventType.RoomThirdPartyInvite) {
-                displayName = e.getContent().display_name;
-                if (e.sender) {
-                    latestUserAvatarMember.set(userId, e.sender);
-                }
-            } else if (e.isRedacted()) {
-                const sender = this.context?.room.getMember(userId);
+            let displayName = userKey;
+            if (e.isRedacted()) {
+                const sender = this.context?.room?.getMember(userKey);
                 if (sender) {
                     displayName = sender.name;
-                    latestUserAvatarMember.set(userId, sender);
+                    latestUserAvatarMember.set(userKey, sender);
                 }
             } else if (e.target && TARGET_AS_DISPLAY_NAME_EVENTS.includes(type as EventType)) {
                 displayName = e.target.name;
-                latestUserAvatarMember.set(userId, e.target);
-            } else if (e.sender) {
+                latestUserAvatarMember.set(userKey, e.target);
+            } else if (e.sender && type !== EventType.RoomThirdPartyInvite) {
                 displayName = e.sender.name;
-                latestUserAvatarMember.set(userId, e.sender);
+                latestUserAvatarMember.set(userKey, e.sender);
             }
 
-            userEvents[userId].push({
+            userEvents[userKey].push({
                 mxEvent: e,
                 displayName,
                 index: index,

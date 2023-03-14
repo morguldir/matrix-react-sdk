@@ -22,7 +22,7 @@ import { RovingAccessibleButton, useRovingTabIndex } from "../../../accessibilit
 
 interface IProps {
     ts: number;
-    onDatePicked?: (dateString: string) => void;
+    onDatePicked: (dateString: string) => void;
 }
 
 const JumpToDatePicker: React.FC<IProps> = ({ ts, onDatePicked }: IProps) => {
@@ -35,7 +35,7 @@ const JumpToDatePicker: React.FC<IProps> = ({ ts, onDatePicked }: IProps) => {
     const [dateValue, setDateValue] = useState(dateDefaultValue);
     const [onFocus, isActive, ref] = useRovingTabIndex<HTMLInputElement>();
 
-    const onDateValueInput = (ev: React.ChangeEvent<HTMLInputElement>) => setDateValue(ev.target.value);
+    const onDateValueInput = (ev: React.ChangeEvent<HTMLInputElement>): void => setDateValue(ev.target.value);
     const onJumpToDateSubmit = (ev: FormEvent): void => {
         ev.preventDefault();
         onDatePicked(dateValue);

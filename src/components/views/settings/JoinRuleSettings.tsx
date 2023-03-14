@@ -24,7 +24,6 @@ import { _t } from "../../../languageHandler";
 import AccessibleButton from "../elements/AccessibleButton";
 import RoomAvatar from "../avatars/RoomAvatar";
 import SpaceStore from "../../../stores/spaces/SpaceStore";
-import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import Modal from "../../../Modal";
 import ManageRestrictedJoinRuleDialog from "../dialogs/ManageRestrictedJoinRuleDialog";
 import RoomUpgradeWarningDialog, { IFinishedOpts } from "../dialogs/RoomUpgradeWarningDialog";
@@ -46,7 +45,14 @@ interface IProps {
     aliasWarning?: ReactNode;
 }
 
-const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeChange, closeSettingsFn }: IProps) => {
+const JoinRuleSettings: React.FC<IProps> = ({
+    room,
+    promptUpgrade,
+    aliasWarning,
+    onError,
+    beforeChange,
+    closeSettingsFn,
+}) => {
     const cli = room.client;
 
     const roomSupportsRestricted = doesRoomVersionSupport(room.getVersion(), PreferredRoomVersions.RestrictedRooms);
@@ -67,17 +73,15 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
             ? content.allow?.filter((o) => o.type === RestrictedAllowType.RoomMembership).map((o) => o.room_id)
             : undefined;
 
-    const editRestrictedRoomIds = async (): Promise<string[] | undefined> => {
+    const editRestrictedRoomIds = async (): Promise<string[]> => {
         let selected = restrictedAllowRoomIds;
         if (!selected?.length && SpaceStore.instance.activeSpaceRoom) {
             selected = [SpaceStore.instance.activeSpaceRoom.roomId];
         }
 
-        const matrixClient = MatrixClientPeg.get();
         const { finished } = Modal.createDialog(
             ManageRestrictedJoinRuleDialog,
             {
-                matrixClient,
                 room,
                 selected,
             },
@@ -120,7 +124,7 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
             const shownSpaces = restrictedAllowRoomIds
                 .map((roomId) => cli.getRoom(roomId))
                 .filter((room) => room?.isSpaceRoom())
-                .slice(0, 4);
+                .slice(0, 4) as Room[];
 
             let moreText;
             if (shownSpaces.length < restrictedAllowRoomIds.length) {
@@ -135,7 +139,7 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
                 }
             }
 
-            const onRestrictedRoomIdsChange = (newAllowRoomIds: string[]) => {
+            const onRestrictedRoomIdsChange = (newAllowRoomIds: string[]): void => {
                 if (!arrayHasDiff(restrictedAllowRoomIds || [], newAllowRoomIds)) return;
 
                 if (!newAllowRoomIds.length) {
@@ -154,7 +158,7 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
                 });
             };
 
-            const onEditRestrictedClick = async () => {
+            const onEditRestrictedClick = async (): Promise<void> => {
                 const restrictedAllowRoomIds = await editRestrictedRoomIds();
                 if (!Array.isArray(restrictedAllowRoomIds)) return;
                 if (restrictedAllowRoomIds.length > 0) {
@@ -224,10 +228,10 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
         });
     }
 
-    const onChange = async (joinRule: JoinRule) => {
+    const onChange = async (joinRule: JoinRule): Promise<void> => {
         const beforeJoinRule = content.join_rule;
 
-        let restrictedAllowRoomIds: string[];
+        let restrictedAllowRoomIds: string[] | undefined;
         if (joinRule === JoinRule.Restricted) {
             if (beforeJoinRule === JoinRule.Restricted || roomSupportsRestricted) {
                 // Have the user pick which spaces to allow joins from
@@ -237,8 +241,8 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
                 // Block this action on a room upgrade otherwise it'd make their room unjoinable
                 const targetVersion = preferredRestrictionVersion;
 
-                let warning: JSX.Element;
-                const userId = cli.getUserId();
+                let warning: JSX.Element | undefined;
+                const userId = cli.getUserId()!;
                 const unableToUpdateSomeParents = Array.from(SpaceStore.instance.getKnownParents(room.roomId)).some(
                     (roomId) => !cli.getRoom(roomId)?.currentState.maySendStateEvent(EventType.SpaceChild, userId),
                 );
@@ -325,7 +329,7 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
             }
 
             // when setting to 0 allowed rooms/spaces set to invite only instead as per the note
-            if (!restrictedAllowRoomIds.length) {
+            if (!restrictedAllowRoomIds?.length) {
                 joinRule = JoinRule.Invite;
             }
         }
@@ -339,7 +343,7 @@ const JoinRuleSettings = ({ room, promptUpgrade, aliasWarning, onError, beforeCh
 
         // pre-set the accepted spaces with the currently viewed one as per the microcopy
         if (joinRule === JoinRule.Restricted) {
-            newContent.allow = restrictedAllowRoomIds.map((roomId) => ({
+            newContent.allow = restrictedAllowRoomIds?.map((roomId) => ({
                 type: RestrictedAllowType.RoomMembership,
                 room_id: roomId,
             }));

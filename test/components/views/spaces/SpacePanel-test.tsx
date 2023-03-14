@@ -19,19 +19,21 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { mocked } from "jest-mock";
 import { MatrixClient } from "matrix-js-sdk/src/matrix";
 
-import SpacePanel from "../../../../src/components/views/spaces/SpacePanel";
+import UnwrappedSpacePanel from "../../../../src/components/views/spaces/SpacePanel";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
-import { SpaceKey } from "../../../../src/stores/spaces";
+import { MetaSpace, SpaceKey } from "../../../../src/stores/spaces";
 import { shouldShowComponent } from "../../../../src/customisations/helpers/UIComponents";
 import { UIComponent } from "../../../../src/settings/UIFeature";
+import { wrapInSdkContext } from "../../../test-utils";
+import { SdkContextClass } from "../../../../src/contexts/SDKContext";
 
 jest.mock("../../../../src/stores/spaces/SpaceStore", () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const EventEmitter = require("events");
     class MockSpaceStore extends EventEmitter {
-        invitedSpaces = [];
-        enabledMetaSpaces = [];
-        spacePanelSpaces = [];
+        invitedSpaces: SpaceKey[] = [];
+        enabledMetaSpaces: MetaSpace[] = [];
+        spacePanelSpaces: string[] = [];
         activeSpace: SpaceKey = "!space1";
     }
     return {
@@ -46,9 +48,11 @@ jest.mock("../../../../src/customisations/helpers/UIComponents", () => ({
 describe("<SpacePanel />", () => {
     const mockClient = {
         getUserId: jest.fn().mockReturnValue("@test:test"),
+        getSafeUserId: jest.fn().mockReturnValue("@test:test"),
         isGuest: jest.fn(),
         getAccountData: jest.fn(),
     } as unknown as MatrixClient;
+    const SpacePanel = wrapInSdkContext(UnwrappedSpacePanel, SdkContextClass.instance);
 
     beforeAll(() => {
         jest.spyOn(MatrixClientPeg, "get").mockReturnValue(mockClient);

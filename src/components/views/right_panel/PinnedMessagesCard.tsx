@@ -37,6 +37,7 @@ import RoomContext, { TimelineRenderingType } from "../../../contexts/RoomContex
 import { ReadPinsEventId } from "./types";
 import Heading from "../typography/Heading";
 import { RoomPermalinkCreator } from "../../../utils/permalinks/Permalinks";
+import { filterBoolean } from "../../../utils/arrays";
 
 interface IProps {
     room: Room;
@@ -44,7 +45,7 @@ interface IProps {
     onClose(): void;
 }
 
-export const usePinnedEvents = (room: Room): string[] => {
+export const usePinnedEvents = (room?: Room): string[] => {
     const [pinnedEvents, setPinnedEvents] = useState<string[]>([]);
 
     const update = useCallback(
@@ -91,7 +92,7 @@ export const useReadPinnedEvents = (room: Room): Set<string> => {
     return readPinnedEvents;
 };
 
-const PinnedMessagesCard = ({ room, onClose, permalinkCreator }: IProps) => {
+const PinnedMessagesCard: React.FC<IProps> = ({ room, onClose, permalinkCreator }) => {
     const cli = useContext(MatrixClientContext);
     const roomContext = useContext(RoomContext);
     const canUnpin = useRoomState(room, (state) => state.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli));
@@ -110,7 +111,7 @@ const PinnedMessagesCard = ({ room, onClose, permalinkCreator }: IProps) => {
 
     const pinnedEvents = useAsyncMemo(
         () => {
-            const promises = pinnedEventIds.map(async (eventId) => {
+            const promises = pinnedEventIds.map(async (eventId): Promise<MatrixEvent | null> => {
                 const timelineSet = room.getUnfilteredTimelineSet();
                 const localEvent = timelineSet
                     ?.getTimelineForEvent(eventId)
@@ -133,6 +134,7 @@ const PinnedMessagesCard = ({ room, onClose, permalinkCreator }: IProps) => {
                     if (event.isEncrypted()) {
                         await cli.decryptEventIfNeeded(event); // TODO await?
                     }
+                    await room.processPollEvents([event]);
 
                     if (event && PinningUtils.isPinnable(event)) {
                         // Inject sender information
@@ -159,7 +161,7 @@ const PinnedMessagesCard = ({ room, onClose, permalinkCreator }: IProps) => {
     if (!pinnedEvents) {
         content = <Spinner />;
     } else if (pinnedEvents.length > 0) {
-        const onUnpinClicked = async (event: MatrixEvent) => {
+        const onUnpinClicked = async (event: MatrixEvent): Promise<void> => {
             const pinnedEvents = room.currentState.getStateEvents(EventType.RoomPinnedEvents, "");
             if (pinnedEvents?.getContent()?.pinned) {
                 const pinned = pinnedEvents.getContent().pinned;
@@ -172,8 +174,7 @@ const PinnedMessagesCard = ({ room, onClose, permalinkCreator }: IProps) => {
         };
 
         // show them in reverse, with latest pinned at the top
-        content = pinnedEvents
-            .filter(Boolean)
+        content = filterBoolean(pinnedEvents)
             .reverse()
             .map((ev) => (
                 <PinnedEventTile

@@ -36,19 +36,16 @@ interface IOpts {
     customFields?: Record<string, string>;
 }
 
-async function collectBugReport(opts: IOpts = {}, gzipLogs = true) {
-    const progressCallback = opts.progressCallback || (() => {});
+async function collectBugReport(opts: IOpts = {}, gzipLogs = true): Promise<FormData> {
+    const progressCallback = opts.progressCallback || ((): void => {});
 
     progressCallback(_t("Collecting app version information"));
-    let version = "UNKNOWN";
+    let version: string | undefined;
     try {
-        version = await PlatformPeg.get().getAppVersion();
+        version = await PlatformPeg.get()?.getAppVersion();
     } catch (err) {} // PlatformPeg already logs this.
 
-    let userAgent = "UNKNOWN";
-    if (window.navigator && window.navigator.userAgent) {
-        userAgent = window.navigator.userAgent;
-    }
+    const userAgent = window.navigator?.userAgent ?? "UNKNOWN";
 
     let installedPWA = "UNKNOWN";
     try {
@@ -69,7 +66,7 @@ async function collectBugReport(opts: IOpts = {}, gzipLogs = true) {
     const body = new FormData();
     body.append("text", opts.userText || "User did not supply any additional text.");
     body.append("app", opts.customApp || "element-web");
-    body.append("version", version);
+    body.append("version", version ?? "UNKNOWN");
     body.append("user_agent", userAgent);
     body.append("installed_pwa", installedPWA);
     body.append("touch_input", touchInput);
@@ -81,10 +78,11 @@ async function collectBugReport(opts: IOpts = {}, gzipLogs = true) {
     }
 
     if (client) {
-        body.append("user_id", client.credentials.userId);
-        body.append("device_id", client.deviceId);
+        body.append("user_id", client.credentials.userId!);
+        body.append("device_id", client.deviceId!);
 
-        if (client.isCryptoEnabled()) {
+        // TODO: make this work with rust crypto
+        if (client.isCryptoEnabled() && client.crypto) {
             const keys = [`ed25519:${client.getDeviceEd25519Key()}`];
             if (client.getDeviceCurve25519Key) {
                 keys.push(`curve25519:${client.getDeviceCurve25519Key()}`);
@@ -172,13 +170,15 @@ async function collectBugReport(opts: IOpts = {}, gzipLogs = true) {
     }
 
     if (window.Modernizr) {
-        const missingFeatures = Object.keys(window.Modernizr).filter((key) => window.Modernizr[key] === false);
+        const missingFeatures = Object.keys(window.Modernizr).filter(
+            (key: keyof ModernizrStatic) => window.Modernizr[key] === false,
+        );
         if (missingFeatures.length > 0) {
             body.append("modernizr_missing_features", missingFeatures.join(", "));
         }
     }
 
-    body.append("mx_local_settings", localStorage.getItem("mx_local_settings"));
+    body.append("mx_local_settings", localStorage.getItem("mx_local_settings")!);
 
     if (opts.sendLogs) {
         progressCallback(_t("Collecting logs"));
@@ -214,12 +214,12 @@ async function collectBugReport(opts: IOpts = {}, gzipLogs = true) {
  *
  * @return {Promise<string>} URL returned by the rageshake server
  */
-export default async function sendBugReport(bugReportEndpoint: string, opts: IOpts = {}): Promise<string> {
+export default async function sendBugReport(bugReportEndpoint?: string, opts: IOpts = {}): Promise<string> {
     if (!bugReportEndpoint) {
         throw new Error("No bug report endpoint has been set.");
     }
 
-    const progressCallback = opts.progressCallback || (() => {});
+    const progressCallback = opts.progressCallback || ((): void => {});
     const body = await collectBugReport(opts);
 
     progressCallback(_t("Uploading logs"));
@@ -240,8 +240,8 @@ export default async function sendBugReport(bugReportEndpoint: string, opts: IOp
  *
  * @return {Promise} Resolved when the bug report is downloaded (or started).
  */
-export async function downloadBugReport(opts: IOpts = {}) {
-    const progressCallback = opts.progressCallback || (() => {});
+export async function downloadBugReport(opts: IOpts = {}): Promise<void> {
+    const progressCallback = opts.progressCallback || ((): void => {});
     const body = await collectBugReport(opts, false);
 
     progressCallback(_t("Downloading logs"));
@@ -259,7 +259,7 @@ export async function downloadBugReport(opts: IOpts = {}) {
                 reader.readAsArrayBuffer(value as Blob);
             });
         } else {
-            metadata += `${key} = ${value}\n`;
+            metadata += `${key} = ${value as string}\n`;
         }
     }
     tape.append("issue.txt", metadata);
@@ -275,7 +275,7 @@ export async function downloadBugReport(opts: IOpts = {}) {
 }
 
 // Source: https://github.com/beatgammit/tar-js/blob/master/examples/main.js
-function uint8ToString(buf: Buffer) {
+function uint8ToString(buf: Uint8Array): string {
     let out = "";
     for (let i = 0; i < buf.length; i += 1) {
         out += String.fromCharCode(buf[i]);
@@ -289,10 +289,10 @@ export async function submitFeedback(
     comment: string,
     canContact = false,
     extraData: Record<string, string> = {},
-) {
-    let version = "UNKNOWN";
+): Promise<void> {
+    let version: string | undefined;
     try {
-        version = await PlatformPeg.get().getAppVersion();
+        version = await PlatformPeg.get()?.getAppVersion();
     } catch (err) {} // PlatformPeg already logs this.
 
     const body = new FormData();
@@ -301,7 +301,7 @@ export async function submitFeedback(
     body.append("can_contact", canContact ? "yes" : "no");
 
     body.append("app", "element-web");
-    body.append("version", version);
+    body.append("version", version || "UNKNOWN");
     body.append("platform", PlatformPeg.get().getHumanReadableName());
     body.append("user_id", MatrixClientPeg.get()?.getUserId());
 
@@ -318,7 +318,7 @@ function submitReport(endpoint: string, body: FormData, progressCallback: (str: 
         req.open("POST", endpoint);
         req.responseType = "json";
         req.timeout = 5 * 60 * 1000;
-        req.onreadystatechange = function () {
+        req.onreadystatechange = function (): void {
             if (req.readyState === XMLHttpRequest.LOADING) {
                 progressCallback(_t("Waiting for response from server"));
             } else if (req.readyState === XMLHttpRequest.DONE) {

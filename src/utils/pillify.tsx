@@ -1,5 +1,5 @@
 /*
-Copyright 2019, 2020, 2021 The Matrix.org Foundation C.I.C.
+Copyright 2019-2023 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 
 import { MatrixClientPeg } from "../MatrixClientPeg";
 import SettingsStore from "../settings/SettingsStore";
-import Pill, { PillType } from "../components/views/elements/Pill";
+import { Pill, PillType, pillRoomNotifLen, pillRoomNotifPos } from "../components/views/elements/Pill";
 import { parsePermalink } from "./permalinks/Permalinks";
 
 /**
@@ -37,8 +37,8 @@ import { parsePermalink } from "./permalinks/Permalinks";
  *   React components which have been mounted as part of this.
  *   The initial caller should pass in an empty array to seed the accumulator.
  */
-export function pillifyLinks(nodes: ArrayLike<Element>, mxEvent: MatrixEvent, pills: Element[]) {
-    const room = MatrixClientPeg.get().getRoom(mxEvent.getRoomId());
+export function pillifyLinks(nodes: ArrayLike<Element>, mxEvent: MatrixEvent, pills: Element[]): void {
+    const room = MatrixClientPeg.get().getRoom(mxEvent.getRoomId()) ?? undefined;
     const shouldShowPillAvatar = SettingsStore.getValue("Pill.shouldShowPillAvatar");
     let node = nodes[0];
     while (node) {
@@ -49,7 +49,7 @@ export function pillifyLinks(nodes: ArrayLike<Element>, mxEvent: MatrixEvent, pi
             node = node.nextSibling as Element;
             continue;
         } else if (node.tagName === "A" && node.getAttribute("href")) {
-            const href = node.getAttribute("href");
+            const href = node.getAttribute("href")!;
             const parts = parsePermalink(href);
             // If the link is a (localised) matrix.to link, replace it with a pill
             // We don't want to pill event permalinks, so those are ignored.
@@ -76,20 +76,20 @@ export function pillifyLinks(nodes: ArrayLike<Element>, mxEvent: MatrixEvent, pi
             // to clear the pills from the last run of pillifyLinks
             !node.parentElement.classList.contains("mx_AtRoomPill")
         ) {
-            let currentTextNode = node as Node as Text;
+            let currentTextNode = node as Node as Text | null;
             const roomNotifTextNodes = [];
 
             // Take a textNode and break it up to make all the instances of @room their
             // own textNode, adding those nodes to roomNotifTextNodes
             while (currentTextNode !== null) {
-                const roomNotifPos = Pill.roomNotifPos(currentTextNode.textContent);
-                let nextTextNode = null;
+                const roomNotifPos = pillRoomNotifPos(currentTextNode.textContent);
+                let nextTextNode: Text | null = null;
                 if (roomNotifPos > -1) {
                     let roomTextNode = currentTextNode;
 
                     if (roomNotifPos > 0) roomTextNode = roomTextNode.splitText(roomNotifPos);
-                    if (roomTextNode.textContent.length > Pill.roomNotifLen()) {
-                        nextTextNode = roomTextNode.splitText(Pill.roomNotifLen());
+                    if (roomTextNode.textContent.length > pillRoomNotifLen()) {
+                        nextTextNode = roomTextNode.splitText(pillRoomNotifLen());
                     }
                     roomNotifTextNodes.push(roomTextNode);
                 }
@@ -106,7 +106,7 @@ export function pillifyLinks(nodes: ArrayLike<Element>, mxEvent: MatrixEvent, pi
                         // we're adding now, since we've just inserted nodes into the structure
                         // we're iterating over.
                         // Note we've checked roomNotifTextNodes.length > 0 so we'll do this at least once
-                        node = roomNotifTextNode.nextSibling;
+                        node = roomNotifTextNode.nextSibling as Element;
 
                         const pillContainer = document.createElement("span");
                         const pill = (
@@ -148,7 +148,7 @@ export function pillifyLinks(nodes: ArrayLike<Element>, mxEvent: MatrixEvent, pi
  * @param {Element[]} pills - array of pill containers whose React
  *   components should be unmounted.
  */
-export function unmountPills(pills: Element[]) {
+export function unmountPills(pills: Element[]): void {
     for (const pillContainer of pills) {
         ReactDOM.unmountComponentAtNode(pillContainer);
     }

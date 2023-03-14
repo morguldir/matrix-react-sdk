@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from "react";
 import { logger } from "matrix-js-sdk/src/logger";
+import { IContent } from "matrix-js-sdk/src/matrix";
 
 import { Playback } from "../../../audio/Playback";
 import InlineSpinner from "../elements/InlineSpinner";
@@ -45,7 +46,7 @@ export default class MAudioBody extends React.PureComponent<IBodyProps, IState> 
         this.state = {};
     }
 
-    public async componentDidMount() {
+    public async componentDidMount(): Promise<void> {
         let buffer: ArrayBuffer;
 
         try {
@@ -66,8 +67,8 @@ export default class MAudioBody extends React.PureComponent<IBodyProps, IState> 
         // We should have a buffer to work with now: let's set it up
 
         // Note: we don't actually need a waveform to render an audio event, but voice messages do.
-        const content = this.props.mxEvent.getContent<IMediaEventContent>();
-        const waveform = content?.["org.matrix.msc1767.audio"]?.waveform?.map((p) => p / 1024);
+        const content = this.props.mxEvent.getContent<IMediaEventContent & IContent>();
+        const waveform = content?.["org.matrix.msc1767.audio"]?.waveform?.map((p: number) => p / 1024);
 
         // We should have a buffer to work with now: let's set it up
         const playback = PlaybackManager.instance.createPlaybackInstance(buffer, waveform);
@@ -81,7 +82,7 @@ export default class MAudioBody extends React.PureComponent<IBodyProps, IState> 
         // Note: the components later on will handle preparing the Playback class for us.
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.state.playback?.destroy();
     }
 
@@ -93,7 +94,7 @@ export default class MAudioBody extends React.PureComponent<IBodyProps, IState> 
         );
     }
 
-    public render() {
+    public render(): React.ReactNode {
         if (this.state.error) {
             return (
                 <MediaProcessingError className="mx_MAudioBody">

@@ -238,7 +238,7 @@ describe("LegacyCallHandler", () => {
                     return [];
                 }
             },
-        } as DMRoomMap;
+        } as unknown as DMRoomMap;
         DMRoomMap.setShared(dmRoomMap);
 
         pstnLookup = null;
@@ -406,6 +406,7 @@ describe("LegacyCallHandler", () => {
                     "d42",
                 ),
                 MatrixClientPeg.get(),
+                SdkContextClass.instance.voiceBroadcastRecordingsStore,
             );
             SdkContextClass.instance.voiceBroadcastPlaybacksStore.setCurrent(voiceBroadcastPlayback);
             jest.spyOn(voiceBroadcastPlayback, "pause").mockImplementation();

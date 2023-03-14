@@ -28,6 +28,8 @@ import defaultDispatcher from "../dispatcher/dispatcher";
 import { Action } from "../dispatcher/actions";
 import SettingsStore from "../settings/SettingsStore";
 
+const REGIONAL_EMOJI_SEPARATOR = String.fromCodePoint(0x200b);
+
 interface ISerializedPart {
     type: Type.Plain | Type.Newline | Type.Emoji | Type.Command | Type.PillCandidate;
     text: string;
@@ -68,6 +70,8 @@ interface IBasePart {
     updateDOMNode(node: Node): void;
     canUpdateDOMNode(node: Node): boolean;
     toDOMNode(): Node;
+
+    merge?(part: Part): boolean;
 }
 
 interface IPillCandidatePart extends Omit<IBasePart, "type" | "createAutoComplete"> {
@@ -210,9 +214,13 @@ abstract class PlainBasePart extends BasePart {
                 return false;
             }
 
-            // or split if the previous character is a space
+            // or split if the previous character is a space or regional emoji separator
             // or if it is a + and this is a :
-            return this._text[offset - 1] !== " " && (this._text[offset - 1] !== "+" || chr !== ":");
+            return (
+                this._text[offset - 1] !== " " &&
+                this._text[offset - 1] !== REGIONAL_EMOJI_SEPARATOR &&
+                (this._text[offset - 1] !== "+" || chr !== ":")
+            );
         }
         return true;
     }
@@ -221,7 +229,7 @@ abstract class PlainBasePart extends BasePart {
         return document.createTextNode(this.text);
     }
 
-    public merge(part): boolean {
+    public merge(part: Part): boolean {
         if (part.type === this.type) {
             this._text = this.text + part.text;
             return true;
@@ -248,7 +256,7 @@ export class PlainPart extends PlainBasePart implements IBasePart {
 }
 
 export abstract class PillPart extends BasePart implements IPillPart {
-    public constructor(public resourceId: string, label) {
+    public constructor(public resourceId: string, label: string) {
         super(label);
     }
 
@@ -414,9 +422,9 @@ class RoomPillPart extends PillPart {
 
     protected setAvatar(node: HTMLElement): void {
         let initialLetter = "";
-        let avatarUrl = Avatar.avatarUrlForRoom(this.room, 16, 16, "crop");
+        let avatarUrl = Avatar.avatarUrlForRoom(this.room ?? null, 16, 16, "crop");
         if (!avatarUrl) {
-            initialLetter = Avatar.getInitialLetter(this.room?.name || this.resourceId);
+            initialLetter = Avatar.getInitialLetter(this.room?.name || this.resourceId) ?? "";
             avatarUrl = Avatar.defaultAvatarUrlForString(this.room?.roomId ?? this.resourceId);
         }
         this.setAvatarVars(node, avatarUrl, initialLetter);
@@ -426,7 +434,7 @@ class RoomPillPart extends PillPart {
         return Type.RoomPill;
     }
 
-    protected get className() {
+    protected get className(): string {
         return "mx_Pill " + (this.room?.isSpaceRoom() ? "mx_SpacePill" : "mx_RoomPill");
     }
 }
@@ -449,7 +457,7 @@ class AtRoomPillPart extends RoomPillPart {
 }
 
 class UserPillPart extends PillPart {
-    public constructor(userId, displayName, private member: RoomMember) {
+    public constructor(userId: string, displayName: string, private member?: RoomMember) {
         super(userId, displayName);
     }
 
@@ -457,7 +465,7 @@ class UserPillPart extends PillPart {
         return Type.UserPill;
     }
 
-    protected get className() {
+    protected get className(): string {
         return "mx_UserPill mx_Pill";
     }
 
@@ -470,7 +478,7 @@ class UserPillPart extends PillPart {
         const avatarUrl = Avatar.avatarUrlForMember(this.member, 16, 16, "crop");
         let initialLetter = "";
         if (avatarUrl === defaultAvatarUrl) {
-            initialLetter = Avatar.getInitialLetter(name);
+            initialLetter = Avatar.getInitialLetter(name) ?? "";
         }
         this.setAvatarVars(node, avatarUrl, initialLetter);
     }
@@ -533,7 +541,7 @@ export class PartCreator {
     public constructor(
         private readonly room: Room,
         private readonly client: MatrixClient,
-        autoCompleteCreator: AutoCompleteCreator = null,
+        autoCompleteCreator: AutoCompleteCreator | null = null,
     ) {
         // pre-create the creator as an object even without callback so it can already be passed
         // to PillCandidatePart (e.g. while deserializing) and set later on
@@ -566,7 +574,7 @@ export class PartCreator {
         return this.plain(text);
     }
 
-    public deserializePart(part: SerializedPart): Part {
+    public deserializePart(part: SerializedPart): Part | undefined {
         switch (part.type) {
             case Type.Plain:
                 return this.plain(part.text);
@@ -604,7 +612,7 @@ export class PartCreator {
     public roomPill(alias: string, roomId?: string): RoomPillPart {
         let room: Room | undefined;
         if (roomId || alias[0] !== "#") {
-            room = this.client.getRoom(roomId || alias);
+            room = this.client.getRoom(roomId || alias) ?? undefined;
         } else {
             room = this.client.getRooms().find((r) => {
                 return r.getCanonicalAlias() === alias || r.getAltAliases().includes(alias);
@@ -619,11 +627,16 @@ export class PartCreator {
 
     public userPill(displayName: string, userId: string): UserPillPart {
         const member = this.room.getMember(userId);
-        return new UserPillPart(userId, displayName, member);
+        return new UserPillPart(userId, displayName, member || undefined);
+    }
+
+    private static isRegionalIndicator(c: string): boolean {
+        const codePoint = c.codePointAt(0) ?? 0;
+        return codePoint != 0 && c.length == 2 && 0x1f1e6 <= codePoint && codePoint <= 0x1f1ff;
     }
 
     public plainWithEmoji(text: string): (PlainPart | EmojiPart)[] {
-        const parts = [];
+        const parts: (PlainPart | EmojiPart)[] = [];
         let plainText = "";
 
         // We use lodash's grapheme splitter to avoid breaking apart compound emojis
@@ -634,6 +647,9 @@ export class PartCreator {
                     plainText = "";
                 }
                 parts.push(this.emoji(char));
+                if (PartCreator.isRegionalIndicator(text)) {
+                    parts.push(this.plain(REGIONAL_EMOJI_SEPARATOR));
+                }
             } else {
                 plainText += char;
             }
@@ -675,7 +691,7 @@ export class CommandPartCreator extends PartCreator {
         return new CommandPart(text, this.autoCompleteCreator);
     }
 
-    public deserializePart(part: SerializedPart): Part {
+    public deserializePart(part: SerializedPart): Part | undefined {
         if (part.type === Type.Command) {
             return this.command(part.text);
         } else {

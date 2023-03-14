@@ -26,7 +26,7 @@ import RoomContext from "../../../contexts/RoomContext";
 
 const MAX_PROVIDER_MATCHES = 20;
 
-export const generateCompletionDomId = (number) => `mx_Autocomplete_Completion_${number}`;
+export const generateCompletionDomId = (n: number): string => `mx_Autocomplete_Completion_${n}`;
 
 interface IProps {
     // the query string for which to show autocomplete suggestions
@@ -57,7 +57,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
 
     public static contextType = RoomContext;
 
-    public constructor(props) {
+    public constructor(props: IProps) {
         super(props);
 
         this.state = {
@@ -79,7 +79,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
         };
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         this.autocompleter = new Autocompleter(this.props.room, this.context.timelineRenderingType);
         this.applyNewProps();
     }
@@ -98,7 +98,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
         this.complete(this.props.query, this.props.selection);
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.autocompleter.destroy();
     }
 
@@ -117,7 +117,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
                 // Hide the autocomplete box
                 hide: true,
             });
-            return Promise.resolve(null);
+            return Promise.resolve();
         }
         let autocompleteDelay = SettingsStore.getValue("autocompleteDelay");
 
@@ -204,7 +204,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
         this.setSelection(1 + index);
     }
 
-    public onEscape(e: KeyboardEvent): boolean {
+    public onEscape(e: KeyboardEvent): boolean | undefined {
         const completionCount = this.countCompletions();
         if (completionCount === 0) {
             // autocomplete is already empty, so don't preventDefault
@@ -265,7 +265,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
         }
     }
 
-    public componentDidUpdate(prevProps: IProps) {
+    public componentDidUpdate(prevProps: IProps): void {
         this.applyNewProps(prevProps.query, prevProps.room);
         // this is the selected completion, so scroll it into view if needed
         const selectedCompletion = this.refs[`completion${this.state.selectionOffset}`] as HTMLElement;
@@ -280,7 +280,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
         }
     }
 
-    public render() {
+    public render(): React.ReactNode {
         let position = 1;
         const renderedCompletions = this.state.completions
             .map((completionResult, i) => {
@@ -290,7 +290,7 @@ export default class Autocomplete extends React.PureComponent<IProps, IState> {
                     const componentPosition = position;
                     position++;
 
-                    const onClick = () => {
+                    const onClick = (): void => {
                         this.onCompletionClicked(componentPosition);
                     };
 

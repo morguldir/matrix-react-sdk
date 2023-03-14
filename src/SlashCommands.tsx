@@ -33,7 +33,7 @@ import dis from "./dispatcher/dispatcher";
 import { _t, _td, ITranslatableError, newTranslatableError } from "./languageHandler";
 import Modal from "./Modal";
 import MultiInviter from "./utils/MultiInviter";
-import { linkifyElement, topicToHtml } from "./HtmlUtils";
+import { Linkify, topicToHtml } from "./HtmlUtils";
 import QuestionDialog from "./components/views/dialogs/QuestionDialog";
 import WidgetUtils from "./utils/WidgetUtils";
 import { textToHtmlRainbow } from "./utils/colour";
@@ -81,11 +81,12 @@ const singleMxcUpload = async (): Promise<string | null> => {
         const fileSelector = document.createElement("input");
         fileSelector.setAttribute("type", "file");
         fileSelector.onchange = (ev: HTMLInputEvent) => {
-            const file = ev.target.files[0];
+            const file = ev.target.files?.[0];
+            if (!file) return;
 
             Modal.createDialog(UploadConfirmDialog, {
                 file,
-                onFinished: async (shouldContinue) => {
+                onFinished: async (shouldContinue): Promise<void> => {
                     if (shouldContinue) {
                         const { content_uri: uri } = await MatrixClientPeg.get().uploadContent(file);
                         resolve(uri);
@@ -111,7 +112,7 @@ export const CommandCategories = {
 
 export type RunResult = XOR<{ error: Error | ITranslatableError }, { promise: Promise<IContent | undefined> }>;
 
-type RunFn = (this: Command, roomId: string, args: string) => RunResult;
+type RunFn = (this: Command, roomId: string, args?: string) => RunResult;
 
 interface ICommandOpts {
     command: string;
@@ -151,15 +152,15 @@ export class Command {
         this.analyticsName = opts.analyticsName;
     }
 
-    public getCommand() {
+    public getCommand(): string {
         return `/${this.command}`;
     }
 
-    public getCommandWithArgs() {
+    public getCommandWithArgs(): string {
         return this.getCommand() + " " + this.args;
     }
 
-    public run(roomId: string, threadId: string, args: string): RunResult {
+    public run(roomId: string, threadId: string | null, args?: string): RunResult {
         // if it has no runFn then its an ignored/nop command (autocomplete only) e.g `/me`
         if (!this.runFn) {
             return reject(newTranslatableError("Command error: Unable to handle slash command."));
@@ -184,7 +185,7 @@ export class Command {
         return this.runFn(roomId, args);
     }
 
-    public getUsage() {
+    public getUsage(): string {
         return _t("Usage") + ": " + this.getCommandWithArgs();
     }
 
@@ -193,21 +194,24 @@ export class Command {
     }
 }
 
-function reject(error) {
+function reject(error?: any): RunResult {
     return { error };
 }
 
-function success(promise?: Promise<any>) {
+function success(promise: Promise<any> = Promise.resolve()): RunResult {
     return { promise };
 }
 
-function successSync(value: any) {
+function successSync(value: any): RunResult {
     return success(Promise.resolve(value));
 }
 
 const isCurrentLocalRoom = (): boolean => {
     const cli = MatrixClientPeg.get();
-    const room = cli.getRoom(SdkContextClass.instance.roomViewStore.getRoomId());
+    const roomId = SdkContextClass.instance.roomViewStore.getRoomId();
+    if (!roomId) return false;
+    const room = cli.getRoom(roomId);
+    if (!room) return false;
     return isLocalRoom(room);
 };
 
@@ -220,7 +224,7 @@ export const Commands = [
         command: "spoiler",
         args: "<message>",
         description: _td("Sends the given message as a spoiler"),
-        runFn: function (roomId, message) {
+        runFn: function (roomId, message = "") {
             return successSync(ContentHelpers.makeHtmlMessage(message, `<span data-mx-spoiler>${message}</span>`));
         },
         category: CommandCategories.messages,
@@ -281,7 +285,7 @@ export const Commands = [
         command: "plain",
         args: "<message>",
         description: _td("Sends a message as plain text, without interpreting it as markdown"),
-        runFn: function (roomId, messages) {
+        runFn: function (roomId, messages = "") {
             return successSync(ContentHelpers.makeTextMessage(messages));
         },
         category: CommandCategories.messages,
@@ -290,7 +294,7 @@ export const Commands = [
         command: "html",
         args: "<message>",
         description: _td("Sends a message as html, without interpreting it as markdown"),
-        runFn: function (roomId, messages) {
+        runFn: function (roomId, messages = "") {
             return successSync(ContentHelpers.makeHtmlMessage(messages, messages));
         },
         category: CommandCategories.messages,
@@ -304,7 +308,7 @@ export const Commands = [
             if (args) {
                 const cli = MatrixClientPeg.get();
                 const room = cli.getRoom(roomId);
-                if (!room.currentState.mayClientSendStateEvent("m.room.tombstone", cli)) {
+                if (!room?.currentState.mayClientSendStateEvent("m.room.tombstone", cli)) {
                     return reject(
                         newTranslatableError("You do not have the required permissions to use this command."),
                     );
@@ -313,13 +317,13 @@ export const Commands = [
                 const { finished } = Modal.createDialog(
                     RoomUpgradeWarningDialog,
                     { roomId: roomId, targetVersion: args },
-                    /*className=*/ null,
+                    /*className=*/ undefined,
                     /*isPriority=*/ false,
                     /*isStatic=*/ true,
                 );
 
                 return success(
-                    finished.then(async ([resp]) => {
+                    finished.then(async ([resp]): Promise<void> => {
                         if (!resp?.continue) return;
                         await upgradeRoom(room, args, resp.invite);
                     }),
@@ -338,7 +342,7 @@ export const Commands = [
         runFn: function (roomId, args) {
             if (args) {
                 return success(
-                    (async () => {
+                    (async (): Promise<void> => {
                         const unixTimestamp = Date.parse(args);
                         if (!unixTimestamp) {
                             throw newTranslatableError(
@@ -395,12 +399,12 @@ export const Commands = [
         runFn: function (roomId, args) {
             if (args) {
                 const cli = MatrixClientPeg.get();
-                const ev = cli.getRoom(roomId).currentState.getStateEvents("m.room.member", cli.getUserId());
+                const ev = cli.getRoom(roomId)?.currentState.getStateEvents("m.room.member", cli.getUserId()!);
                 const content = {
                     ...(ev ? ev.getContent() : { membership: "join" }),
                     displayname: args,
                 };
-                return success(cli.sendStateEvent(roomId, "m.room.member", content, cli.getUserId()));
+                return success(cli.sendStateEvent(roomId, "m.room.member", content, cli.getUserId()!));
             }
             return reject(this.getUsage());
         },
@@ -413,7 +417,7 @@ export const Commands = [
         description: _td("Changes the avatar of the current room"),
         isEnabled: () => !isCurrentLocalRoom(),
         runFn: function (roomId, args) {
-            let promise = Promise.resolve(args);
+            let promise = Promise.resolve(args ?? null);
             if (!args) {
                 promise = singleMxcUpload();
             }
@@ -436,9 +440,9 @@ export const Commands = [
         runFn: function (roomId, args) {
             const cli = MatrixClientPeg.get();
             const room = cli.getRoom(roomId);
-            const userId = cli.getUserId();
+            const userId = cli.getUserId()!;
 
-            let promise = Promise.resolve(args);
+            let promise = Promise.resolve(args ?? null);
             if (!args) {
                 promise = singleMxcUpload();
             }
@@ -446,7 +450,7 @@ export const Commands = [
             return success(
                 promise.then((url) => {
                     if (!url) return;
-                    const ev = room.currentState.getStateEvents("m.room.member", userId);
+                    const ev = room?.currentState.getStateEvents("m.room.member", userId);
                     const content = {
                         ...(ev ? ev.getContent() : { membership: "join" }),
                         avatar_url: url,
@@ -463,7 +467,7 @@ export const Commands = [
         args: "[<mxc_url>]",
         description: _td("Changes your avatar in all rooms"),
         runFn: function (roomId, args) {
-            let promise = Promise.resolve(args);
+            let promise = Promise.resolve(args ?? null);
             if (!args) {
                 promise = singleMxcUpload();
             }
@@ -496,17 +500,16 @@ export const Commands = [
                 );
             }
 
-            const content: MRoomTopicEventContent = room.currentState.getStateEvents("m.room.topic", "")?.getContent();
+            const content = room.currentState.getStateEvents("m.room.topic", "")?.getContent<MRoomTopicEventContent>();
             const topic = !!content
                 ? ContentHelpers.parseTopicContent(content)
                 : { text: _t("This room has no topic.") };
 
-            const ref = (e) => e && linkifyElement(e);
-            const body = topicToHtml(topic.text, topic.html, ref, true);
+            const body = topicToHtml(topic.text, topic.html, undefined, true);
 
             Modal.createDialog(InfoDialog, {
                 title: room.name,
-                description: <div ref={ref}>{body}</div>,
+                description: <Linkify>{body}</Linkify>,
                 hasCloseButton: true,
                 className: "markdown-body",
             });
@@ -551,7 +554,7 @@ export const Commands = [
                     ) {
                         const defaultIdentityServerUrl = getDefaultIdentityServerUrl();
                         if (defaultIdentityServerUrl) {
-                            const { finished } = Modal.createDialog<[boolean]>(QuestionDialog, {
+                            const { finished } = Modal.createDialog(QuestionDialog, {
                                 title: _t("Use an identity server"),
                                 description: (
                                     <p>
@@ -698,11 +701,8 @@ export const Commands = [
                     }
 
                     if (viaServers) {
-                        // For the join
-                        dispatch["opts"] = {
-                            // These are passed down to the js-sdk's /join call
-                            viaServers: viaServers,
-                        };
+                        // For the join, these are passed down to the js-sdk's /join call
+                        dispatch["opts"] = { viaServers };
 
                         // For if the join fails (rejoin button)
                         dispatch["via_servers"] = viaServers;
@@ -876,9 +876,12 @@ export const Commands = [
         description: _td("Define the power level of a user"),
         isEnabled(): boolean {
             const cli = MatrixClientPeg.get();
-            const room = cli.getRoom(SdkContextClass.instance.roomViewStore.getRoomId());
+            const roomId = SdkContextClass.instance.roomViewStore.getRoomId();
+            if (!roomId) return false;
+            const room = cli.getRoom(roomId);
             return (
-                room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId()) && !isLocalRoom(room)
+                !!room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId()!) &&
+                !isLocalRoom(room)
             );
         },
         runFn: function (roomId, args) {
@@ -899,7 +902,10 @@ export const Commands = [
                             );
                         }
                         const member = room.getMember(userId);
-                        if (!member || getEffectiveMembership(member.membership) === EffectiveMembership.Leave) {
+                        if (
+                            !member?.membership ||
+                            getEffectiveMembership(member.membership) === EffectiveMembership.Leave
+                        ) {
                             return reject(newTranslatableError("Could not find user in room"));
                         }
                         const powerLevelEvent = room.currentState.getStateEvents("m.room.power_levels", "");
@@ -918,9 +924,12 @@ export const Commands = [
         description: _td("Deops user with given id"),
         isEnabled(): boolean {
             const cli = MatrixClientPeg.get();
-            const room = cli.getRoom(SdkContextClass.instance.roomViewStore.getRoomId());
+            const roomId = SdkContextClass.instance.roomViewStore.getRoomId();
+            if (!roomId) return false;
+            const room = cli.getRoom(roomId);
             return (
-                room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId()) && !isLocalRoom(room)
+                !!room?.currentState.maySendStateEvent(EventType.RoomPowerLevels, cli.getUserId()!) &&
+                !isLocalRoom(room)
             );
         },
         runFn: function (roomId, args) {
@@ -936,7 +945,7 @@ export const Commands = [
                     }
 
                     const powerLevelEvent = room.currentState.getStateEvents("m.room.power_levels", "");
-                    if (!powerLevelEvent.getContent().users[args]) {
+                    if (!powerLevelEvent?.getContent().users[args]) {
                         return reject(newTranslatableError("Could not find user in room"));
                     }
                     return success(cli.setPowerLevel(roomId, args, undefined, powerLevelEvent));
@@ -974,11 +983,12 @@ export const Commands = [
                 // We use parse5, which doesn't render/create a DOM node. It instead runs
                 // some superfast regex over the text so we don't have to.
                 const embed = parseHtml(widgetUrl);
-                if (embed && embed.childNodes && embed.childNodes.length === 1) {
+                if (embed?.childNodes?.length === 1) {
                     const iframe = embed.childNodes[0] as ChildElement;
                     if (iframe.tagName.toLowerCase() === "iframe" && iframe.attrs) {
                         const srcAttr = iframe.attrs.find((a) => a.name === "src");
                         logger.log("Pulling URL out of iframe (embed code)");
+                        if (!srcAttr) return reject(newTranslatableError("iframe has no src attribute"));
                         widgetUrl = srcAttr.value;
                     }
                 }
@@ -1028,7 +1038,7 @@ export const Commands = [
                     const fingerprint = matches[3];
 
                     return success(
-                        (async () => {
+                        (async (): Promise<void> => {
                             const device = cli.getStoredDevice(userId, deviceId);
                             if (!device) {
                                 throw newTranslatableError("Unknown (user, session) pair: (%(userId)s, %(deviceId)s)", {
@@ -1043,7 +1053,7 @@ export const Commands = [
                                     throw newTranslatableError("Session already verified!");
                                 } else {
                                     throw newTranslatableError(
-                                        "WARNING: Session already verified, but keys do NOT MATCH!",
+                                        "WARNING: session already verified, but keys do NOT MATCH!",
                                     );
                                 }
                             }
@@ -1117,9 +1127,9 @@ export const Commands = [
                 MatrixClientPeg.get().forceDiscardSession(roomId);
 
                 return success(
-                    room.getEncryptionTargetMembers().then((members) => {
+                    room?.getEncryptionTargetMembers().then((members) => {
                         // noinspection JSIgnoredPromiseFromCall
-                        MatrixClientPeg.get().crypto.ensureOlmSessionsForUsers(
+                        MatrixClientPeg.get().crypto?.ensureOlmSessionsForUsers(
                             members.map((m) => m.userId),
                             true,
                         );
@@ -1171,7 +1181,7 @@ export const Commands = [
                 return reject(this.getUsage());
             }
 
-            const member = MatrixClientPeg.get().getRoom(roomId).getMember(userId);
+            const member = MatrixClientPeg.get().getRoom(roomId)?.getMember(userId);
             dis.dispatch<ViewUserPayload>({
                 action: Action.ViewUser,
                 // XXX: We should be using a real member object and not assuming what the receiver wants.
@@ -1201,11 +1211,11 @@ export const Commands = [
         description: _td("Switches to this room's virtual room, if it has one"),
         category: CommandCategories.advanced,
         isEnabled(): boolean {
-            return LegacyCallHandler.instance.getSupportsVirtualRooms() && !isCurrentLocalRoom();
+            return !!LegacyCallHandler.instance.getSupportsVirtualRooms() && !isCurrentLocalRoom();
         },
         runFn: (roomId) => {
             return success(
-                (async () => {
+                (async (): Promise<void> => {
                     const room = await VoipUserMapper.sharedInstance().getVirtualRoomForRoom(roomId);
                     if (!room) throw newTranslatableError("No virtual room for this room");
                     dis.dispatch<ViewRoomPayload>({
@@ -1231,7 +1241,7 @@ export const Commands = [
             }
 
             return success(
-                (async () => {
+                (async (): Promise<void> => {
                     if (isPhoneNumber) {
                         const results = await LegacyCallHandler.instance.pstnLookup(userId);
                         if (!results || results.length === 0 || !results[0].userid) {
@@ -1241,6 +1251,7 @@ export const Commands = [
                     }
 
                     const roomId = await ensureDMExists(MatrixClientPeg.get(), userId);
+                    if (!roomId) throw new Error("Failed to ensure DM exists");
 
                     dis.dispatch<ViewRoomPayload>({
                         action: Action.ViewRoom,
@@ -1265,9 +1276,11 @@ export const Commands = [
                     const [userId, msg] = matches.slice(1);
                     if (userId && userId.startsWith("@") && userId.includes(":")) {
                         return success(
-                            (async () => {
+                            (async (): Promise<void> => {
                                 const cli = MatrixClientPeg.get();
                                 const roomId = await ensureDMExists(cli, userId);
+                                if (!roomId) throw new Error("Failed to ensure DM exists");
+
                                 dis.dispatch<ViewRoomPayload>({
                                     action: Action.ViewRoom,
                                     room_id: roomId,
@@ -1324,6 +1337,7 @@ export const Commands = [
         isEnabled: () => !isCurrentLocalRoom(),
         runFn: function (roomId, args) {
             const room = MatrixClientPeg.get().getRoom(roomId);
+            if (!room) return reject(newTranslatableError("Could not find room"));
             return success(guessAndSetDMRoom(room, true));
         },
         renderingTypes: [TimelineRenderingType.Room],
@@ -1335,6 +1349,7 @@ export const Commands = [
         isEnabled: () => !isCurrentLocalRoom(),
         runFn: function (roomId, args) {
             const room = MatrixClientPeg.get().getRoom(roomId);
+            if (!room) return reject(newTranslatableError("Could not find room"));
             return success(guessAndSetDMRoom(room, false));
         },
         renderingTypes: [TimelineRenderingType.Room],
@@ -1391,7 +1406,7 @@ export function parseCommandString(input: string): { cmd?: string; args?: string
 
     const bits = input.match(/^(\S+?)(?:[ \n]+((.|\n)*))?$/);
     let cmd: string;
-    let args: string;
+    let args: string | undefined;
     if (bits) {
         cmd = bits[1].substring(1).toLowerCase();
         args = bits[2];
@@ -1416,7 +1431,7 @@ interface ICmd {
 export function getCommand(input: string): ICmd {
     const { cmd, args } = parseCommandString(input);
 
-    if (CommandMap.has(cmd) && CommandMap.get(cmd).isEnabled()) {
+    if (cmd && CommandMap.has(cmd) && CommandMap.get(cmd)!.isEnabled()) {
         return {
             cmd: CommandMap.get(cmd),
             args,

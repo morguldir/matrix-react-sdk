@@ -31,7 +31,7 @@ export function avatarUrlForMember(
     height: number,
     resizeMethod: ResizeMethod,
 ): string {
-    let url: string;
+    let url: string | null | undefined;
     if (member?.getMxcAvatarUrl()) {
         url = mediaFromMxc(member.getMxcAvatarUrl()).getThumbnailOfSourceHttp(width, height, resizeMethod);
     }
@@ -118,7 +118,7 @@ export function defaultAvatarUrlForString(s: string): string {
  * @param {string} name
  * @return {string} the first letter
  */
-export function getInitialLetter(name: string): string {
+export function getInitialLetter(name: string): string | undefined {
     if (!name) {
         // XXX: We should find out what causes the name to sometimes be falsy.
         console.trace("`name` argument to `getInitialLetter` not supplied");
@@ -137,11 +137,20 @@ export function getInitialLetter(name: string): string {
     return split(name, "", 1)[0].toUpperCase();
 }
 
-export function avatarUrlForRoom(room: Room, width: number, height: number, resizeMethod?: ResizeMethod) {
+export function avatarUrlForRoom(
+    room: Room | null,
+    width?: number,
+    height?: number,
+    resizeMethod?: ResizeMethod,
+): string | null {
     if (!room) return null; // null-guard
 
     if (room.getMxcAvatarUrl()) {
-        return mediaFromMxc(room.getMxcAvatarUrl()).getThumbnailOfSourceHttp(width, height, resizeMethod);
+        const media = mediaFromMxc(room.getMxcAvatarUrl() ?? undefined);
+        if (width !== undefined && height !== undefined) {
+            return media.getThumbnailOfSourceHttp(width, height, resizeMethod);
+        }
+        return media.srcHttp;
     }
 
     // space rooms cannot be DMs so skip the rest
@@ -155,7 +164,11 @@ export function avatarUrlForRoom(room: Room, width: number, height: number, resi
     // If there are only two members in the DM use the avatar of the other member
     const otherMember = room.getAvatarFallbackMember();
     if (otherMember?.getMxcAvatarUrl()) {
-        return mediaFromMxc(otherMember.getMxcAvatarUrl()).getThumbnailOfSourceHttp(width, height, resizeMethod);
+        const media = mediaFromMxc(otherMember.getMxcAvatarUrl());
+        if (width !== undefined && height !== undefined) {
+            return media.getThumbnailOfSourceHttp(width, height, resizeMethod);
+        }
+        return media.srcHttp;
     }
     return null;
 }

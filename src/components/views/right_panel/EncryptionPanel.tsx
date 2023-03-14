@@ -41,7 +41,7 @@ const MISMATCHES = ["m.key_mismatch", "m.user_error", "m.mismatched_sas"];
 interface IProps {
     member: RoomMember | User;
     onClose: () => void;
-    verificationRequest: VerificationRequest;
+    verificationRequest?: VerificationRequest;
     verificationRequestPromise?: Promise<VerificationRequest>;
     layout: string;
     isRoomEncrypted: boolean;
@@ -63,7 +63,7 @@ const EncryptionPanel: React.FC<IProps> = (props: IProps) => {
     }, [verificationRequest]);
 
     useEffect(() => {
-        async function awaitPromise() {
+        async function awaitPromise(): Promise<void> {
             setRequesting(true);
             const requestFromPromise = await verificationRequestPromise;
             setRequesting(false);
@@ -103,7 +103,7 @@ const EncryptionPanel: React.FC<IProps> = (props: IProps) => {
 
     useTypedEventEmitter(request, VerificationRequestEvent.Change, changeHandler);
 
-    const onStartVerification = useCallback(async () => {
+    const onStartVerification = useCallback(async (): Promise<void> => {
         setRequesting(true);
         const cli = MatrixClientPeg.get();
         let verificationRequest_: VerificationRequest;

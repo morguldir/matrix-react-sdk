@@ -92,7 +92,7 @@ export default abstract class Exporter {
 
     protected async downloadZIP(): Promise<string | void> {
         const filename = this.destinationFileName;
-        const filenameWithoutExt = filename.substring(0, filename.length - 4); // take off the .zip
+        const filenameWithoutExt = filename.substring(0, filename.lastIndexOf(".")); // take off the extension
         const { default: JSZip } = await import("jszip");
 
         const zip = new JSZip();
@@ -103,8 +103,7 @@ export default abstract class Exporter {
         for (const file of this.files) zip.file(filenameWithoutExt + "/" + file.name, file.blob);
 
         const content = await zip.generateAsync({ type: "blob" });
-
-        saveAs(content, filename);
+        saveAs(content, filenameWithoutExt + ".zip");
     }
 
     protected cleanUp(): string {
@@ -118,7 +117,7 @@ export default abstract class Exporter {
         this.cancelled = true;
     }
 
-    protected downloadPlainText(fileName: string, text: string) {
+    protected downloadPlainText(fileName: string, text: string): void {
         const content = new Blob([text], { type: "text/plain" });
         saveAs(content, fileName);
     }
@@ -277,14 +276,14 @@ export default abstract class Exporter {
     protected isReply(event: MatrixEvent): boolean {
         const isEncrypted = event.isEncrypted();
         // If encrypted, in_reply_to lies in event.event.content
-        const content = isEncrypted ? event.event.content : event.getContent();
+        const content = isEncrypted ? event.event.content! : event.getContent();
         const relatesTo = content["m.relates_to"];
         return !!(relatesTo && relatesTo["m.in_reply_to"]);
     }
 
     protected isAttachment(mxEv: MatrixEvent): boolean {
         const attachmentTypes = ["m.sticker", "m.image", "m.file", "m.video", "m.audio"];
-        return mxEv.getType() === attachmentTypes[0] || attachmentTypes.includes(mxEv.getContent().msgtype);
+        return mxEv.getType() === attachmentTypes[0] || attachmentTypes.includes(mxEv.getContent().msgtype!);
     }
 
     public abstract export(): Promise<void>;

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { ReactNode } from "react";
 import { sleep } from "matrix-js-sdk/src/utils";
 import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
 import { logger } from "matrix-js-sdk/src/logger";
@@ -53,7 +53,7 @@ export class IgnoredUser extends React.Component<IIgnoredUserProps> {
         this.props.onUnignored(this.props.userId);
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         const id = `mx_SecurityUserSettingsTab_ignoredUser_${this.props.userId}`;
         return (
             <div className="mx_SecurityUserSettingsTab_ignoredUser">
@@ -102,7 +102,7 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
         };
     }
 
-    private onAction = ({ action }: ActionPayload) => {
+    private onAction = ({ action }: ActionPayload): void => {
         if (action === "ignore_state_changed") {
             const ignoredUserIds = MatrixClientPeg.get().getIgnoredUsers();
             const newWaitingUnignored = this.state.waitingUnignored.filter((e) => ignoredUserIds.includes(e));
@@ -169,7 +169,7 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
         return MatrixClientPeg.get()
             .getRooms()
             .filter((r) => {
-                return r.hasMembershipState(MatrixClientPeg.get().getUserId(), "invite");
+                return r.hasMembershipState(MatrixClientPeg.get().getUserId()!, "invite");
             });
     };
 
@@ -193,7 +193,7 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
                     // No error, update invited rooms button
                     this.removeInvitedRoom(roomId);
                 },
-                async (e) => {
+                async (e): Promise<void> => {
                     // Action failure
                     if (e.errcode === "M_LIMIT_EXCEEDED") {
                         // Add a delay between each invite change in order to avoid rate
@@ -247,7 +247,7 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
         );
     }
 
-    private renderManageInvites(): JSX.Element {
+    private renderManageInvites(): ReactNode {
         const { invitedRoomIds } = this.state;
 
         if (invitedRoomIds.size === 0) {
@@ -284,7 +284,7 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
         this.setState({ showLoginWithQR: null });
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         const secureBackup = (
             <div className="mx_SettingsTab_section">
                 <span className="mx_SettingsTab_subheading">{_t("Secure Backup")}</span>
@@ -328,7 +328,7 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
 
         let privacySection;
         if (PosthogAnalytics.instance.isEnabled()) {
-            const onClickAnalyticsLearnMore = () => {
+            const onClickAnalyticsLearnMore = (): void => {
                 showAnalyticsLearnMoreDialog({
                     primaryButton: _t("Okay"),
                     hasCancel: false,
@@ -353,8 +353,6 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
                         {PosthogAnalytics.instance.isEnabled() && (
                             <SettingsFlag name="pseudonymousAnalyticsOptIn" level={SettingLevel.ACCOUNT} />
                         )}
-                    </div>
-                    <div className="mx_SettingsTab_section">
                         <span className="mx_SettingsTab_subheading">{_t("Sessions")}</span>
                         <SettingsFlag name="deviceClientInformationOptIn" level={SettingLevel.ACCOUNT} />
                     </div>
@@ -383,7 +381,6 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
         }
 
         const useNewSessionManager = SettingsStore.getValue("feature_new_device_manager");
-        const showQrCodeEnabled = SettingsStore.getValue("feature_qr_signin_reciprocate_show");
         const devicesSection = useNewSessionManager ? null : (
             <>
                 <div className="mx_SettingsTab_heading">{_t("Where you're signed in")}</div>
@@ -396,15 +393,13 @@ export default class SecurityUserSettingsTab extends React.Component<IProps, ISt
                     </span>
                     <DevicesPanel />
                 </div>
-                {showQrCodeEnabled ? (
-                    <LoginWithQRSection onShowQr={this.onShowQRClicked} versions={this.state.versions} />
-                ) : null}
+                <LoginWithQRSection onShowQr={this.onShowQRClicked} versions={this.state.versions} />
             </>
         );
 
         const client = MatrixClientPeg.get();
 
-        if (showQrCodeEnabled && this.state.showLoginWithQR) {
+        if (this.state.showLoginWithQR) {
             return (
                 <div className="mx_SettingsTab mx_SecurityUserSettingsTab">
                     <LoginWithQR

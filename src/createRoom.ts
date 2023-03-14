@@ -29,7 +29,7 @@ import {
 import { logger } from "matrix-js-sdk/src/logger";
 
 import { MatrixClientPeg } from "./MatrixClientPeg";
-import Modal from "./Modal";
+import Modal, { IHandle } from "./Modal";
 import { _t } from "./languageHandler";
 import dis from "./dispatcher/dispatcher";
 import * as Rooms from "./Rooms";
@@ -267,8 +267,8 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
         });
     }
 
-    let modal;
-    if (opts.spinner) modal = Modal.createDialog(Spinner, null, "mx_Dialog_spinner");
+    let modal: IHandle<any> | undefined;
+    if (opts.spinner) modal = Modal.createDialog(Spinner, undefined, "mx_Dialog_spinner");
 
     let roomId: string;
     let room: Promise<Room>;
@@ -294,7 +294,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
         .finally(function () {
             if (modal) modal.close();
         })
-        .then(async (res) => {
+        .then(async (res): Promise<void> => {
             roomId = res.room_id;
 
             room = new Promise((resolve) => {
@@ -303,7 +303,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
                     resolve(storedRoom);
                 } else {
                     // The room hasn't arrived down sync yet
-                    const onRoom = (emittedRoom: Room) => {
+                    const onRoom = (emittedRoom: Room): void => {
                         if (emittedRoom.roomId === roomId) {
                             resolve(emittedRoom);
                             client.off(ClientEvent.Room, onRoom);
@@ -325,7 +325,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
                 );
             }
         })
-        .then(async () => {
+        .then(async (): Promise<void> => {
             if (opts.roomType === RoomType.ElementVideo) {
                 // Set up this video room with a Jitsi call
                 await JitsiCall.create(await room);
@@ -395,7 +395,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
  * Ensure that for every user in a room, there is at least one device that we
  * can encrypt to.
  */
-export async function canEncryptToAllUsers(client: MatrixClient, userIds: string[]) {
+export async function canEncryptToAllUsers(client: MatrixClient, userIds: string[]): Promise<boolean> {
     try {
         const usersDeviceMap = await client.downloadKeys(userIds);
         // { "@user:host": { "DEVICE": {...}, ... }, ... }
@@ -417,9 +417,9 @@ export async function ensureVirtualRoomExists(
     client: MatrixClient,
     userId: string,
     nativeRoomId: string,
-): Promise<string> {
+): Promise<string | null> {
     const existingDMRoom = findDMForUser(client, userId);
-    let roomId;
+    let roomId: string | null;
     if (existingDMRoom) {
         roomId = existingDMRoom.roomId;
     } else {
@@ -440,18 +440,19 @@ export async function ensureVirtualRoomExists(
     return roomId;
 }
 
-export async function ensureDMExists(client: MatrixClient, userId: string): Promise<string> {
+export async function ensureDMExists(client: MatrixClient, userId: string): Promise<string | null> {
     const existingDMRoom = findDMForUser(client, userId);
-    let roomId;
+    let roomId: string | null;
     if (existingDMRoom) {
         roomId = existingDMRoom.roomId;
     } else {
-        let encryption: boolean = undefined;
+        let encryption: boolean | undefined;
         if (privateShouldBeEncrypted()) {
             encryption = await canEncryptToAllUsers(client, [userId]);
         }
 
         roomId = await createRoom({ encryption, dmUserId: userId, spinner: false, andView: false });
+        if (!roomId) return null;
         await waitForMember(client, roomId, userId);
     }
     return roomId;

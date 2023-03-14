@@ -26,16 +26,12 @@ export interface ICollapseConfig extends IConfig {
 }
 
 class CollapseItem extends ResizeItem<ICollapseConfig> {
-    public notifyCollapsed(collapsed: boolean) {
-        const callback = this.resizer.config.onCollapsed;
-        if (callback) {
-            callback(collapsed, this.id, this.domNode);
-        }
+    public notifyCollapsed(collapsed: boolean): void {
+        this.resizer.config?.onCollapsed?.(collapsed, this.id, this.domNode);
     }
 
-    public get isCollapsed() {
-        const isItemCollapsed = this.resizer.config.isItemCollapsed;
-        return isItemCollapsed(this.domNode);
+    public get isCollapsed(): boolean {
+        return this.resizer.config?.isItemCollapsed?.(this.domNode) ?? false;
     }
 }
 
@@ -58,7 +54,7 @@ export default class CollapseDistributor extends FixedDistributor<ICollapseConfi
         this.isCollapsed = item.isCollapsed;
     }
 
-    public resize(newSize: number) {
+    public resize(newSize: number): void {
         const isCollapsedSize = newSize < this.toggleSize;
         if (isCollapsedSize !== this.isCollapsed) {
             this.isCollapsed = isCollapsedSize;

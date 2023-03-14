@@ -15,8 +15,9 @@ limitations under the License.
 */
 
 import React, { ChangeEvent, ContextType, createRef, SyntheticEvent } from "react";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
+import { IContent, MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { logger } from "matrix-js-sdk/src/logger";
+import { EventType } from "matrix-js-sdk/src/@types/event";
 
 import EditableItemList from "../elements/EditableItemList";
 import { _t } from "../../../languageHandler";
@@ -38,7 +39,7 @@ interface IEditableAliasesListProps {
 class EditableAliasesList extends EditableItemList<IEditableAliasesListProps> {
     private aliasField = createRef<RoomAliasField>();
 
-    private onAliasAdded = async (ev: SyntheticEvent) => {
+    private onAliasAdded = async (ev: SyntheticEvent): Promise<void> => {
         ev.preventDefault();
         await this.aliasField.current.validate({ allowEmpty: false });
 
@@ -51,8 +52,8 @@ class EditableAliasesList extends EditableItemList<IEditableAliasesListProps> {
         this.aliasField.current.validate({ allowEmpty: false, focused: true });
     };
 
-    protected renderNewItemField() {
-        const onChange = (alias: string) => this.onNewItemChanged({ target: { value: alias } });
+    protected renderNewItemField(): JSX.Element {
+        const onChange = (alias: string): void => this.props.onNewItemChanged?.(alias);
         return (
             <form
                 onSubmit={this.onAliasAdded}
@@ -103,10 +104,10 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         canSetCanonicalAlias: false,
     };
 
-    public constructor(props, context: ContextType<typeof MatrixClientContext>) {
+    public constructor(props: IProps, context: ContextType<typeof MatrixClientContext>) {
         super(props, context);
 
-        const state = {
+        const state: IState = {
             altAliases: [], // [ #alias:domain.tld, ... ]
             localAliases: [], // [ #alias:my-hs.tld, ... ]
             canonicalAlias: null, // #canonical:domain.tld
@@ -127,7 +128,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         this.state = state;
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         if (this.props.canSetCanonicalAlias) {
             // load local aliases for providing recommendations
             // for the canonical alias and alt_aliases
@@ -135,12 +136,12 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         }
     }
 
-    private async loadLocalAliases() {
+    private async loadLocalAliases(): Promise<void> {
         this.setState({ localAliasesLoading: true });
         try {
             const mxClient = this.context;
 
-            let localAliases = [];
+            let localAliases: string[] = [];
             const response = await mxClient.getLocalAliases(this.props.roomId);
             if (Array.isArray(response?.aliases)) {
                 localAliases = response.aliases;
@@ -155,7 +156,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         }
     }
 
-    private changeCanonicalAlias(alias: string) {
+    private changeCanonicalAlias(alias: string): void {
         if (!this.props.canSetCanonicalAlias) return;
 
         const oldAlias = this.state.canonicalAlias;
@@ -164,14 +165,14 @@ export default class AliasSettings extends React.Component<IProps, IState> {
             updatingCanonicalAlias: true,
         });
 
-        const eventContent = {
+        const eventContent: IContent = {
             alt_aliases: this.state.altAliases,
         };
 
         if (alias) eventContent["alias"] = alias;
 
         this.context
-            .sendStateEvent(this.props.roomId, "m.room.canonical_alias", eventContent, "")
+            .sendStateEvent(this.props.roomId, EventType.RoomCanonicalAlias, eventContent, "")
             .catch((err) => {
                 logger.error(err);
                 Modal.createDialog(ErrorDialog, {
@@ -188,14 +189,14 @@ export default class AliasSettings extends React.Component<IProps, IState> {
             });
     }
 
-    private changeAltAliases(altAliases: string[]) {
+    private changeAltAliases(altAliases: string[]): void {
         if (!this.props.canSetCanonicalAlias) return;
 
         this.setState({
             updatingCanonicalAlias: true,
         });
 
-        const eventContent = {};
+        const eventContent: IContent = {};
 
         if (this.state.canonicalAlias) {
             eventContent["alias"] = this.state.canonicalAlias;
@@ -205,7 +206,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         }
 
         this.context
-            .sendStateEvent(this.props.roomId, "m.room.canonical_alias", eventContent, "")
+            .sendStateEvent(this.props.roomId, EventType.RoomCanonicalAlias, eventContent, "")
             .then(() => {
                 this.setState({
                     altAliases,
@@ -227,11 +228,11 @@ export default class AliasSettings extends React.Component<IProps, IState> {
             });
     }
 
-    private onNewAliasChanged = (value: string) => {
+    private onNewAliasChanged = (value: string): void => {
         this.setState({ newAlias: value });
     };
 
-    private onLocalAliasAdded = (alias: string) => {
+    private onLocalAliasAdded = (alias: string): void => {
         if (!alias || alias.length === 0) return; // ignore attempts to create blank aliases
 
         const localDomain = this.context.getDomain();
@@ -260,7 +261,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
             });
     };
 
-    private onLocalAliasDeleted = (index: number) => {
+    private onLocalAliasDeleted = (index: number): void => {
         const alias = this.state.localAliases[index];
         // TODO: In future, we should probably be making sure that the alias actually belongs
         // to this room. See https://github.com/vector-im/element-web/issues/7353
@@ -292,7 +293,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
             });
     };
 
-    private onLocalAliasesToggled = (event: ChangeEvent<HTMLDetailsElement>) => {
+    private onLocalAliasesToggled = (event: ChangeEvent<HTMLDetailsElement>): void => {
         // expanded
         if (event.target.open) {
             // if local aliases haven't been preloaded yet at component mount
@@ -303,15 +304,15 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         this.setState({ detailsOpen: event.currentTarget.open });
     };
 
-    private onCanonicalAliasChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    private onCanonicalAliasChange = (event: ChangeEvent<HTMLSelectElement>): void => {
         this.changeCanonicalAlias(event.target.value);
     };
 
-    private onNewAltAliasChanged = (value: string) => {
+    private onNewAltAliasChanged = (value: string): void => {
         this.setState({ newAltAlias: value });
     };
 
-    private onAltAliasAdded = (alias: string) => {
+    private onAltAliasAdded = (alias: string): void => {
         const altAliases = this.state.altAliases.slice();
         if (!altAliases.some((a) => a.trim() === alias.trim())) {
             altAliases.push(alias.trim());
@@ -320,22 +321,22 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         }
     };
 
-    private onAltAliasDeleted = (index: number) => {
+    private onAltAliasDeleted = (index: number): void => {
         const altAliases = this.state.altAliases.slice();
         altAliases.splice(index, 1);
         this.changeAltAliases(altAliases);
     };
 
-    private getAliases() {
+    private getAliases(): string[] {
         return this.state.altAliases.concat(this.getLocalNonAltAliases());
     }
 
-    private getLocalNonAltAliases() {
+    private getLocalNonAltAliases(): string[] {
         const { altAliases } = this.state;
         return this.state.localAliases.filter((alias) => !altAliases.includes(alias));
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const mxClient = this.context;
         const localDomain = mxClient.getDomain();
         const isSpaceRoom = mxClient.getRoom(this.props.roomId)?.isSpaceRoom();
@@ -398,7 +399,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
         return (
             <div className="mx_AliasSettings">
                 <SettingsFieldset
-                    data-test-id="published-address-fieldset"
+                    data-testid="published-address-fieldset"
                     legend={_t("Published Addresses")}
                     description={
                         <>
@@ -449,7 +450,7 @@ export default class AliasSettings extends React.Component<IProps, IState> {
                     />
                 </SettingsFieldset>
                 <SettingsFieldset
-                    data-test-id="local-address-fieldset"
+                    data-testid="local-address-fieldset"
                     legend={_t("Local Addresses")}
                     description={
                         isSpaceRoom

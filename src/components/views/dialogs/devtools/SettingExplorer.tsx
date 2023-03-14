@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useContext, useMemo, useState } from "react";
+import React, { ChangeEvent, useContext, useMemo, useState } from "react";
 import { logger } from "matrix-js-sdk/src/logger";
 
 import { _t } from "../../../../languageHandler";
@@ -26,28 +26,28 @@ import { SettingLevel } from "../../../../settings/SettingLevel";
 import { SETTINGS } from "../../../../settings/Settings";
 import Field from "../../elements/Field";
 
-const SettingExplorer = ({ onBack }: IDevtoolsProps) => {
+const SettingExplorer: React.FC<IDevtoolsProps> = ({ onBack }) => {
     const [setting, setSetting] = useState<string>(null);
     const [editing, setEditing] = useState(false);
 
     if (setting && editing) {
-        const onBack = () => {
+        const onBack = (): void => {
             setEditing(false);
         };
         return <EditSetting setting={setting} onBack={onBack} />;
     } else if (setting) {
-        const onBack = () => {
+        const onBack = (): void => {
             setSetting(null);
         };
-        const onEdit = async () => {
+        const onEdit = async (): Promise<void> => {
             setEditing(true);
         };
         return <ViewSetting setting={setting} onBack={onBack} onEdit={onEdit} />;
     } else {
-        const onView = (setting: string) => {
+        const onView = (setting: string): void => {
             setSetting(setting);
         };
-        const onEdit = (setting: string) => {
+        const onEdit = (setting: string): void => {
             setSetting(setting);
             setEditing(true);
         };
@@ -63,8 +63,8 @@ interface ICanEditLevelFieldProps {
     roomId?: string;
 }
 
-const CanEditLevelField = ({ setting, roomId, level }: ICanEditLevelFieldProps) => {
-    const canEdit = SettingsStore.canSetValue(setting, roomId, level);
+const CanEditLevelField: React.FC<ICanEditLevelFieldProps> = ({ setting, roomId, level }) => {
+    const canEdit = SettingsStore.canSetValue(setting, roomId ?? null, level);
     const className = canEdit ? "mx_DevTools_SettingsExplorer_mutable" : "mx_DevTools_SettingsExplorer_immutable";
     return (
         <td className={className}>
@@ -74,7 +74,7 @@ const CanEditLevelField = ({ setting, roomId, level }: ICanEditLevelFieldProps) 
 };
 
 function renderExplicitSettingValues(setting: string, roomId: string): string {
-    const vals = {};
+    const vals: Record<string, number | null> = {};
     for (const level of LEVEL_ORDER) {
         try {
             vals[level] = SettingsStore.getValueAt(level, setting, roomId, true, true);
@@ -92,14 +92,14 @@ interface IEditSettingProps extends Pick<IDevtoolsProps, "onBack"> {
     setting: string;
 }
 
-const EditSetting = ({ setting, onBack }: IEditSettingProps) => {
+const EditSetting: React.FC<IEditSettingProps> = ({ setting, onBack }) => {
     const context = useContext(DevtoolsContext);
     const [explicitValue, setExplicitValue] = useState(renderExplicitSettingValues(setting, null));
     const [explicitRoomValue, setExplicitRoomValue] = useState(
         renderExplicitSettingValues(setting, context.room.roomId),
     );
 
-    const onSave = async () => {
+    const onSave = async (): Promise<string> => {
         try {
             const parsedExplicit = JSON.parse(explicitValue);
             const parsedExplicitRoom = JSON.parse(explicitRoomValue);
@@ -203,7 +203,7 @@ interface IViewSettingProps extends Pick<IDevtoolsProps, "onBack"> {
     onEdit(): Promise<void>;
 }
 
-const ViewSetting = ({ setting, onEdit, onBack }: IViewSettingProps) => {
+const ViewSetting: React.FC<IViewSettingProps> = ({ setting, onEdit, onBack }) => {
     const context = useContext(DevtoolsContext);
 
     return (
@@ -261,7 +261,7 @@ interface ISettingsListProps extends Pick<IDevtoolsProps, "onBack"> {
     onEdit(setting: string): void;
 }
 
-const SettingsList = ({ onBack, onView, onEdit }: ISettingsListProps) => {
+const SettingsList: React.FC<ISettingsListProps> = ({ onBack, onView, onEdit }) => {
     const context = useContext(DevtoolsContext);
     const [query, setQuery] = useState("");
 
@@ -283,7 +283,7 @@ const SettingsList = ({ onBack, onView, onEdit }: ISettingsListProps) => {
                 type="text"
                 autoComplete="off"
                 value={query}
-                onChange={(ev) => setQuery(ev.target.value)}
+                onChange={(ev: ChangeEvent<HTMLInputElement>) => setQuery(ev.target.value)}
                 className="mx_TextInputDialog_input mx_DevTools_RoomStateExplorer_query"
             />
             <table>

@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// @ts-ignore
 import Recorder from "opus-recorder/dist/recorder.min.js";
 import encoderPath from "opus-recorder/dist/encoderWorker.min.js";
 import { SimpleObservable } from "matrix-widget-api";
@@ -78,7 +77,7 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
     private targetMaxLength: number | null = TARGET_MAX_LENGTH;
     public amplitudes: number[] = []; // at each second mark, generated
     private liveWaveform = new FixedRollingArray(RECORDING_PLAYBACK_SAMPLES, 0);
-    public onDataAvailable: (data: ArrayBuffer) => void;
+    public onDataAvailable?: (data: ArrayBuffer) => void;
 
     public get contentType(): string {
         return "audio/ogg";
@@ -110,7 +109,7 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
         return !MediaDeviceHandler.getAudioNoiseSuppression();
     }
 
-    private async makeRecorder() {
+    private async makeRecorder(): Promise<void> {
         try {
             this.recorderStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -182,7 +181,7 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
             });
 
             // not using EventEmitter here because it leads to detached bufferes
-            this.recorder.ondataavailable = (data: ArrayBuffer) => this?.onDataAvailable(data);
+            this.recorder.ondataavailable = (data: ArrayBuffer) => this.onDataAvailable?.(data);
         } catch (e) {
             logger.error("Error starting recording: ", e);
             if (e instanceof DOMException) {
@@ -212,14 +211,14 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
         return !!Recorder.isRecordingSupported();
     }
 
-    private onAudioProcess = (ev: AudioProcessingEvent) => {
+    private onAudioProcess = (ev: AudioProcessingEvent): void => {
         this.processAudioUpdate(ev.playbackTime);
 
         // We skip the functionality of the worklet regarding waveform calculations: we
         // should get that information pretty quick during the playback info.
     };
 
-    private processAudioUpdate = (timeSeconds: number) => {
+    private processAudioUpdate = (timeSeconds: number): void => {
         if (!this.recording) return;
 
         this.observable.update({
@@ -260,7 +259,7 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
     /**
      * {@link https://github.com/chris-rudmin/opus-recorder#instance-fields ref for recorderSeconds}
      */
-    public get recorderSeconds() {
+    public get recorderSeconds(): number {
         return this.recorder.encodedSamplePosition / 48000;
     }
 
@@ -279,7 +278,7 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
     }
 
     public async stop(): Promise<void> {
-        return Singleflight.for(this, "stop").do(async () => {
+        return Singleflight.for(this, "stop").do(async (): Promise<void> => {
             if (!this.recording) {
                 throw new Error("No recording to stop");
             }
@@ -307,7 +306,7 @@ export class VoiceRecording extends EventEmitter implements IDestroyable {
         });
     }
 
-    public destroy() {
+    public destroy(): void {
         // noinspection JSIgnoredPromiseFromCall - not concerned about stop() being called async here
         this.stop();
         this.removeAllListeners();

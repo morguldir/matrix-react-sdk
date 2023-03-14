@@ -14,9 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { MutableRefObject } from "react";
+import React, { MutableRefObject, ReactNode } from "react";
 import ReactDOM from "react-dom";
-import { throttle } from "lodash";
 import { isNullOrUndefined } from "matrix-js-sdk/src/utils";
 
 import dis from "../../../dispatcher/dispatcher";
@@ -24,7 +23,7 @@ import MatrixClientContext from "../../../contexts/MatrixClientContext";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { ActionPayload } from "../../../dispatcher/payloads";
 
-export const getPersistKey = (appId: string) => "widget_" + appId;
+export const getPersistKey = (appId: string): string => "widget_" + appId;
 
 // Shamelessly ripped off Modal.js.  There's probably a better way
 // of doing reusable widgets like dialog boxes & menus where we go and
@@ -58,7 +57,8 @@ interface IProps {
     style?: React.StyleHTMLAttributes<HTMLDivElement>;
 
     // Handle to manually notify this PersistedElement that it needs to move
-    moveRef?: MutableRefObject<() => void>;
+    moveRef?: MutableRefObject<(() => void) | undefined>;
+    children: ReactNode;
 }
 
 /**
@@ -107,7 +107,7 @@ export default class PersistedElement extends React.Component<IProps> {
         }
     }
 
-    public static isMounted(persistKey) {
+    public static isMounted(persistKey: string): boolean {
         return Boolean(getContainer("mx_persistedElement_" + persistKey));
     }
 
@@ -177,26 +177,22 @@ export default class PersistedElement extends React.Component<IProps> {
         child.style.display = visible ? "block" : "none";
     }
 
-    private updateChildPosition = throttle(
-        (child: HTMLDivElement, parent: HTMLDivElement): void => {
-            if (!child || !parent) return;
+    private updateChildPosition(child: HTMLDivElement, parent: HTMLDivElement): void {
+        if (!child || !parent) return;
 
-            const parentRect = parent.getBoundingClientRect();
-            Object.assign(child.style, {
-                zIndex: isNullOrUndefined(this.props.zIndex) ? 9 : this.props.zIndex,
-                position: "absolute",
-                top: "0",
-                left: "0",
-                transform: `translateX(${parentRect.left}px) translateY(${parentRect.top}px)`,
-                width: parentRect.width + "px",
-                height: parentRect.height + "px",
-            });
-        },
-        16,
-        { trailing: true, leading: true },
-    );
+        const parentRect = parent.getBoundingClientRect();
+        Object.assign(child.style, {
+            zIndex: isNullOrUndefined(this.props.zIndex) ? 9 : this.props.zIndex,
+            position: "absolute",
+            top: "0",
+            left: "0",
+            transform: `translateX(${parentRect.left}px) translateY(${parentRect.top}px)`,
+            width: parentRect.width + "px",
+            height: parentRect.height + "px",
+        });
+    }
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         return <div ref={this.collectChildContainer} />;
     }
 }
