@@ -62,6 +62,21 @@ NodeList [
       Notifications
     </span>
   </div>,
+  <div
+    class="mx_AccessibleButton mx_TabbedView_tabLabel "
+    data-testid="settings-tab-ROOM_POLL_HISTORY_TAB"
+    role="button"
+    tabindex="0"
+  >
+    <span
+      class="mx_TabbedView_maskedIcon mx_RoomSettingsDialog_pollsIcon"
+    />
+    <span
+      class="mx_TabbedView_tabLabel_text"
+    >
+      Poll history
+    </span>
+  </div>,
 ]
 `;
 
@@ -75,7 +90,7 @@ exports[`<RoomSettingsDialog /> poll history displays poll history when tab clic
     <h2
       class="mx_Heading_h2 mx_PollHistory_header"
     >
-      Polls history
+      Poll history
     </h2>
     <div
       class="mx_PollHistoryList"

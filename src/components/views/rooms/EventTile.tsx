@@ -218,6 +218,10 @@ export interface EventTileProps {
     // displayed to the current user either because they're
     // the author or they are a moderator
     isSeeingThroughMessageHiddenForModeration?: boolean;
+
+    // The following properties are used by EventTilePreview to disable tab indexes within the event tile
+    hideTimestamp?: boolean;
+    inhibitInteraction?: boolean;
 }
 
 interface IState {
@@ -238,7 +242,7 @@ interface IState {
 
     isQuoteExpanded?: boolean;
 
-    thread: Thread;
+    thread: Thread | null;
     threadNotification?: NotificationCountType;
 }
 
@@ -438,12 +442,12 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         if (thread.id === this.props.mxEvent.getId()) {
             this.updateThread(thread);
             const room = MatrixClientPeg.get().getRoom(this.props.mxEvent.getRoomId());
-            room.off(ThreadEvent.New, this.onNewThread);
+            room?.off(ThreadEvent.New, this.onNewThread);
         }
     };
 
     private get thread(): Thread | null {
-        let thread = this.props.mxEvent.getThread();
+        let thread: Thread | undefined = this.props.mxEvent.getThread();
         /**
          * Accessing the threads value through the room due to a race condition
          * that will be solved when there are proper backend support for threads
@@ -452,7 +456,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
          */
         if (!thread) {
             const room = MatrixClientPeg.get().getRoom(this.props.mxEvent.getRoomId());
-            thread = room?.findThreadForEvent(this.props.mxEvent);
+            thread = room?.findThreadForEvent(this.props.mxEvent) ?? undefined;
         }
         return thread ?? null;
     }
@@ -471,7 +475,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
     }
 
     private renderThreadInfo(): React.ReactNode {
-        if (this.state.thread?.id === this.props.mxEvent.getId()) {
+        if (this.state.thread && this.state.thread.id === this.props.mxEvent.getId()) {
             return (
                 <ThreadSummary mxEvent={this.props.mxEvent} thread={this.state.thread} data-testid="thread-summary" />
             );
@@ -506,7 +510,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         evt.preventDefault();
         evt.stopPropagation();
         const { permalinkCreator, mxEvent } = this.props;
-        const matrixToUrl = permalinkCreator.forEvent(mxEvent.getId());
+        const matrixToUrl = permalinkCreator.forEvent(mxEvent.getId()!);
         await copyPlaintext(matrixToUrl);
     };
 
@@ -653,15 +657,26 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         return true;
     }
 
+    /**
+     * Determine whether an event should be highlighted
+     * For edited events, if a previous version of the event was highlighted
+     * the event should remain highlighted as the user may have been notified
+     * (Clearer explanation of why an event is highlighted is planned -
+     * https://github.com/vector-im/element-web/issues/24927)
+     * @returns boolean
+     */
     private shouldHighlight(): boolean {
         if (this.props.forExport) return false;
         if (this.context.timelineRenderingType === TimelineRenderingType.Notification) return false;
         if (this.context.timelineRenderingType === TimelineRenderingType.ThreadsList) return false;
 
-        const actions = MatrixClientPeg.get().getPushActionsForEvent(
-            this.props.mxEvent.replacingEvent() || this.props.mxEvent,
-        );
-        if (!actions || !actions.tweaks) {
+        const cli = MatrixClientPeg.get();
+        const actions = cli.getPushActionsForEvent(this.props.mxEvent.replacingEvent() || this.props.mxEvent);
+        // get the actions for the previous version of the event too if it is an edit
+        const previousActions = this.props.mxEvent.replacingEvent()
+            ? cli.getPushActionsForEvent(this.props.mxEvent)
+            : undefined;
+        if (!actions?.tweaks && !previousActions?.tweaks) {
             return false;
         }
 
@@ -670,13 +685,13 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             return false;
         }
 
-        return actions.tweaks.highlight;
+        return !!(actions?.tweaks.highlight || previousActions?.tweaks.highlight);
     }
 
     private onSenderProfileClick = (): void => {
         dis.dispatch<ComposerInsertPayload>({
             action: Action.ComposerInsert,
-            userId: this.props.mxEvent.getSender(),
+            userId: this.props.mxEvent.getSender()!,
             timelineRenderingType: this.context.timelineRenderingType,
         });
     };
@@ -995,7 +1010,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         }
 
         if (this.props.mxEvent.sender && avatarSize) {
-            let member;
+            let member: RoomMember | null = null;
             // set member to receiver (target) if it is a 3PID invite
             // so that the correct avatar is shown as the text is
             // `$target accepted the invitation for $email`
@@ -1005,9 +1020,11 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
                 member = this.props.mxEvent.sender;
             }
             // In the ThreadsList view we use the entire EventTile as a click target to open the thread instead
-            const viewUserOnClick = ![TimelineRenderingType.ThreadsList, TimelineRenderingType.Notification].includes(
-                this.context.timelineRenderingType,
-            );
+            const viewUserOnClick =
+                !this.props.inhibitInteraction &&
+                ![TimelineRenderingType.ThreadsList, TimelineRenderingType.Notification].includes(
+                    this.context.timelineRenderingType,
+                );
             avatar = (
                 <div className="mx_EventTile_avatar">
                     <MemberAvatar
@@ -1053,6 +1070,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
 
         const showTimestamp =
             this.props.mxEvent.getTs() &&
+            !this.props.hideTimestamp &&
             (this.props.alwaysShowTimestamps ||
                 this.props.last ||
                 this.state.hover ||
@@ -1079,7 +1097,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
 
         const timestamp = showTimestamp && ts ? messageTimestamp : null;
 
-        let reactionsRow;
+        let reactionsRow: JSX.Element | undefined;
         if (!isRedacted) {
             reactionsRow = (
                 <ReactionsRow
@@ -1090,7 +1108,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             );
         }
 
-        const linkedTimestamp = (
+        const linkedTimestamp = !this.props.hideTimestamp ? (
             <a
                 href={permalink}
                 onClick={this.onPermalinkClicked}
@@ -1099,12 +1117,12 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
             >
                 {timestamp}
             </a>
-        );
+        ) : null;
 
         const useIRCLayout = this.props.layout === Layout.IRC;
         const groupTimestamp = !useIRCLayout ? linkedTimestamp : null;
         const ircTimestamp = useIRCLayout ? linkedTimestamp : null;
-        const bubbleTimestamp = this.props.layout === Layout.Bubble ? messageTimestamp : null;
+        const bubbleTimestamp = this.props.layout === Layout.Bubble ? messageTimestamp : undefined;
         const groupPadlock = !useIRCLayout && !isBubbleMessage && this.renderE2EPadlock();
         const ircPadlock = useIRCLayout && !isBubbleMessage && this.renderE2EPadlock();
 
@@ -1493,7 +1511,7 @@ class E2ePadlock extends React.Component<IE2ePadlockProps, IE2ePadlockState> {
 }
 
 interface ISentReceiptProps {
-    messageState: string; // TODO: Types for message sending state
+    messageState: EventStatus | null;
 }
 
 function SentReceipt({ messageState }: ISentReceiptProps): JSX.Element {

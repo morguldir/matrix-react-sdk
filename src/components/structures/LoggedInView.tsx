@@ -231,7 +231,7 @@ class LoggedInView extends React.Component<IProps, IState> {
     };
 
     private createResizer(): Resizer {
-        let panelSize: number;
+        let panelSize: number | null;
         let panelCollapsed: boolean;
         const collapseConfig: ICollapseConfig = {
             // TODO decrease this once Spaces launches as it'll no longer need to include the 56px Community Panel
@@ -259,7 +259,7 @@ class LoggedInView extends React.Component<IProps, IState> {
             isItemCollapsed: (domNode) => {
                 return domNode.classList.contains("mx_LeftPanel_minimized");
             },
-            handler: this.resizeHandler.current,
+            handler: this.resizeHandler.current ?? undefined,
         };
         const resizer = new Resizer(this._resizeContainer.current, CollapseDistributor, collapseConfig);
         resizer.setClassNames({
