@@ -18,7 +18,7 @@ import React from "react";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import Spinner from "../elements/Spinner";
 import { _t } from "../../../languageHandler";
-import Pill, { PillType } from "../../views/elements/Pill";
+import { Pill, PillType } from "../../views/elements/Pill";
 import AccessibleButton from "../../views/elements/AccessibleButton";
 import MatrixToPermalinkConstructor from "../../../utils/permalinks/MatrixToPermalinkConstructor";
 import UserInfoRoomTile from "../elements/UserInfoRoomTile";
