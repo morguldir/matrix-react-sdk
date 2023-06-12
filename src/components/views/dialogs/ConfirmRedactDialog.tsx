@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { Feature, ServerSupport } from "matrix-js-sdk/src/feature";
-import { MatrixEvent, RelationType } from "matrix-js-sdk/src/matrix";
+import { IRedactOpts, MatrixEvent, RelationType } from "matrix-js-sdk/src/matrix";
 import React from "react";
 
 import { _t } from "../../../languageHandler";
@@ -26,7 +26,8 @@ import ErrorDialog from "./ErrorDialog";
 import TextInputDialog from "./TextInputDialog";
 
 interface IProps {
-    onFinished: (success: boolean) => void;
+    onFinished(success?: false, reason?: void): void;
+    onFinished(success: true, reason?: string): void;
 }
 
 /*
@@ -67,11 +68,11 @@ export function createRedactEventDialog({
     Modal.createDialog(
         ConfirmRedactDialog,
         {
-            onFinished: async (proceed: boolean, reason?: string): Promise<void> => {
+            onFinished: async (proceed, reason): Promise<void> => {
                 if (!proceed) return;
 
                 const cli = MatrixClientPeg.get();
-                const withRelations: { with_relations?: RelationType[] } = {};
+                const withRelTypes: Pick<IRedactOpts, "with_rel_types"> = {};
 
                 // redact related events if this is a voice broadcast started event and
                 // server has support for relation based redactions
@@ -81,7 +82,7 @@ export function createRedactEventDialog({
                         relationBasedRedactionsSupport &&
                         relationBasedRedactionsSupport !== ServerSupport.Unsupported
                     ) {
-                        withRelations.with_relations = [RelationType.Reference];
+                        withRelTypes.with_rel_types = [RelationType.Reference];
                     }
                 }
 
@@ -89,7 +90,7 @@ export function createRedactEventDialog({
                     onCloseDialog?.();
                     await cli.redactEvent(roomId, eventId, undefined, {
                         ...(reason ? { reason } : {}),
-                        ...withRelations,
+                        ...withRelTypes,
                     });
                 } catch (e: any) {
                     const code = e.errcode || e.statusCode;

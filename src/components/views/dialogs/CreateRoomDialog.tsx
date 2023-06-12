@@ -41,7 +41,8 @@ interface IProps {
     defaultName?: string;
     parentSpace?: Room;
     defaultEncrypted?: boolean;
-    onFinished(proceed?: boolean, opts?: IOpts): void;
+    onFinished(proceed?: false): void;
+    onFinished(proceed: true, opts: IOpts): void;
 }
 
 interface IState {
@@ -74,9 +75,10 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
             joinRule = JoinRule.Restricted;
         }
 
+        const cli = MatrixClientPeg.get();
         this.state = {
             isPublic: this.props.defaultPublic || false,
-            isEncrypted: this.props.defaultEncrypted ?? privateShouldBeEncrypted(),
+            isEncrypted: this.props.defaultEncrypted ?? privateShouldBeEncrypted(cli),
             joinRule,
             name: this.props.defaultName || "",
             topic: "",
@@ -87,9 +89,9 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
             canChangeEncryption: true,
         };
 
-        MatrixClientPeg.get()
-            .doesServerForceEncryptionForPreset(Preset.PrivateChat)
-            .then((isForced) => this.setState({ canChangeEncryption: !isForced }));
+        cli.doesServerForceEncryptionForPreset(Preset.PrivateChat).then((isForced) =>
+            this.setState({ canChangeEncryption: !isForced }),
+        );
     }
 
     private roomCreateOptions(): IOpts {
@@ -283,7 +285,7 @@ export default class CreateRoomDialog extends React.Component<IProps, IState> {
         let e2eeSection: JSX.Element | undefined;
         if (this.state.joinRule !== JoinRule.Public) {
             let microcopy: string;
-            if (privateShouldBeEncrypted()) {
+            if (privateShouldBeEncrypted(MatrixClientPeg.get())) {
                 if (this.state.canChangeEncryption) {
                     microcopy = isVideoRoom
                         ? _t("You can't disable this later. The room will be encrypted but the embedded call will not.")

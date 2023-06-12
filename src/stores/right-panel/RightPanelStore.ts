@@ -35,6 +35,7 @@ import { ActionPayload } from "../../dispatcher/payloads";
 import { Action } from "../../dispatcher/actions";
 import { ActiveRoomChangedPayload } from "../../dispatcher/payloads/ActiveRoomChangedPayload";
 import { SdkContextClass } from "../../contexts/SDKContext";
+import { MatrixClientPeg } from "../../MatrixClientPeg";
 
 /**
  * A class for tracking the state of the right panel between layouts and
@@ -278,28 +279,28 @@ export default class RightPanelStore extends ReadyWatchingStore {
         // (A nicer fix could be to indicate, that the right panel is loading if there is missing state data and re-emit if the data is available)
         switch (card.phase) {
             case RightPanelPhases.ThreadView:
-                if (!card.state.threadHeadEvent) {
+                if (!card.state?.threadHeadEvent) {
                     logger.warn("removed card from right panel because of missing threadHeadEvent in card state");
                 }
-                return !!card.state.threadHeadEvent;
+                return !!card.state?.threadHeadEvent;
             case RightPanelPhases.RoomMemberInfo:
             case RightPanelPhases.SpaceMemberInfo:
             case RightPanelPhases.EncryptionPanel:
-                if (!card.state.member) {
+                if (!card.state?.member) {
                     logger.warn("removed card from right panel because of missing member in card state");
                 }
-                return !!card.state.member;
+                return !!card.state?.member;
             case RightPanelPhases.Room3pidMemberInfo:
             case RightPanelPhases.Space3pidMemberInfo:
-                if (!card.state.memberInfoEvent) {
+                if (!card.state?.memberInfoEvent) {
                     logger.warn("removed card from right panel because of missing memberInfoEvent in card state");
                 }
-                return !!card.state.memberInfoEvent;
+                return !!card.state?.memberInfoEvent;
             case RightPanelPhases.Widget:
-                if (!card.state.widgetId) {
+                if (!card.state?.widgetId) {
                     logger.warn("removed card from right panel because of missing widgetId in card state");
                 }
-                return !!card.state.widgetId;
+                return !!card.state?.widgetId;
         }
         return true;
     }
@@ -308,7 +309,9 @@ export default class RightPanelStore extends ReadyWatchingStore {
         if (card.phase === RightPanelPhases.RoomMemberInfo && card.state) {
             // RightPanelPhases.RoomMemberInfo -> needs to be changed to RightPanelPhases.EncryptionPanel if there is a pending verification request
             const { member } = card.state;
-            const pendingRequest = pendingVerificationRequestForUser(member);
+            const pendingRequest = member
+                ? pendingVerificationRequestForUser(MatrixClientPeg.get(), member)
+                : undefined;
             if (pendingRequest) {
                 return {
                     phase: RightPanelPhases.EncryptionPanel,
@@ -341,7 +344,7 @@ export default class RightPanelStore extends ReadyWatchingStore {
         if (!this.currentCard?.state) return;
         const { member } = this.currentCard.state;
         if (!member) return;
-        const pendingRequest = pendingVerificationRequestForUser(member);
+        const pendingRequest = pendingVerificationRequestForUser(MatrixClientPeg.get(), member);
         if (pendingRequest) {
             this.currentCard.state.verificationRequest = pendingRequest;
             this.emitAndUpdateSettings();
@@ -365,6 +368,13 @@ export default class RightPanelStore extends ReadyWatchingStore {
                         card.phase != RightPanelPhases.Room3pidMemberInfo,
                 );
             }
+        }
+        // when we're switching to a room, clear out thread permalinks to not get you stuck in the middle of the thread
+        // in order to fix https://github.com/matrix-org/matrix-react-sdk/pull/11011
+        if (this.currentCard?.phase === RightPanelPhases.ThreadView) {
+            this.currentCard.state.initialEvent = undefined;
+            this.currentCard.state.isInitialEventHighlighted = undefined;
+            this.currentCard.state.initialEventScrollIntoView = undefined;
         }
 
         // If the right panel stays open mode is used, and the panel was either
