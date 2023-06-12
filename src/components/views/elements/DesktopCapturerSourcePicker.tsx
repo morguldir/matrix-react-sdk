@@ -69,7 +69,7 @@ export class ExistingSource extends React.Component<ExistingSourceIProps> {
                 title={this.props.source.name}
                 onClick={this.onClick}
             >
-                <img className={thumbnailClasses} src={this.props.source.thumbnailURL} />
+                <img alt={this.props.source.name} className={thumbnailClasses} src={this.props.source.thumbnailURL} />
                 <span className="mx_desktopCapturerSourcePicker_source_name">{this.props.source.name}</span>
             </AccessibleButton>
         );
@@ -85,8 +85,10 @@ export interface PickerIProps {
     onFinished(sourceId?: string): void;
 }
 
+type TabId = "screen" | "window";
+
 export default class DesktopCapturerSourcePicker extends React.Component<PickerIProps, PickerIState> {
-    public interval: number;
+    public interval?: number;
 
     public constructor(props: PickerIProps) {
         super(props);
@@ -123,7 +125,7 @@ export default class DesktopCapturerSourcePicker extends React.Component<PickerI
     };
 
     private onShare = (): void => {
-        this.props.onFinished(this.state.selectedSource.id);
+        this.props.onFinished(this.state.selectedSource?.id);
     };
 
     private onTabChange = (): void => {
@@ -134,7 +136,7 @@ export default class DesktopCapturerSourcePicker extends React.Component<PickerI
         this.props.onFinished();
     };
 
-    private getTab(type: "screen" | "window", label: string): Tab {
+    private getTab(type: TabId, label: string): Tab<TabId> {
         const sources = this.state.sources
             .filter((source) => source.id.startsWith(type))
             .map((source) => {
@@ -152,7 +154,7 @@ export default class DesktopCapturerSourcePicker extends React.Component<PickerI
     }
 
     public render(): React.ReactNode {
-        const tabs: NonEmptyArray<Tab> = [
+        const tabs: NonEmptyArray<Tab<TabId>> = [
             this.getTab("screen", _t("Share entire screen")),
             this.getTab("window", _t("Application window")),
         ];
