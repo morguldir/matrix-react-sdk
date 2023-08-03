@@ -182,7 +182,7 @@ class EditMessageComposer extends React.Component<IEditMessageComposerProps, ISt
                     events: this.events,
                     isForward: false,
                     fromEventId: this.props.editState.getEvent().getId(),
-                    matrixClient: MatrixClientPeg.get(),
+                    matrixClient: MatrixClientPeg.safeGet(),
                 });
                 if (previousEvent) {
                     dis.dispatch({
@@ -202,7 +202,7 @@ class EditMessageComposer extends React.Component<IEditMessageComposerProps, ISt
                     events: this.events,
                     isForward: true,
                     fromEventId: this.props.editState.getEvent().getId(),
-                    matrixClient: MatrixClientPeg.get(),
+                    matrixClient: MatrixClientPeg.safeGet(),
                 });
                 if (nextEvent) {
                     dis.dispatch({
@@ -308,6 +308,7 @@ class EditMessageComposer extends React.Component<IEditMessageComposerProps, ISt
         PosthogAnalytics.instance.trackEvent<ComposerEvent>({
             eventName: "Composer",
             isEditing: true,
+            isLocation: false,
             inThread: !!editedEvent?.getThread(),
             isReply: !!editedEvent.replyEventId,
         });
@@ -342,7 +343,7 @@ class EditMessageComposer extends React.Component<IEditMessageComposerProps, ISt
                 if (cmd) {
                     const threadId = editedEvent?.getThread()?.id || null;
                     const [content, commandSuccessful] = await runSlashCommand(
-                        MatrixClientPeg.get(),
+                        MatrixClientPeg.safeGet(),
                         cmd,
                         args,
                         roomId,

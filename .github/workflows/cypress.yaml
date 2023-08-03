@@ -23,6 +23,10 @@ on:
         secrets:
             CYPRESS_RECORD_KEY:
                 required: true
+            TCMS_USERNAME:
+                required: true
+            TCMS_PASSWORD:
+                required: true
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch || github.run_id }}
@@ -159,13 +163,13 @@ jobs:
                   echo "CYPRESS_RUST_CRYPTO=1" >> "$GITHUB_ENV"
 
             - name: Run Cypress tests
-              uses: cypress-io/github-action@fbfad281d97a63e3e8a605ebfccba8dbea8aea93
+              uses: cypress-io/github-action@bcd73b7e98602824dfd8cddd890f5d7dd5c4d97a
               with:
                   working-directory: matrix-react-sdk
-                  # The built-in Electron runner seems to grind to a halt trying
-                  # to run the tests, so use chrome.
-                  browser: "${{ env.BROWSER_PATH }}"
-                  start: npx serve -p 8080 ../webapp
+                  # The built-in Electron runner seems to grind to a halt trying to run the tests, so use chrome.
+                  browser: ${{ steps.setup-chrome.outputs.chrome-path }}
+                  headed: true
+                  start: npx serve -p 8080 -L ../webapp
                   wait-on: "http://localhost:8080"
                   record: true
                   parallel: true
@@ -198,7 +202,7 @@ jobs:
                   # pass the Percy token as an environment variable
                   PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
                   PERCY_ENABLE: ${{ needs.prepare.outputs.percy_enable }}
-                  PERCY_BROWSER_EXECUTABLE: /usr/bin/chromium-browser
+                  PERCY_BROWSER_EXECUTABLE: ${{ steps.setup-chrome.outputs.chrome-path }}
                   # tell Percy more details about the context of this run
                   PERCY_BRANCH: ${{ github.event.workflow_run.head_branch }}
                   PERCY_COMMIT: ${{ github.event.workflow_run.head_sha }}

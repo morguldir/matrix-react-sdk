@@ -1,3 +1,164 @@
+Changes in [3.77.0](https://github.com/matrix-org/matrix-react-sdk/releases/tag/v3.77.0) (2023-08-01)
+=====================================================================================================
+
+## 🦖 Deprecations
+ * Deprecate camelCase config options ([\#11261](https://github.com/matrix-org/matrix-react-sdk/pull/11261)).
+
+## ✨ Features
+ * Do not show "Forget room" button in Room View header for guest users ([\#10898](https://github.com/matrix-org/matrix-react-sdk/pull/10898)). Contributed by @spantaleev.
+ * Switch to updating presence via /sync calls instead of PUT /presence ([\#11223](https://github.com/matrix-org/matrix-react-sdk/pull/11223)). Fixes vector-im/element-web#20809 vector-im/element-web#13877 and vector-im/element-web#4813.
+ * Fix blockquote colour contrast ([\#11299](https://github.com/matrix-org/matrix-react-sdk/pull/11299)). Fixes matrix-org/element-web-rageshakes#21800.
+ * Don't hide room header buttons in video rooms and rooms with a call ([\#9712](https://github.com/matrix-org/matrix-react-sdk/pull/9712)). Fixes vector-im/element-web#23900.
+ * OIDC: Persist details in session storage, create store ([\#11302](https://github.com/matrix-org/matrix-react-sdk/pull/11302)). Fixes vector-im/element-web#25710. Contributed by @kerryarchibald.
+ * Allow setting room join rule to knock ([\#11248](https://github.com/matrix-org/matrix-react-sdk/pull/11248)). Contributed by @charlynguyen.
+ * Retry joins on 524 (Cloudflare timeout) also ([\#11296](https://github.com/matrix-org/matrix-react-sdk/pull/11296)). Fixes vector-im/element-web#8776.
+ * Make sure users returned by the homeserver search API are displayed. Don't silently drop any. ([\#9556](https://github.com/matrix-org/matrix-react-sdk/pull/9556)). Fixes vector-im/element-web#24422. Contributed by @maxmalek.
+ * Offer to unban user during invite if inviter has sufficient permissions ([\#11256](https://github.com/matrix-org/matrix-react-sdk/pull/11256)). Fixes vector-im/element-web#3222.
+ * Split join and goto slash commands, the latter shouldn't auto_join ([\#11259](https://github.com/matrix-org/matrix-react-sdk/pull/11259)). Fixes vector-im/element-web#10128.
+ * Integration work for rich text editor 2.3.1 ([\#11172](https://github.com/matrix-org/matrix-react-sdk/pull/11172)). Contributed by @alunturner.
+ * Compound color pass ([\#11079](https://github.com/matrix-org/matrix-react-sdk/pull/11079)). Fixes vector-im/internal-planning#450 and vector-im/element-web#25547.
+ * Warn when demoting self via /op and /deop slash commands ([\#11214](https://github.com/matrix-org/matrix-react-sdk/pull/11214)). Fixes vector-im/element-web#13726.
+
+## 🐛 Bug Fixes
+ * Fix edge case with sent indicator being drawn when it shouldn't be ([\#11320](https://github.com/matrix-org/matrix-react-sdk/pull/11320)).
+ * Use correct translation function for WYSIWYG buttons ([\#11315](https://github.com/matrix-org/matrix-react-sdk/pull/11315)). Fixes vector-im/verticals-internal#109.
+ * Handle empty own profile ([\#11319](https://github.com/matrix-org/matrix-react-sdk/pull/11319)). Fixes vector-im/element-web#25510.
+ * Fix peeked rooms showing up in historical ([\#11316](https://github.com/matrix-org/matrix-react-sdk/pull/11316)). Fixes vector-im/element-web#22473.
+ * Ensure consistency when rendering the sent event indicator ([\#11314](https://github.com/matrix-org/matrix-react-sdk/pull/11314)). Fixes vector-im/element-web#17937.
+ * Prevent re-filtering user directory results in spotlight ([\#11290](https://github.com/matrix-org/matrix-react-sdk/pull/11290)). Fixes vector-im/element-web#24422.
+ * Fix GIF label on dark theme ([\#11312](https://github.com/matrix-org/matrix-react-sdk/pull/11312)). Fixes vector-im/element-web#25836.
+ * Fix issues around room notification settings flaking out ([\#11306](https://github.com/matrix-org/matrix-react-sdk/pull/11306)). Fixes vector-im/element-web#16472 vector-im/element-web#21309 and vector-im/element-web#6828.
+ * Fix invite dialog showing the same user multiple times ([\#11308](https://github.com/matrix-org/matrix-react-sdk/pull/11308)). Fixes vector-im/element-web#25578.
+ * Don't show composer send button if user cannot send ([\#11298](https://github.com/matrix-org/matrix-react-sdk/pull/11298)). Fixes vector-im/element-web#25825.
+ * Restore color for sender in imageview ([\#11289](https://github.com/matrix-org/matrix-react-sdk/pull/11289)). Fixes vector-im/element-web#25822.
+ * Fix changelog dialog heading size ([\#11286](https://github.com/matrix-org/matrix-react-sdk/pull/11286)). Fixes vector-im/element-web#25789.
+ * Restore offline presence badge color ([\#11287](https://github.com/matrix-org/matrix-react-sdk/pull/11287)). Fixes vector-im/element-web#25792.
+ * Fix bubble message layout avatar overlap ([\#11284](https://github.com/matrix-org/matrix-react-sdk/pull/11284)). Fixes vector-im/element-web#25818.
+ * Fix voice call tile size ([\#11285](https://github.com/matrix-org/matrix-react-sdk/pull/11285)). Fixes vector-im/element-web#25684.
+ * Fix layout of sessions tab buttons ([\#11279](https://github.com/matrix-org/matrix-react-sdk/pull/11279)). Fixes vector-im/element-web#25545.
+ * Don't bother showing redundant tooltip on space menu ([\#11276](https://github.com/matrix-org/matrix-react-sdk/pull/11276)). Fixes vector-im/element-web#20380.
+ * Remove reply fallback from notifications ([\#11278](https://github.com/matrix-org/matrix-react-sdk/pull/11278)). Fixes vector-im/element-web#17859.
+ * Populate info.duration for audio & video file uploads ([\#11225](https://github.com/matrix-org/matrix-react-sdk/pull/11225)). Fixes vector-im/element-web#17720.
+ * Hide widget menu button if it there are no options available ([\#11257](https://github.com/matrix-org/matrix-react-sdk/pull/11257)). Fixes vector-im/element-web#24826.
+ * Fix colour regressions ([\#11273](https://github.com/matrix-org/matrix-react-sdk/pull/11273)). Fixes vector-im/element-web#25788, vector-im/element-web#25808 vector-im/element-web#25811 and vector-im/element-web#25812.
+ * Fix room view not properly maintaining scroll position ([\#11274](https://github.com/matrix-org/matrix-react-sdk/pull/11274)). Fixes vector-im/element-web#25810.
+ * Prevent user from accidentally double clicking user info admin actions ([\#11254](https://github.com/matrix-org/matrix-react-sdk/pull/11254)). Fixes vector-im/element-web#10944.
+ * Fix missing metaspace notification badges ([\#11269](https://github.com/matrix-org/matrix-react-sdk/pull/11269)). Fixes vector-im/element-web#25679.
+ * Fix clicking MXID in timeline going to matrix.to ([\#11263](https://github.com/matrix-org/matrix-react-sdk/pull/11263)). Fixes vector-im/element-web#23342.
+ * Restoring optional ligatures by resetting letter-spacing ([\#11202](https://github.com/matrix-org/matrix-react-sdk/pull/11202)). Fixes vector-im/element-web#25727.
+ * Allow emoji presentation selector to not break BigEmoji styling ([\#11253](https://github.com/matrix-org/matrix-react-sdk/pull/11253)). Fixes vector-im/element-web#17848.
+ * Make event highliht use primary content token ([\#11255](https://github.com/matrix-org/matrix-react-sdk/pull/11255)).
+ * Fix event info events size and color ([\#11252](https://github.com/matrix-org/matrix-react-sdk/pull/11252)). Fixes vector-im/element-web#25778.
+ * Fix color mapping for blockquote border ([\#11251](https://github.com/matrix-org/matrix-react-sdk/pull/11251)). Fixes vector-im/element-web#25782.
+ * Strip emoji variation when searching emoji by emoji ([\#11221](https://github.com/matrix-org/matrix-react-sdk/pull/11221)). Fixes vector-im/element-web#18703.
+
+Changes in [3.76.0](https://github.com/matrix-org/matrix-react-sdk/releases/tag/v3.76.0) (2023-07-18)
+=====================================================================================================
+
+## 🔒 Security
+ * Fixes for [CVE-2023-37259](https://cve.mitre.org/cgi-bin/cvekey.cgi?keyword=CVE-2023-37259) / [GHSA-c9vx-2g7w-rp65](https://github.com/matrix-org/matrix-react-sdk/security/advisories/GHSA-c9vx-2g7w-rp65)
+
+## ✨ Features
+ * GYU: Update banner ([\#11211](https://github.com/matrix-org/matrix-react-sdk/pull/11211)). Fixes vector-im/element-web#25530. Contributed by @justjanne.
+ * Linkify mxc:// URLs as links to your media repo ([\#11213](https://github.com/matrix-org/matrix-react-sdk/pull/11213)). Fixes vector-im/element-web#6942.
+ * OIDC: Log in ([\#11199](https://github.com/matrix-org/matrix-react-sdk/pull/11199)). Fixes vector-im/element-web#25657. Contributed by @kerryarchibald.
+ * Handle all permitted url schemes in linkify ([\#11215](https://github.com/matrix-org/matrix-react-sdk/pull/11215)). Fixes vector-im/element-web#4457 and vector-im/element-web#8720.
+ * Autoapprove Element Call oidc requests ([\#11209](https://github.com/matrix-org/matrix-react-sdk/pull/11209)). Contributed by @toger5.
+ * Allow creating knock rooms ([\#11182](https://github.com/matrix-org/matrix-react-sdk/pull/11182)). Contributed by @charlynguyen.
+ * feat(faq): remove keyboard shortcuts button ([\#9342](https://github.com/matrix-org/matrix-react-sdk/pull/9342)). Fixes vector-im/element-web#22625. Contributed by @gefgu.
+ * Expose and pre-populate thread ID in devtools dialog ([\#10953](https://github.com/matrix-org/matrix-react-sdk/pull/10953)).
+ * Hide URL preview if it will be empty ([\#9029](https://github.com/matrix-org/matrix-react-sdk/pull/9029)).
+ * Change wording from avatar to profile picture ([\#7015](https://github.com/matrix-org/matrix-react-sdk/pull/7015)). Fixes vector-im/element-meta#1331. Contributed by @aaronraimist.
+ * Quick and dirty devtool to explore state history ([\#11197](https://github.com/matrix-org/matrix-react-sdk/pull/11197)).
+ * Consider more user inputs when calculating zxcvbn score ([\#11180](https://github.com/matrix-org/matrix-react-sdk/pull/11180)).
+ * GYU: Account Notification Settings ([\#11008](https://github.com/matrix-org/matrix-react-sdk/pull/11008)). Fixes vector-im/element-web#24567. Contributed by @justjanne.
+ * Compound Typography pass ([\#11103](https://github.com/matrix-org/matrix-react-sdk/pull/11103)). Fixes vector-im/element-web#25548.
+ * OIDC: navigate to authorization endpoint ([\#11096](https://github.com/matrix-org/matrix-react-sdk/pull/11096)). Fixes vector-im/element-web#25574. Contributed by @kerryarchibald.
+
+## 🐛 Bug Fixes
+ * Fix missing metaspace notification badges ([\#11269](https://github.com/matrix-org/matrix-react-sdk/pull/11269)). Fixes vector-im/element-web#25679.
+ * Make checkboxes less rounded ([\#11224](https://github.com/matrix-org/matrix-react-sdk/pull/11224)). Contributed by @andybalaam.
+ * GYU: Fix issues with audible keywords without activated mentions ([\#11218](https://github.com/matrix-org/matrix-react-sdk/pull/11218)). Contributed by @justjanne.
+ * PosthogAnalytics unwatch settings on logout ([\#11207](https://github.com/matrix-org/matrix-react-sdk/pull/11207)). Fixes vector-im/element-web#25703.
+ * Avoid trying to set room account data for pinned events as guest ([\#11216](https://github.com/matrix-org/matrix-react-sdk/pull/11216)). Fixes vector-im/element-web#6300.
+ * GYU: Disable sound for DMs checkbox when DM notifications are disabled ([\#11210](https://github.com/matrix-org/matrix-react-sdk/pull/11210)). Contributed by @justjanne.
+ * force to allow calls without video and audio in embedded mode ([\#11131](https://github.com/matrix-org/matrix-react-sdk/pull/11131)). Contributed by @EnricoSchw.
+ * Fix room tile text clipping ([\#11196](https://github.com/matrix-org/matrix-react-sdk/pull/11196)). Fixes vector-im/element-web#25718.
+ * Handle newlines in user pills ([\#11166](https://github.com/matrix-org/matrix-react-sdk/pull/11166)). Fixes vector-im/element-web#10994.
+ * Limit width of user menu in space panel ([\#11192](https://github.com/matrix-org/matrix-react-sdk/pull/11192)). Fixes vector-im/element-web#22627.
+ * Add isLocation to ComposerEvent analytics events ([\#11187](https://github.com/matrix-org/matrix-react-sdk/pull/11187)). Contributed by @andybalaam.
+ * Fix: hide unsupported login elements ([\#11185](https://github.com/matrix-org/matrix-react-sdk/pull/11185)). Fixes vector-im/element-web#25711. Contributed by @kerryarchibald.
+ * Scope smaller font size to user info panel ([\#11178](https://github.com/matrix-org/matrix-react-sdk/pull/11178)). Fixes vector-im/element-web#25683.
+ * Apply i18n to strings in the html export ([\#11176](https://github.com/matrix-org/matrix-react-sdk/pull/11176)).
+ * Inhibit url previews on MXIDs containing slashes same as those without ([\#11160](https://github.com/matrix-org/matrix-react-sdk/pull/11160)).
+ * Make event info size consistent with state events ([\#11181](https://github.com/matrix-org/matrix-react-sdk/pull/11181)).
+ * Fix markdown content spacing ([\#11177](https://github.com/matrix-org/matrix-react-sdk/pull/11177)). Fixes vector-im/element-web#25685.
+ * Fix font-family definition for emojis ([\#11170](https://github.com/matrix-org/matrix-react-sdk/pull/11170)). Fixes vector-im/element-web#25686.
+ * Fix spurious error sending receipt in thread errors ([\#11157](https://github.com/matrix-org/matrix-react-sdk/pull/11157)).
+ * Consider the empty push rule actions array equiv to deprecated dont_notify ([\#11155](https://github.com/matrix-org/matrix-react-sdk/pull/11155)). Fixes vector-im/element-web#25674.
+ * Only trap escape key for cancel reply if there is a reply ([\#11140](https://github.com/matrix-org/matrix-react-sdk/pull/11140)). Fixes vector-im/element-web#25640.
+ * Update linkify to 4.1.1 ([\#11132](https://github.com/matrix-org/matrix-react-sdk/pull/11132)). Fixes vector-im/element-web#23806.
+
+Changes in [3.75.0](https://github.com/matrix-org/matrix-react-sdk/releases/tag/v3.75.0) (2023-07-04)
+=====================================================================================================
+
+## 🦖 Deprecations
+ * Remove `feature_favourite_messages` as it is has been abandoned for now ([\#11097](https://github.com/matrix-org/matrix-react-sdk/pull/11097)). Fixes vector-im/element-web#25555.
+
+## ✨ Features
+ * Don't setup keys on login when encryption is force disabled ([\#11125](https://github.com/matrix-org/matrix-react-sdk/pull/11125)). Contributed by @kerryarchibald.
+ * OIDC: attempt dynamic client registration ([\#11074](https://github.com/matrix-org/matrix-react-sdk/pull/11074)). Fixes vector-im/element-web#25468 and vector-im/element-web#25467. Contributed by @kerryarchibald.
+ * OIDC: Check static client registration and add login flow ([\#11088](https://github.com/matrix-org/matrix-react-sdk/pull/11088)). Fixes vector-im/element-web#25467. Contributed by @kerryarchibald.
+ * Improve message body output from plain text editor ([\#11124](https://github.com/matrix-org/matrix-react-sdk/pull/11124)). Contributed by @alunturner.
+ * Disable encryption toggle in room settings when force disabled ([\#11122](https://github.com/matrix-org/matrix-react-sdk/pull/11122)). Contributed by @kerryarchibald.
+ * Add .well-known config option to force disable encryption on room creation ([\#11120](https://github.com/matrix-org/matrix-react-sdk/pull/11120)). Contributed by @kerryarchibald.
+ * Handle permalinks in room topic ([\#11115](https://github.com/matrix-org/matrix-react-sdk/pull/11115)). Fixes vector-im/element-web#23395.
+ * Add at room avatar for RTE ([\#11106](https://github.com/matrix-org/matrix-react-sdk/pull/11106)). Contributed by @alunturner.
+ * Remove new room breadcrumbs ([\#11104](https://github.com/matrix-org/matrix-react-sdk/pull/11104)).
+ * Update rich text editor dependency and associated changes ([\#11098](https://github.com/matrix-org/matrix-react-sdk/pull/11098)). Contributed by @alunturner.
+ * Implement new model, hooks and reconcilation code for new GYU notification settings ([\#11089](https://github.com/matrix-org/matrix-react-sdk/pull/11089)). Contributed by @justjanne.
+ * Allow maintaining a different right panel width for thread panels ([\#11064](https://github.com/matrix-org/matrix-react-sdk/pull/11064)). Fixes vector-im/element-web#25487.
+ * Make AppPermission pane scrollable ([\#10954](https://github.com/matrix-org/matrix-react-sdk/pull/10954)). Fixes vector-im/element-web#25438 and vector-im/element-web#25511. Contributed by @luixxiul.
+ * Integrate compound design tokens ([\#11091](https://github.com/matrix-org/matrix-react-sdk/pull/11091)). Fixes vector-im/internal-planning#450.
+ * Don't warn about the effects of redacting state events when redacting non-state-events ([\#11071](https://github.com/matrix-org/matrix-react-sdk/pull/11071)). Fixes vector-im/element-web#8478.
+ * Allow specifying help URLs in config.json ([\#11070](https://github.com/matrix-org/matrix-react-sdk/pull/11070)). Fixes vector-im/element-web#15268.
+
+## 🐛 Bug Fixes
+ * Fix spurious notifications on non-live events ([\#11133](https://github.com/matrix-org/matrix-react-sdk/pull/11133)). Fixes vector-im/element-web#24336.
+ * Prevent auto-translation within composer ([\#11114](https://github.com/matrix-org/matrix-react-sdk/pull/11114)). Fixes vector-im/element-web#25624.
+ * Fix caret jump when backspacing into empty line at beginning of editor ([\#11128](https://github.com/matrix-org/matrix-react-sdk/pull/11128)). Fixes vector-im/element-web#22335.
+ * Fix server picker not allowing you to switch from custom to default ([\#11127](https://github.com/matrix-org/matrix-react-sdk/pull/11127)). Fixes vector-im/element-web#25650.
+ * Consider the unthreaded read receipt for Unread dot state ([\#11117](https://github.com/matrix-org/matrix-react-sdk/pull/11117)). Fixes vector-im/element-web#24229.
+ * Increase RTE resilience ([\#11111](https://github.com/matrix-org/matrix-react-sdk/pull/11111)). Fixes vector-im/element-web#25277. Contributed by @alunturner.
+ * Fix RoomView ignoring alias lookup errors due to them not knowing the roomId ([\#11099](https://github.com/matrix-org/matrix-react-sdk/pull/11099)). Fixes vector-im/element-web#24783 and vector-im/element-web#25562.
+ * Fix style inconsistencies on SecureBackupPanel ([\#11102](https://github.com/matrix-org/matrix-react-sdk/pull/11102)). Fixes vector-im/element-web#25615. Contributed by @luixxiul.
+ * Remove unknown MXIDs from invite suggestions ([\#11055](https://github.com/matrix-org/matrix-react-sdk/pull/11055)). Fixes vector-im/element-web#25446.
+ * Reduce volume of ring sounds to normalised levels ([\#9143](https://github.com/matrix-org/matrix-react-sdk/pull/9143)). Contributed by @JMoVS.
+ * Fix slash commands not being enabled in certain cases ([\#11090](https://github.com/matrix-org/matrix-react-sdk/pull/11090)). Fixes vector-im/element-web#25572.
+ * Prevent escape in threads from sending focus to main timeline composer ([\#11061](https://github.com/matrix-org/matrix-react-sdk/pull/11061)). Fixes vector-im/element-web#23397.
+
+Changes in [3.74.0](https://github.com/matrix-org/matrix-react-sdk/releases/tag/v3.74.0) (2023-06-20)
+=====================================================================================================
+
+## ✨ Features
+ * OIDC: add delegatedauthentication to validated server config ([\#11053](https://github.com/matrix-org/matrix-react-sdk/pull/11053)). Contributed by @kerryarchibald.
+ * Allow image pasting in plain mode in RTE ([\#11056](https://github.com/matrix-org/matrix-react-sdk/pull/11056)). Contributed by @alunturner.
+ * Show room options menu if "UIComponent.roomOptionsMenu" is enabled ([\#10365](https://github.com/matrix-org/matrix-react-sdk/pull/10365)). Contributed by @maheichyk.
+ * Allow image pasting in rich text mode in RTE ([\#11049](https://github.com/matrix-org/matrix-react-sdk/pull/11049)). Contributed by @alunturner.
+ * Update voice broadcast redaction to use MSC3912 `with_rel_type` instead of `with_relations` ([\#11014](https://github.com/matrix-org/matrix-react-sdk/pull/11014)). Fixes vector-im/element-web#25471.
+ * Add config to skip widget_build_url for DM rooms ([\#11044](https://github.com/matrix-org/matrix-react-sdk/pull/11044)). Fixes vector-im/customer-retainer#74.
+ * Inhibit interactions on forward dialog message previews ([\#11025](https://github.com/matrix-org/matrix-react-sdk/pull/11025)). Fixes vector-im/element-web#23459.
+ * Removed `DecryptionFailureBar.tsx` ([\#11027](https://github.com/matrix-org/matrix-react-sdk/pull/11027)). Fixes vector-im/element-meta#1358. Contributed by @florianduros.
+
+## 🐛 Bug Fixes
+ * Fix translucent `TextualEvent` on search results panel ([\#10810](https://github.com/matrix-org/matrix-react-sdk/pull/10810)). Fixes vector-im/element-web#25292. Contributed by @luixxiul.
+ * Matrix matrix scheme permalink constructor not stripping query params ([\#11060](https://github.com/matrix-org/matrix-react-sdk/pull/11060)). Fixes vector-im/element-web#25535.
+ * Fix: "manually verify by text" does nothing ([\#11059](https://github.com/matrix-org/matrix-react-sdk/pull/11059)). Fixes vector-im/element-web#25375. Contributed by @kerryarchibald.
+ * Make group calls respect the ICE fallback setting ([\#11047](https://github.com/matrix-org/matrix-react-sdk/pull/11047)). Fixes vector-im/voip-internal#65.
+ * Align list items on the tooltip to the start ([\#11041](https://github.com/matrix-org/matrix-react-sdk/pull/11041)). Fixes vector-im/element-web#25355. Contributed by @luixxiul.
+ * Clear thread panel event permalink when changing rooms ([\#11024](https://github.com/matrix-org/matrix-react-sdk/pull/11024)). Fixes vector-im/element-web#25484.
+ * Fix spinner placement on pinned widgets being reloaded ([\#10970](https://github.com/matrix-org/matrix-react-sdk/pull/10970)). Fixes vector-im/element-web#25431. Contributed by @luixxiul.
+
 Changes in [3.73.1](https://github.com/matrix-org/matrix-react-sdk/releases/tag/v3.73.1) (2023-06-09)
 =====================================================================================================
 

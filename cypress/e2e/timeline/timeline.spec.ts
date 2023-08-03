@@ -204,13 +204,6 @@ describe("Timeline", () => {
                 cy.findByRole("button", { name: "collapse" }).should("exist");
             });
 
-            // Check the height of expanded GELS line
-            cy.get(".mx_GenericEventListSummary[data-layout=irc] .mx_GenericEventListSummary_spacer").should(
-                "have.css",
-                "line-height",
-                "18px", // var(--irc-line-height): $font-18px (See: _IRCLayout.pcss)
-            );
-
             cy.get(".mx_MainSplit").percySnapshotElement("Expanded GELS on IRC layout", { percyCSS });
         });
 
@@ -237,13 +230,6 @@ describe("Timeline", () => {
                 // Assert that the "expand" link button worked
                 cy.findByRole("button", { name: "collapse" }).should("exist");
             });
-
-            // Check the height of expanded GELS line
-            cy.get(".mx_GenericEventListSummary[data-layout=group] .mx_GenericEventListSummary_spacer").should(
-                "have.css",
-                "line-height",
-                "22px", // $font-22px (See: _GenericEventListSummary.pcss)
-            );
 
             cy.get(".mx_MainSplit").percySnapshotElement("Expanded GELS on modern layout", { percyCSS });
         });
@@ -769,7 +755,7 @@ describe("Timeline", () => {
                 sendEvent(roomId, true);
                 cy.visit("/#/room/" + roomId);
 
-                cy.get(".mx_RoomHeader").findByRole("button", { name: "Search" }).click();
+                cy.get(".mx_LegacyRoomHeader").findByRole("button", { name: "Search" }).click();
 
                 cy.get(".mx_SearchBar").percySnapshotElement("Search bar on the timeline", {
                     // Emulate narrow timeline
@@ -805,7 +791,7 @@ describe("Timeline", () => {
                     .should("have.class", "mx_TextualEvent");
 
                 // Display the room search bar
-                cy.get(".mx_RoomHeader").findByRole("button", { name: "Search" }).click();
+                cy.get(".mx_LegacyRoomHeader").findByRole("button", { name: "Search" }).click();
 
                 // Search the string to display both the message and TextualEvent on search results panel
                 cy.get(".mx_SearchBar").within(() => {

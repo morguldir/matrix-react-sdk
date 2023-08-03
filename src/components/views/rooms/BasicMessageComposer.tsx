@@ -51,6 +51,7 @@ import { ALTERNATE_KEY_NAME, KeyBindingAction } from "../../../accessibility/Key
 import { _t } from "../../../languageHandler";
 import { linkify } from "../../../linkify-matrix";
 import { SdkContextClass } from "../../../contexts/SDKContext";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
 
 // matches emoticons which follow the start of a line or whitespace
 const REGEX_EMOTICON_WHITESPACE = new RegExp("(?:^|\\s)(" + EMOTICON_REGEX.source + ")\\s|:^$");
@@ -131,7 +132,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
     private hasTextSelected = false;
 
     private _isCaretAtEnd = false;
-    private lastCaret: DocumentOffset;
+    private lastCaret!: DocumentOffset;
     private lastSelection: ReturnType<typeof cloneSelection> | null = null;
 
     private readonly useMarkdownHandle: string;
@@ -268,7 +269,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         if (isTyping && this.props.model.parts[0].type === "command") {
             const { cmd } = parseCommandString(this.props.model.parts[0].text);
             const command = CommandMap.get(cmd!);
-            if (!command?.isEnabled() || command.category !== CommandCategories.messages) {
+            if (!command?.isEnabled(MatrixClientPeg.get()) || command.category !== CommandCategories.messages) {
                 isTyping = false;
             }
         }
@@ -553,8 +554,6 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                     autoComplete.onEscape(event);
                     handled = true;
                     break;
-                default:
-                    return; // don't preventDefault on anything else
             }
         } else if (autocompleteAction === KeyBindingAction.ForceCompleteAutocomplete && !this.state.showVisualBell) {
             // there is no current autocomplete window, try to open it
@@ -849,6 +848,7 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                     dir="auto"
                     aria-disabled={this.props.disabled}
                     data-testid="basicmessagecomposer"
+                    translate="no"
                 />
             </div>
         );

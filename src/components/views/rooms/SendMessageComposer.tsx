@@ -89,7 +89,7 @@ export function attachMentions(
     }
 
     // The mentions property *always* gets included to disable legacy push rules.
-    const mentions: IMentions = (content["org.matrix.msc3952.mentions"] = {});
+    const mentions: IMentions = (content["m.mentions"] = {});
 
     const userMentions = new Set<string>();
     let roomMention = false;
@@ -100,7 +100,7 @@ export function attachMentions(
         userMentions.add(replyToEvent.sender!.userId);
         // TODO What do we do if the reply event *doeesn't* have this property?
         // Try to fish out replies from the contents?
-        const userIds = replyToEvent.getContent()["org.matrix.msc3952.mentions"]?.user_ids;
+        const userIds = replyToEvent.getContent()["m.mentions"]?.user_ids;
         if (Array.isArray(userIds)) {
             userIds.forEach((userId) => userMentions.add(userId));
         }
@@ -127,7 +127,7 @@ export function attachMentions(
     if (editedContent) {
         // First, the new event content gets the *full* set of users.
         const newContent = content["m.new_content"];
-        const newMentions: IMentions = (newContent["org.matrix.msc3952.mentions"] = {});
+        const newMentions: IMentions = (newContent["m.mentions"] = {});
 
         // Only include the users/room if there is any content.
         if (userMentions.size) {
@@ -139,7 +139,7 @@ export function attachMentions(
 
         // Fetch the mentions from the original event and remove any previously
         // mentioned users.
-        const prevMentions = editedContent["org.matrix.msc3952.mentions"];
+        const prevMentions = editedContent["m.mentions"];
         if (Array.isArray(prevMentions?.user_ids)) {
             prevMentions!.user_ids.forEach((userId) => userMentions.delete(userId));
         }
@@ -336,7 +336,7 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
                         ? findEditableEvent({
                               events,
                               isForward: false,
-                              matrixClient: MatrixClientPeg.get(),
+                              matrixClient: MatrixClientPeg.safeGet(),
                           })
                         : undefined;
                     if (editEvent) {
@@ -351,11 +351,15 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
                 }
                 break;
             case KeyBindingAction.CancelReplyOrEdit:
-                dis.dispatch({
-                    action: "reply_to_event",
-                    event: null,
-                    context: this.context.timelineRenderingType,
-                });
+                if (!!this.context.replyToEvent) {
+                    dis.dispatch({
+                        action: "reply_to_event",
+                        event: null,
+                        context: this.context.timelineRenderingType,
+                    });
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
                 break;
         }
     };
@@ -402,7 +406,7 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
             if (events[i].getType() === EventType.RoomMessage) {
                 let shouldReact = true;
                 const lastMessage = events[i];
-                const userId = MatrixClientPeg.get().getSafeUserId();
+                const userId = MatrixClientPeg.safeGet().getSafeUserId();
                 const messageReactions = this.props.room.relations.getChildEventsForEvent(
                     lastMessage.getId()!,
                     RelationType.Annotation,
@@ -419,7 +423,7 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
                     shouldReact = !myReactionKeys.includes(reaction);
                 }
                 if (shouldReact) {
-                    MatrixClientPeg.get().sendEvent(lastMessage.getRoomId()!, EventType.Reaction, {
+                    MatrixClientPeg.safeGet().sendEvent(lastMessage.getRoomId()!, EventType.Reaction, {
                         "m.relates_to": {
                             rel_type: RelationType.Annotation,
                             event_id: lastMessage.getId(),
@@ -443,6 +447,7 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
         const posthogEvent: ComposerEvent = {
             eventName: "Composer",
             isEditing: false,
+            isLocation: false,
             isReply: !!this.props.replyToEvent,
             inThread: this.props.relation?.rel_type === THREAD_RELATION_TYPE.name,
         };
@@ -474,7 +479,7 @@ export class SendMessageComposer extends React.Component<ISendMessageComposerPro
 
                 let commandSuccessful: boolean;
                 [content, commandSuccessful] = await runSlashCommand(
-                    MatrixClientPeg.get(),
+                    MatrixClientPeg.safeGet(),
                     cmd,
                     args,
                     this.props.room.roomId,
