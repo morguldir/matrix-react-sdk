@@ -26,6 +26,8 @@ import EventIndexPeg from "../../../indexing/EventIndexPeg";
 import { SettingLevel } from "../../../settings/SettingLevel";
 import SeshatResetDialog from "../dialogs/SeshatResetDialog";
 import InlineSpinner from "../elements/InlineSpinner";
+import ExternalLink from "../elements/ExternalLink";
+import { SettingsSubsectionText } from "./shared/SettingsSubsection";
 
 interface IState {
     enabling: boolean;
@@ -144,11 +146,10 @@ export default class EventIndexPanel extends React.Component<{}, IState> {
 
         if (EventIndexPeg.get() !== null) {
             eventIndexingSettings = (
-                <div>
-                    <div className="mx_SettingsTab_subsectionText">
+                <>
+                    <SettingsSubsectionText>
                         {_t(
-                            "Securely cache encrypted messages locally for them " +
-                                "to appear in search results, using %(size)s to store messages from %(rooms)s rooms.",
+                            "Securely cache encrypted messages locally for them to appear in search results, using %(size)s to store messages from %(rooms)s rooms.",
                             {
                                 size: formatBytes(this.state.eventIndexSize, 0),
                                 // This drives the singular / plural string
@@ -157,27 +158,25 @@ export default class EventIndexPanel extends React.Component<{}, IState> {
                                 rooms: formatCountLong(this.state.roomCount),
                             },
                         )}
-                    </div>
-                    <div>
-                        <AccessibleButton kind="primary" onClick={this.onManage}>
-                            {_t("Manage")}
-                        </AccessibleButton>
-                    </div>
-                </div>
+                    </SettingsSubsectionText>
+                    <AccessibleButton kind="primary" onClick={this.onManage}>
+                        {_t("action|manage")}
+                    </AccessibleButton>
+                </>
             );
         } else if (!this.state.eventIndexingEnabled && EventIndexPeg.supportIsInstalled()) {
             eventIndexingSettings = (
-                <div>
-                    <div className="mx_SettingsTab_subsectionText">
+                <>
+                    <SettingsSubsectionText>
                         {_t("Securely cache encrypted messages locally for them to appear in search results.")}
-                    </div>
+                    </SettingsSubsectionText>
                     <div>
                         <AccessibleButton kind="primary" disabled={this.state.enabling} onClick={this.onEnable}>
-                            {_t("Enable")}
+                            {_t("action|enable")}
                         </AccessibleButton>
                         {this.state.enabling ? <InlineSpinner /> : <div />}
                     </div>
-                </div>
+                </>
             );
         } else if (EventIndexPeg.platformHasSupport() && !EventIndexPeg.supportIsInstalled()) {
             const nativeLink =
@@ -186,61 +185,68 @@ export default class EventIndexPanel extends React.Component<{}, IState> {
                 "adding-seshat-for-search-in-e2e-encrypted-rooms";
 
             eventIndexingSettings = (
-                <div className="mx_SettingsTab_subsectionText">
+                <SettingsSubsectionText>
                     {_t(
-                        "%(brand)s is missing some components required for securely " +
-                            "caching encrypted messages locally. If you'd like to " +
-                            "experiment with this feature, build a custom %(brand)s Desktop " +
-                            "with <nativeLink>search components added</nativeLink>.",
+                        "%(brand)s is missing some components required for securely caching encrypted messages locally. If you'd like to experiment with this feature, build a custom %(brand)s Desktop with <nativeLink>search components added</nativeLink>.",
                         {
                             brand,
                         },
                         {
                             nativeLink: (sub) => (
-                                <a href={nativeLink} target="_blank" rel="noreferrer noopener">
+                                <ExternalLink href={nativeLink} target="_blank" rel="noreferrer noopener">
                                     {sub}
-                                </a>
+                                </ExternalLink>
                             ),
                         },
                     )}
-                </div>
+                </SettingsSubsectionText>
             );
         } else if (!EventIndexPeg.platformHasSupport()) {
             eventIndexingSettings = (
-                <div className="mx_SettingsTab_subsectionText">
+                <SettingsSubsectionText>
                     {_t(
-                        "%(brand)s can't securely cache encrypted messages locally " +
-                            "while running in a web browser. Use <desktopLink>%(brand)s Desktop</desktopLink> " +
-                            "for encrypted messages to appear in search results.",
+                        "%(brand)s can't securely cache encrypted messages locally while running in a web browser. Use <desktopLink>%(brand)s Desktop</desktopLink> for encrypted messages to appear in search results.",
                         {
                             brand,
                         },
                         {
                             desktopLink: (sub) => (
-                                <a href="https://element.io/get-started" target="_blank" rel="noreferrer noopener">
+                                <ExternalLink
+                                    href="https://element.io/get-started"
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                >
                                     {sub}
-                                </a>
+                                </ExternalLink>
                             ),
                         },
                     )}
-                </div>
+                </SettingsSubsectionText>
             );
         } else {
             eventIndexingSettings = (
-                <div className="mx_SettingsTab_subsectionText">
-                    <p>{this.state.enabling ? <InlineSpinner /> : _t("Message search initialisation failed")}</p>
+                <>
+                    <SettingsSubsectionText>
+                        {this.state.enabling ? <InlineSpinner /> : _t("Message search initialisation failed")}
+                    </SettingsSubsectionText>
                     {EventIndexPeg.error && (
-                        <details>
-                            <summary>{_t("Advanced")}</summary>
-                            <code>{EventIndexPeg.error.message}</code>
-                            <p>
-                                <AccessibleButton key="delete" kind="danger" onClick={this.confirmEventStoreReset}>
-                                    {_t("Reset")}
-                                </AccessibleButton>
-                            </p>
-                        </details>
+                        <SettingsSubsectionText>
+                            <details>
+                                <summary>{_t("Advanced")}</summary>
+                                <code>
+                                    {EventIndexPeg.error instanceof Error
+                                        ? EventIndexPeg.error.message
+                                        : _t("Unknown error")}
+                                </code>
+                                <p>
+                                    <AccessibleButton key="delete" kind="danger" onClick={this.confirmEventStoreReset}>
+                                        {_t("action|reset")}
+                                    </AccessibleButton>
+                                </p>
+                            </details>
+                        </SettingsSubsectionText>
                     )}
-                </div>
+                </>
             );
         }
 

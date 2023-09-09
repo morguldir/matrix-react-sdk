@@ -15,11 +15,16 @@ limitations under the License.
 */
 
 import React, { ReactNode } from "react";
-import { AutoDiscovery, ClientConfig } from "matrix-js-sdk/src/autodiscovery";
+import {
+    AutoDiscovery,
+    ClientConfig,
+    OidcClientConfig,
+    M_AUTHENTICATION,
+    IClientWellKnown,
+} from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
-import { IClientWellKnown } from "matrix-js-sdk/src/matrix";
 
-import { _t, UserFriendlyError } from "../languageHandler";
+import { _t, TranslationKey, UserFriendlyError } from "../languageHandler";
 import SdkConfig from "../SdkConfig";
 import { ValidatedServerConfig } from "./ValidatedServerConfig";
 
@@ -42,11 +47,9 @@ export default class AutoDiscoveryUtils {
      * @param {string | Error} error The error to check
      * @returns {boolean} True if the error is a liveliness error.
      */
-    public static isLivelinessError(error?: string | Error | null): boolean {
+    public static isLivelinessError(error: unknown): boolean {
         if (!error) return false;
-        return !!LIVELINESS_DISCOVERY_ERRORS.find((e) =>
-            typeof error === "string" ? e === error : e === error.message,
-        );
+        return !!LIVELINESS_DISCOVERY_ERRORS.find((e) => (error instanceof Error ? e === error.message : e === error));
     }
 
     /**
@@ -57,7 +60,7 @@ export default class AutoDiscoveryUtils {
      * implementation for known values.
      * @returns {*} The state for the component, given the error.
      */
-    public static authComponentStateForError(err: string | Error | null, pageName = "login"): IAuthComponentState {
+    public static authComponentStateForError(err: unknown, pageName = "login"): IAuthComponentState {
         if (!err) {
             return {
                 serverIsAlive: true,
@@ -92,7 +95,7 @@ export default class AutoDiscoveryUtils {
         }
 
         let isFatalError = true;
-        const errorMessage = typeof err === "string" ? err : err.message;
+        const errorMessage = err instanceof Error ? err.message : err;
         if (errorMessage === AutoDiscovery.ERROR_INVALID_IDENTITY_SERVER) {
             isFatalError = false;
             title = _t("Cannot reach identity server");
@@ -101,21 +104,15 @@ export default class AutoDiscoveryUtils {
             // don't make this easy to avoid.
             if (pageName === "register") {
                 body = _t(
-                    "You can register, but some features will be unavailable until the identity server is " +
-                        "back online. If you keep seeing this warning, check your configuration or contact a server " +
-                        "admin.",
+                    "You can register, but some features will be unavailable until the identity server is back online. If you keep seeing this warning, check your configuration or contact a server admin.",
                 );
             } else if (pageName === "reset_password") {
                 body = _t(
-                    "You can reset your password, but some features will be unavailable until the identity " +
-                        "server is back online. If you keep seeing this warning, check your configuration or contact " +
-                        "a server admin.",
+                    "You can reset your password, but some features will be unavailable until the identity server is back online. If you keep seeing this warning, check your configuration or contact a server admin.",
                 );
             } else {
                 body = _t(
-                    "You can log in, but some features will be unavailable until the identity server is " +
-                        "back online. If you keep seeing this warning, check your configuration or contact a server " +
-                        "admin.",
+                    "You can log in, but some features will be unavailable until the identity server is back online. If you keep seeing this warning, check your configuration or contact a server admin.",
                 );
             }
         }
@@ -189,12 +186,12 @@ export default class AutoDiscoveryUtils {
      * @returns {Promise<ValidatedServerConfig>} Resolves to the validated configuration.
      */
     public static buildValidatedConfigFromDiscovery(
-        serverName: string,
-        discoveryResult: ClientConfig,
+        serverName?: string,
+        discoveryResult?: ClientConfig,
         syntaxOnly = false,
         isSynthetic = false,
     ): ValidatedServerConfig {
-        if (!discoveryResult || !discoveryResult["m.homeserver"]) {
+        if (!discoveryResult?.["m.homeserver"]) {
             // This shouldn't happen without major misconfiguration, so we'll log a bit of information
             // in the log so we can find this bit of code but otherwise tell the user "it broke".
             logger.error("Ended up in a state of not knowing which homeserver to connect to.");
@@ -220,7 +217,8 @@ export default class AutoDiscoveryUtils {
             logger.error("Error determining preferred identity server URL:", isResult);
             if (isResult.state === AutoDiscovery.FAIL_ERROR) {
                 if (AutoDiscovery.ALL_ERRORS.indexOf(isResult.error as string) !== -1) {
-                    throw new UserFriendlyError(String(isResult.error));
+                    // XXX: We mark these with _td at the top of Login.tsx - we should come up with a better solution
+                    throw new UserFriendlyError(String(isResult.error) as TranslationKey);
                 }
                 throw new UserFriendlyError("Unexpected error resolving identity server configuration");
             } // else the error is not related to syntax - continue anyways.
@@ -236,7 +234,13 @@ export default class AutoDiscoveryUtils {
             logger.error("Error processing homeserver config:", hsResult);
             if (!syntaxOnly || !AutoDiscoveryUtils.isLivelinessError(hsResult.error)) {
                 if (AutoDiscovery.ALL_ERRORS.indexOf(hsResult.error as string) !== -1) {
-                    throw new UserFriendlyError(String(hsResult.error));
+                    // XXX: We mark these with _td at the top of Login.tsx - we should come up with a better solution
+                    throw new UserFriendlyError(String(hsResult.error) as TranslationKey);
+                }
+                if (hsResult.error === AutoDiscovery.ERROR_HOMESERVER_TOO_OLD) {
+                    throw new UserFriendlyError(
+                        "Your homeserver is too old and does not support the minimum API version required. Please contact your server owner, or upgrade your server.",
+                    );
                 }
                 throw new UserFriendlyError("Unexpected error resolving homeserver configuration");
             } // else the error is not related to syntax - continue anyways.
@@ -249,7 +253,7 @@ export default class AutoDiscoveryUtils {
             throw new UserFriendlyError("Unexpected error resolving homeserver configuration");
         }
 
-        let preferredHomeserverName = serverName ? serverName : hsResult["server_name"];
+        let preferredHomeserverName = serverName ?? hsResult["server_name"];
 
         const url = new URL(preferredHomeserverUrl);
         if (!preferredHomeserverName) preferredHomeserverName = url.hostname;
@@ -260,6 +264,28 @@ export default class AutoDiscoveryUtils {
             throw new UserFriendlyError("Unexpected error resolving homeserver configuration");
         }
 
+        let delegatedAuthentication: OidcClientConfig | undefined;
+        if (discoveryResult[M_AUTHENTICATION.stable!]?.state === AutoDiscovery.SUCCESS) {
+            const {
+                authorizationEndpoint,
+                registrationEndpoint,
+                tokenEndpoint,
+                account,
+                issuer,
+                metadata,
+                signingKeys,
+            } = discoveryResult[M_AUTHENTICATION.stable!] as OidcClientConfig;
+            delegatedAuthentication = Object.freeze({
+                authorizationEndpoint,
+                registrationEndpoint,
+                tokenEndpoint,
+                account,
+                issuer,
+                metadata,
+                signingKeys,
+            });
+        }
+
         return {
             hsUrl: preferredHomeserverUrl,
             hsName: preferredHomeserverName,
@@ -268,6 +294,7 @@ export default class AutoDiscoveryUtils {
             isDefault: false,
             warning: hsResult.error,
             isNameResolvable: !isSynthetic,
+            delegatedAuthentication,
         } as ValidatedServerConfig;
     }
 }

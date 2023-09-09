@@ -16,11 +16,18 @@ limitations under the License.
 
 /// <reference types="cypress" />
 
-import type { FileType, Upload, UploadOpts } from "matrix-js-sdk/src/http-api";
-import type { ICreateRoomOpts, ISendEventResponse } from "matrix-js-sdk/src/@types/requests";
-import type { MatrixClient } from "matrix-js-sdk/src/client";
-import type { Room } from "matrix-js-sdk/src/models/room";
-import type { IContent } from "matrix-js-sdk/src/models/event";
+import type {
+    MatrixClient,
+    Room,
+    MatrixEvent,
+    IContent,
+    FileType,
+    Upload,
+    UploadOpts,
+    ICreateRoomOpts,
+    ISendEventResponse,
+    ReceiptType,
+} from "matrix-js-sdk/src/matrix";
 import Chainable = Cypress.Chainable;
 import { UserCredentials } from "./login";
 
@@ -69,6 +76,13 @@ declare global {
                 eventType: string,
                 content: IContent,
             ): Chainable<ISendEventResponse>;
+            /**
+             * @param {MatrixEvent} event
+             * @param {ReceiptType} receiptType
+             * @param {boolean} unthreaded
+             * @return {module:http-api.MatrixError} Rejects: with an error response.
+             */
+            sendReadReceipt(event: MatrixEvent, receiptType?: ReceiptType, unthreaded?: boolean): Chainable<{}>;
             /**
              * @param {string} name
              * @param {module:client.callback} callback Optional.
@@ -191,6 +205,15 @@ Cypress.Commands.add(
     (roomId: string, threadId: string | null, eventType: string, content: IContent): Chainable<ISendEventResponse> => {
         return cy.getClient().then(async (cli: MatrixClient) => {
             return cli.sendEvent(roomId, threadId, eventType, content);
+        });
+    },
+);
+
+Cypress.Commands.add(
+    "sendReadReceipt",
+    (event: MatrixEvent, receiptType?: ReceiptType, unthreaded?: boolean): Chainable<{}> => {
+        return cy.getClient().then(async (cli: MatrixClient) => {
+            return cli.sendReadReceipt(event, receiptType, unthreaded);
         });
     },
 );

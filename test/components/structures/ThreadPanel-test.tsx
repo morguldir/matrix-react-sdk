@@ -18,8 +18,14 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "focus-visible"; // to fix context menus
 import { mocked } from "jest-mock";
-import { MatrixClient, MatrixEvent, PendingEventOrdering, Room } from "matrix-js-sdk/src/matrix";
-import { FeatureSupport, Thread } from "matrix-js-sdk/src/models/thread";
+import {
+    MatrixClient,
+    MatrixEvent,
+    PendingEventOrdering,
+    Room,
+    FeatureSupport,
+    Thread,
+} from "matrix-js-sdk/src/matrix";
 
 import ThreadPanel, { ThreadFilterType, ThreadPanelHeader } from "../../../src/components/structures/ThreadPanel";
 import MatrixClientContext from "../../../src/contexts/MatrixClientContext";
@@ -120,7 +126,7 @@ describe("ThreadPanel", () => {
 
             stubClient();
             mockPlatformPeg();
-            mockClient = mocked(MatrixClientPeg.get());
+            mockClient = mocked(MatrixClientPeg.safeGet());
             Thread.setServerSideSupport(FeatureSupport.Stable);
             Thread.setServerSideListSupport(FeatureSupport.Stable);
             Thread.setServerSideFwdPaginationSupport(FeatureSupport.Stable);

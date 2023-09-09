@@ -14,10 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { EventType, RoomType } from "matrix-js-sdk/src/@types/event";
-import { JoinRule, Preset } from "matrix-js-sdk/src/@types/partials";
+import { EventType, RoomType, JoinRule, Preset, Room, RoomEvent } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
-import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
 import React, { RefObject, useCallback, useContext, useRef, useState } from "react";
 
 import MatrixClientContext from "../../contexts/MatrixClientContext";
@@ -202,9 +200,9 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
                 inputRef={handle}
                 onClick={openMenu}
                 isExpanded={menuDisplayed}
-                label={_t("Add")}
+                label={_t("action|add")}
             >
-                {_t("Add")}
+                {_t("action|add")}
             </ContextMenuButton>
             {contextMenu}
         </>
@@ -234,7 +232,7 @@ const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
                     showSpaceInvite(space);
                 }}
             >
-                {_t("Invite")}
+                {_t("action|invite")}
             </AccessibleButton>
         );
     }
@@ -255,7 +253,7 @@ const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
                 onClick={() => {
                     showSpaceSettings(space);
                 }}
-                title={_t("Settings")}
+                title={_t("common|settings")}
             />
         );
     }
@@ -267,7 +265,7 @@ const SpaceLanding: React.FC<{ space: Room }> = ({ space }) => {
     return (
         <div className="mx_SpaceRoomView_landing">
             <div className="mx_SpaceRoomView_landing_header">
-                <RoomAvatar room={space} height={80} width={80} viewAvatarOnClick={true} />
+                <RoomAvatar room={space} size="80px" viewAvatarOnClick={true} type="square" />
             </div>
             <div className="mx_SpaceRoomView_landing_name">
                 <RoomName room={space}>
@@ -306,8 +304,8 @@ const SpaceSetupFirstRooms: React.FC<{
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const numFields = 3;
-    const placeholders = [_t("General"), _t("Random"), _t("Support")];
-    const [roomNames, setRoomName] = useStateArray(numFields, [_t("General"), _t("Random"), ""]);
+    const placeholders = [_t("General"), _t("common|random"), _t("common|support")];
+    const [roomNames, setRoomName] = useStateArray(numFields, [_t("General"), _t("common|random"), ""]);
     const fields = new Array(numFields).fill(0).map((x, i) => {
         const name = "roomName" + i;
         return (
@@ -315,7 +313,7 @@ const SpaceSetupFirstRooms: React.FC<{
                 key={name}
                 name={name}
                 type="text"
-                label={_t("Room name")}
+                label={_t("common|room_name")}
                 placeholder={placeholders[i]}
                 value={roomNames[i]}
                 onChange={(ev: React.ChangeEvent<HTMLInputElement>) => setRoomName(i, ev.target.value)}
@@ -336,7 +334,7 @@ const SpaceSetupFirstRooms: React.FC<{
             const filteredRoomNames = roomNames.map((name) => name.trim()).filter(Boolean);
             const roomIds = await Promise.all(
                 filteredRoomNames.map((name) => {
-                    return createRoom({
+                    return createRoom(space.client, {
                         createOpts: {
                             preset: isPublic ? Preset.PublicChat : Preset.PrivateChat,
                             name,
@@ -366,7 +364,7 @@ const SpaceSetupFirstRooms: React.FC<{
     let buttonLabel = _t("Skip for now");
     if (roomNames.some((name) => name.trim())) {
         onClick = onNextClick;
-        buttonLabel = busy ? _t("Creating rooms…") : _t("Continue");
+        buttonLabel = busy ? _t("Creating rooms…") : _t("action|continue");
     }
 
     return (
@@ -403,8 +401,7 @@ const SpaceAddExistingRooms: React.FC<{
             <h1>{_t("What do you want to organise?")}</h1>
             <div className="mx_SpaceRoomView_description">
                 {_t(
-                    "Pick rooms or conversations to add. This is just a space for you, " +
-                        "no one will be informed. You can add more later.",
+                    "Pick rooms or conversations to add. This is just a space for you, no one will be informed. You can add more later.",
                 )}
             </div>
 
@@ -548,7 +545,7 @@ const SpaceSetupPrivateInvite: React.FC<{
         setBusy(true);
         const targetIds = emailAddresses.map((name) => name.trim()).filter(Boolean);
         try {
-            const result = await inviteMultipleToRoom(space.roomId, targetIds);
+            const result = await inviteMultipleToRoom(space.client, space.roomId, targetIds);
 
             const failedUsers = Object.keys(result.states).filter((a) => result.states[a] === "error");
             if (failedUsers.length > 0) {
@@ -575,7 +572,7 @@ const SpaceSetupPrivateInvite: React.FC<{
     let buttonLabel = _t("Skip for now");
     if (emailAddresses.some((name) => name.trim())) {
         onClick = onNextClick;
-        buttonLabel = busy ? _t("Inviting…") : _t("Continue");
+        buttonLabel = busy ? _t("Inviting…") : _t("action|continue");
     }
 
     return (
@@ -583,22 +580,6 @@ const SpaceSetupPrivateInvite: React.FC<{
             <h1>{_t("Invite your teammates")}</h1>
             <div className="mx_SpaceRoomView_description">
                 {_t("Make sure the right people have access. You can invite more later.")}
-            </div>
-
-            <div className="mx_SpaceRoomView_inviteTeammates_betaDisclaimer">
-                {_t(
-                    "<b>This is an experimental feature.</b> For now, " +
-                        "new users receiving an invite will have to open the invite on <link/> to actually join.",
-                    {},
-                    {
-                        b: (sub) => <b>{sub}</b>,
-                        link: () => (
-                            <a href="https://app.element.io/" rel="noreferrer noopener" target="_blank">
-                                app.element.io
-                            </a>
-                        ),
-                    },
-                )}
             </div>
 
             {error && <div className="mx_SpaceRoomView_errorText">{error}</div>}

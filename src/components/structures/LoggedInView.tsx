@@ -15,14 +15,18 @@ limitations under the License.
 */
 
 import React, { ClipboardEvent } from "react";
-import { ClientEvent, MatrixClient } from "matrix-js-sdk/src/client";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
+import {
+    ClientEvent,
+    MatrixClient,
+    MatrixEvent,
+    RoomStateEvent,
+    MatrixError,
+    IUsageLimit,
+    SyncStateData,
+    SyncState,
+} from "matrix-js-sdk/src/matrix";
 import { MatrixCall } from "matrix-js-sdk/src/webrtc/call";
 import classNames from "classnames";
-import { ISyncStateData, SyncState } from "matrix-js-sdk/src/sync";
-import { IUsageLimit } from "matrix-js-sdk/src/@types/partials";
-import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
-import { MatrixError } from "matrix-js-sdk/src/matrix";
 
 import { isOnlyCtrlOrCmdKeyEvent, Key } from "../../Keyboard";
 import PageTypes from "../../PageTypes";
@@ -46,7 +50,7 @@ import RoomListStore from "../../stores/room-list/RoomListStore";
 import NonUrgentToastContainer from "./NonUrgentToastContainer";
 import { IOOBData, IThreepidInvite } from "../../stores/ThreepidInviteStore";
 import Modal from "../../Modal";
-import { ICollapseConfig } from "../../resizer/distributors/collapse";
+import { CollapseItem, ICollapseConfig } from "../../resizer/distributors/collapse";
 import { getKeyBindingsManager } from "../../KeyBindingsManager";
 import { IOpts } from "../../createRoom";
 import SpacePanel from "../views/spaces/SpacePanel";
@@ -66,11 +70,11 @@ import RightPanelStore from "../../stores/right-panel/RightPanelStore";
 import { TimelineRenderingType } from "../../contexts/RoomContext";
 import { KeyBindingAction } from "../../accessibility/KeyboardShortcuts";
 import { SwitchSpacePayload } from "../../dispatcher/payloads/SwitchSpacePayload";
-import { IConfigOptions } from "../../IConfigOptions";
 import LeftPanelLiveShareWarning from "../views/beacon/LeftPanelLiveShareWarning";
 import { UserOnboardingPage } from "../views/user-onboarding/UserOnboardingPage";
 import { PipContainer } from "./PipContainer";
 import { monitorSyncedPushRules } from "../../utils/pushRules/monitorSyncedPushRules";
+import { ConfigOptions } from "../../SdkConfig";
 
 // We need to fetch each pinned message individually (if we don't already have it)
 // so each pinned message may trigger a request. Limit the number per room for sanity.
@@ -96,17 +100,17 @@ interface IProps {
     autoJoin?: boolean;
     threepidInvite?: IThreepidInvite;
     roomOobData?: IOOBData;
-    currentRoomId: string;
+    currentRoomId: string | null;
     collapseLhs: boolean;
-    config: IConfigOptions;
-    currentUserId?: string;
+    config: ConfigOptions;
+    currentUserId: string | null;
     justRegistered?: boolean;
     roomJustCreatedOpts?: IOpts;
     forceTimeline?: boolean; // see props on MatrixChat
 }
 
 interface IState {
-    syncErrorData?: ISyncStateData;
+    syncErrorData?: SyncStateData;
     usageLimitDismissed: boolean;
     usageLimitEventContent?: IUsageLimit;
     usageLimitEventTs?: number;
@@ -131,10 +135,10 @@ class LoggedInView extends React.Component<IProps, IState> {
     protected readonly _roomView: React.RefObject<RoomViewType>;
     protected readonly _resizeContainer: React.RefObject<HTMLDivElement>;
     protected readonly resizeHandler: React.RefObject<HTMLDivElement>;
-    protected layoutWatcherRef: string;
-    protected compactLayoutWatcherRef: string;
-    protected backgroundImageWatcherRef: string;
-    protected resizer: Resizer;
+    protected layoutWatcherRef?: string;
+    protected compactLayoutWatcherRef?: string;
+    protected backgroundImageWatcherRef?: string;
+    protected resizer?: Resizer<ICollapseConfig, CollapseItem>;
 
     public constructor(props: IProps) {
         super(props);
@@ -200,10 +204,10 @@ class LoggedInView extends React.Component<IProps, IState> {
         this._matrixClient.removeListener(ClientEvent.Sync, this.onSync);
         this._matrixClient.removeListener(RoomStateEvent.Events, this.onRoomStateEvents);
         OwnProfileStore.instance.off(UPDATE_EVENT, this.refreshBackgroundImage);
-        SettingsStore.unwatchSetting(this.layoutWatcherRef);
-        SettingsStore.unwatchSetting(this.compactLayoutWatcherRef);
-        SettingsStore.unwatchSetting(this.backgroundImageWatcherRef);
-        this.resizer.detach();
+        if (this.layoutWatcherRef) SettingsStore.unwatchSetting(this.layoutWatcherRef);
+        if (this.compactLayoutWatcherRef) SettingsStore.unwatchSetting(this.compactLayoutWatcherRef);
+        if (this.backgroundImageWatcherRef) SettingsStore.unwatchSetting(this.backgroundImageWatcherRef);
+        this.resizer?.detach();
     }
 
     private onCallState = (): void => {
@@ -230,7 +234,7 @@ class LoggedInView extends React.Component<IProps, IState> {
         return this._roomView.current.canResetTimeline();
     };
 
-    private createResizer(): Resizer {
+    private createResizer(): Resizer<ICollapseConfig, CollapseItem> {
         let panelSize: number | null;
         let panelCollapsed: boolean;
         const collapseConfig: ICollapseConfig = {
@@ -264,7 +268,7 @@ class LoggedInView extends React.Component<IProps, IState> {
         const resizer = new Resizer(this._resizeContainer.current, CollapseDistributor, collapseConfig);
         resizer.setClassNames({
             handle: "mx_ResizeHandle",
-            vertical: "mx_ResizeHandle_vertical",
+            vertical: "mx_ResizeHandle--vertical",
             reverse: "mx_ResizeHandle_reverse",
         });
         return resizer;
@@ -275,7 +279,7 @@ class LoggedInView extends React.Component<IProps, IState> {
         if (isNaN(lhsSize)) {
             lhsSize = 350;
         }
-        this.resizer.forHandleWithId("lp-resizer")?.resize(lhsSize);
+        this.resizer?.forHandleWithId("lp-resizer")?.resize(lhsSize);
     }
 
     private onAccountData = (event: MatrixEvent): void => {
@@ -291,7 +295,7 @@ class LoggedInView extends React.Component<IProps, IState> {
         });
     };
 
-    private onSync = (syncState: SyncState | null, oldSyncState: SyncState | null, data?: ISyncStateData): void => {
+    private onSync = (syncState: SyncState | null, oldSyncState: SyncState | null, data?: SyncStateData): void => {
         const oldErrCode = (this.state.syncErrorData?.error as MatrixError)?.errcode;
         const newErrCode = (data?.error as MatrixError)?.errcode;
         if (syncState === oldSyncState && oldErrCode === newErrCode) return;
@@ -360,7 +364,7 @@ class LoggedInView extends React.Component<IProps, IState> {
             }
         }
 
-        if (pinnedEventTs && this.state.usageLimitEventTs > pinnedEventTs) {
+        if (pinnedEventTs && this.state.usageLimitEventTs && this.state.usageLimitEventTs > pinnedEventTs) {
             // We've processed a newer event than this one, so ignore it.
             return;
         }
@@ -646,7 +650,11 @@ class LoggedInView extends React.Component<IProps, IState> {
                 break;
 
             case PageTypes.UserView:
-                pageElement = <UserView userId={this.props.currentUserId} resizeNotifier={this.props.resizeNotifier} />;
+                if (!!this.props.currentUserId) {
+                    pageElement = (
+                        <UserView userId={this.props.currentUserId} resizeNotifier={this.props.resizeNotifier} />
+                    );
+                }
                 break;
         }
 

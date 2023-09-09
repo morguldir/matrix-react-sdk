@@ -17,11 +17,16 @@ limitations under the License.
 import * as React from "react";
 import { render, waitFor, screen, act, fireEvent } from "@testing-library/react";
 import { mocked } from "jest-mock";
-import { EventType } from "matrix-js-sdk/src/@types/event";
-import { MatrixClient, PendingEventOrdering } from "matrix-js-sdk/src/client";
-import { TweakName } from "matrix-js-sdk/src/matrix";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { NotificationCountType, Room } from "matrix-js-sdk/src/models/room";
+import {
+    EventType,
+    CryptoApi,
+    TweakName,
+    NotificationCountType,
+    Room,
+    MatrixEvent,
+    MatrixClient,
+    PendingEventOrdering,
+} from "matrix-js-sdk/src/matrix";
 import { DeviceTrustLevel, UserTrustLevel } from "matrix-js-sdk/src/crypto/CrossSigning";
 import { DeviceInfo } from "matrix-js-sdk/src/crypto/deviceinfo";
 import { IEncryptedEventInfo } from "matrix-js-sdk/src/crypto/api";
@@ -30,7 +35,7 @@ import EventTile, { EventTileProps } from "../../../../src/components/views/room
 import MatrixClientContext from "../../../../src/contexts/MatrixClientContext";
 import RoomContext, { TimelineRenderingType } from "../../../../src/contexts/RoomContext";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
-import { getRoomContext, mkEncryptedEvent, mkEvent, mkMessage, stubClient } from "../../../test-utils";
+import { flushPromises, getRoomContext, mkEncryptedEvent, mkEvent, mkMessage, stubClient } from "../../../test-utils";
 import { mkThread } from "../../../test-utils/threads";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
 import dis from "../../../../src/dispatcher/dispatcher";
@@ -73,7 +78,7 @@ describe("EventTile", () => {
         jest.clearAllMocks();
 
         stubClient();
-        client = MatrixClientPeg.get();
+        client = MatrixClientPeg.safeGet();
 
         room = new Room(ROOM_ID, client, client.getSafeUserId(), {
             pendingEventOrdering: PendingEventOrdering.Detached,
@@ -131,16 +136,6 @@ describe("EventTile", () => {
     });
 
     describe("EventTile renderingType: ThreadsList", () => {
-        beforeEach(() => {
-            const { rootEvent } = mkThread({
-                room,
-                client,
-                authorId: "@alice:example.org",
-                participantUserIds: ["@alice:example.org"],
-            });
-            mxEvent = rootEvent;
-        });
-
         it("shows an unread notification badge", () => {
             const { container } = getComponent({}, TimelineRenderingType.ThreadsList);
 
@@ -221,13 +216,16 @@ describe("EventTile", () => {
             // a version of checkDeviceTrust which says that TRUSTED_DEVICE is trusted, and others are not.
             const trustedDeviceTrustLevel = DeviceTrustLevel.fromUserTrustLevel(trustedUserTrustLevel, true, false);
             const untrustedDeviceTrustLevel = DeviceTrustLevel.fromUserTrustLevel(trustedUserTrustLevel, false, false);
-            client.checkDeviceTrust = (userId, deviceId) => {
-                if (deviceId === TRUSTED_DEVICE.deviceId) {
-                    return trustedDeviceTrustLevel;
-                } else {
-                    return untrustedDeviceTrustLevel;
-                }
-            };
+            const mockCrypto = {
+                getDeviceVerificationStatus: async (userId: string, deviceId: string) => {
+                    if (deviceId === TRUSTED_DEVICE.deviceId) {
+                        return trustedDeviceTrustLevel;
+                    } else {
+                        return untrustedDeviceTrustLevel;
+                    }
+                },
+            } as unknown as CryptoApi;
+            client.getCrypto = () => mockCrypto;
         });
 
         it("shows a warning for an event from an unverified device", async () => {
@@ -243,12 +241,10 @@ describe("EventTile", () => {
             } as IEncryptedEventInfo);
 
             const { container } = getComponent();
+            await act(flushPromises);
 
             const eventTiles = container.getElementsByClassName("mx_EventTile");
             expect(eventTiles).toHaveLength(1);
-            const eventTile = eventTiles[0];
-
-            expect(eventTile.classList).toContain("mx_EventTile_unverified");
 
             // there should be a warning shield
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")).toHaveLength(1);
@@ -270,12 +266,10 @@ describe("EventTile", () => {
             } as IEncryptedEventInfo);
 
             const { container } = getComponent();
+            await act(flushPromises);
 
             const eventTiles = container.getElementsByClassName("mx_EventTile");
             expect(eventTiles).toHaveLength(1);
-            const eventTile = eventTiles[0];
-
-            expect(eventTile.classList).toContain("mx_EventTile_verified");
 
             // there should be no warning
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")).toHaveLength(0);
@@ -295,12 +289,10 @@ describe("EventTile", () => {
             } as IEncryptedEventInfo);
 
             const { container } = getComponent();
+            await act(flushPromises);
 
             const eventTiles = container.getElementsByClassName("mx_EventTile");
             expect(eventTiles).toHaveLength(1);
-            const eventTile = eventTiles[0];
-
-            expect(eventTile.classList).toContain("mx_EventTile_verified");
 
             // there should be no warning
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")).toHaveLength(0);
@@ -317,12 +309,12 @@ describe("EventTile", () => {
                 sender: UNTRUSTED_DEVICE,
             } as IEncryptedEventInfo);
 
-            act(() => {
+            await act(async () => {
                 mxEvent.makeReplaced(replacementEvent);
+                flushPromises();
             });
 
             // check it was updated
-            expect(eventTile.classList).toContain("mx_EventTile_unverified");
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")).toHaveLength(1);
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")[0].classList).toContain(
                 "mx_EventTile_e2eIcon_warning",
@@ -345,12 +337,10 @@ describe("EventTile", () => {
             } as IEncryptedEventInfo);
 
             const { container } = getComponent();
+            await act(flushPromises);
 
             const eventTiles = container.getElementsByClassName("mx_EventTile");
             expect(eventTiles).toHaveLength(1);
-            const eventTile = eventTiles[0];
-
-            expect(eventTile.classList).toContain("mx_EventTile_verified");
 
             // there should be no warning
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")).toHaveLength(0);
@@ -363,12 +353,12 @@ describe("EventTile", () => {
                 event: true,
             });
 
-            act(() => {
+            await act(async () => {
                 mxEvent.makeReplaced(replacementEvent);
+                await flushPromises();
             });
 
             // check it was updated
-            expect(eventTile.classList).not.toContain("mx_EventTile_verified");
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")).toHaveLength(1);
             expect(container.getElementsByClassName("mx_EventTile_e2eIcon")[0].classList).toContain(
                 "mx_EventTile_e2eIcon_warning",

@@ -15,10 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { ChangeEvent, useContext, useMemo, useRef, useState } from "react";
-import { IContent, MatrixEvent } from "matrix-js-sdk/src/models/event";
+import React, { ChangeEvent, ReactNode, useContext, useMemo, useRef, useState } from "react";
+import { IContent, MatrixEvent } from "matrix-js-sdk/src/matrix";
 
-import { _t, _td } from "../../../../languageHandler";
+import { _t, _td, TranslationKey } from "../../../../languageHandler";
 import Field from "../../elements/Field";
 import BaseTool, { DevtoolsContext, IDevtoolsProps } from "./BaseTool";
 import MatrixClientContext from "../../../../contexts/MatrixClientContext";
@@ -37,29 +37,30 @@ interface IEventEditorProps extends Pick<IDevtoolsProps, "onBack"> {
 
 interface IFieldDef {
     id: string;
-    label: string; // _td
+    label: TranslationKey;
     default?: string;
 }
 
 export const eventTypeField = (defaultValue?: string): IFieldDef => ({
     id: "eventType",
-    label: _td("Event Type"),
+    label: _td("devtools|event_type"),
     default: defaultValue,
 });
 
 export const stateKeyField = (defaultValue?: string): IFieldDef => ({
     id: "stateKey",
-    label: _td("State Key"),
+    label: _td("devtools|state_key"),
     default: defaultValue,
 });
 
 const validateEventContent = withValidation<any, Error | undefined>({
-    deriveData({ value }) {
+    async deriveData({ value }) {
         try {
             JSON.parse(value!);
         } catch (e) {
-            return e;
+            return e as Error;
         }
+        return undefined;
     },
     rules: [
         {
@@ -68,7 +69,7 @@ const validateEventContent = withValidation<any, Error | undefined>({
                 if (!value) return true;
                 return !error;
             },
-            invalid: (error) => _t("Doesn't look like valid JSON.") + " " + error,
+            invalid: (error) => _t("devtools|invalid_json") + " " + error,
         },
     ],
 });
@@ -110,9 +111,9 @@ export const EventEditor: React.FC<IEventEditorProps> = ({ fieldDefs, defaultCon
             const json = JSON.parse(content);
             await onSend(fieldData, json);
         } catch (e) {
-            return _t("Failed to send event!") + ` (${e.toString()})`;
+            return _t("devtools|failed_to_send") + (e instanceof Error ? ` (${e.message})` : "");
         }
-        return _t("Event sent!");
+        return _t("devtools|event_sent");
     };
 
     return (
@@ -121,7 +122,7 @@ export const EventEditor: React.FC<IEventEditorProps> = ({ fieldDefs, defaultCon
 
             <Field
                 id="evContent"
-                label={_t("Event Content")}
+                label={_t("devtools|event_content")}
                 type="text"
                 className="mx_DevTools_textarea"
                 autoComplete="off"
@@ -142,9 +143,10 @@ export interface IEditorProps extends Pick<IDevtoolsProps, "onBack"> {
 
 interface IViewerProps extends Required<IEditorProps> {
     Editor: React.FC<IEditorProps>;
+    extraButton?: ReactNode;
 }
 
-export const EventViewer: React.FC<IViewerProps> = ({ mxEvent, onBack, Editor }) => {
+export const EventViewer: React.FC<IViewerProps> = ({ mxEvent, onBack, Editor, extraButton }) => {
     const [editing, setEditing] = useState(false);
 
     if (editing) {
@@ -159,7 +161,7 @@ export const EventViewer: React.FC<IViewerProps> = ({ mxEvent, onBack, Editor })
     };
 
     return (
-        <BaseTool onBack={onBack} actionLabel={_t("Edit")} onAction={onAction}>
+        <BaseTool onBack={onBack} actionLabel={_t("action|edit")} onAction={onAction} extraButton={extraButton}>
             <SyntaxHighlight language="json">{stringify(mxEvent.event)}</SyntaxHighlight>
         </BaseTool>
     );
@@ -182,7 +184,7 @@ export const TimelineEventEditor: React.FC<IEditorProps> = ({ mxEvent, onBack })
         return cli.sendEvent(context.room.roomId, eventType, content || {});
     };
 
-    let defaultContent = "";
+    let defaultContent: string | undefined;
 
     if (mxEvent) {
         const originalContent = mxEvent.getContent();
@@ -202,6 +204,13 @@ export const TimelineEventEditor: React.FC<IEditorProps> = ({ mxEvent, onBack })
         };
 
         defaultContent = stringify(newContent);
+    } else if (context.threadRootId) {
+        defaultContent = stringify({
+            "m.relates_to": {
+                rel_type: "m.thread",
+                event_id: context.threadRootId,
+            },
+        });
     }
 
     return <EventEditor fieldDefs={fields} defaultContent={defaultContent} onSend={onSend} onBack={onBack} />;

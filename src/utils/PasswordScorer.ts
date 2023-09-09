@@ -15,9 +15,10 @@ limitations under the License.
 */
 
 import zxcvbn, { ZXCVBNFeedbackWarning } from "zxcvbn";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 
+import { _t, _td, TranslationKey } from "../languageHandler";
 import { MatrixClientPeg } from "../MatrixClientPeg";
-import { _t, _td } from "../languageHandler";
 
 const ZXCVBN_USER_INPUTS = ["riot", "matrix"];
 
@@ -58,26 +59,40 @@ _td("Short keyboard patterns are easy to guess");
  * (obviously) which is large.
  *
  * @param {string} password Password to score
+ * @param matrixClient the client of the logged in user, if any
+ * @param userInputs additional strings such as the user's name which should be considered a bad password component
  * @returns {object} Score result with `score` and `feedback` properties
  */
-export function scorePassword(password: string): zxcvbn.ZXCVBNResult | null {
+export function scorePassword(
+    matrixClient: MatrixClient | null,
+    password: string,
+    userInputs: string[] = [],
+): zxcvbn.ZXCVBNResult | null {
     if (password.length === 0) return null;
 
-    const userInputs = ZXCVBN_USER_INPUTS.slice();
-    if (MatrixClientPeg.get()) {
-        userInputs.push(MatrixClientPeg.get().getUserIdLocalpart()!);
+    const inputs = [...userInputs, ...ZXCVBN_USER_INPUTS];
+    if (matrixClient) {
+        inputs.push(matrixClient.getUserIdLocalpart()!);
     }
 
-    let zxcvbnResult = zxcvbn(password, userInputs);
+    try {
+        const domain = MatrixClientPeg.getHomeserverName();
+        inputs.push(domain);
+    } catch {
+        // This is fine
+    }
+
+    let zxcvbnResult = zxcvbn(password, inputs);
     // Work around https://github.com/dropbox/zxcvbn/issues/216
     if (password.includes(" ")) {
-        const resultNoSpaces = zxcvbn(password.replace(/ /g, ""), userInputs);
+        const resultNoSpaces = zxcvbn(password.replace(/ /g, ""), inputs);
         if (resultNoSpaces.score < zxcvbnResult.score) zxcvbnResult = resultNoSpaces;
     }
 
     for (let i = 0; i < zxcvbnResult.feedback.suggestions.length; ++i) {
-        // translate suggestions
-        zxcvbnResult.feedback.suggestions[i] = _t(zxcvbnResult.feedback.suggestions[i]);
+        // translate suggestions - we ensure we mark them as `_td` at the top of this file
+        // https://github.com/dropbox/zxcvbn/issues/284 will be a better approach when it lands
+        zxcvbnResult.feedback.suggestions[i] = _t(zxcvbnResult.feedback.suggestions[i] as TranslationKey);
     }
     // and warning, if any
     if (zxcvbnResult.feedback.warning) {

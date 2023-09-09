@@ -15,9 +15,17 @@ limitations under the License.
 */
 
 import { mocked, MockedObject } from "jest-mock";
-import { MatrixClient, ClientEvent, ITurnServer as IClientTurnServer } from "matrix-js-sdk/src/client";
+import {
+    MatrixClient,
+    ClientEvent,
+    ITurnServer as IClientTurnServer,
+    Direction,
+    EventType,
+    MatrixEvent,
+    MsgType,
+    RelationType,
+} from "matrix-js-sdk/src/matrix";
 import { DeviceInfo } from "matrix-js-sdk/src/crypto/deviceinfo";
-import { Direction, EventType, MatrixEvent, MsgType, RelationType } from "matrix-js-sdk/src/matrix";
 import {
     Widget,
     MatrixWidgetType,
@@ -61,8 +69,9 @@ describe("StopGapWidgetDriver", () => {
 
     beforeEach(() => {
         stubClient();
-        client = mocked(MatrixClientPeg.get());
+        client = mocked(MatrixClientPeg.safeGet());
         client.getUserId.mockReturnValue("@alice:example.org");
+        client.getSafeUserId.mockReturnValue("@alice:example.org");
     });
 
     it("auto-approves capabilities of virtual Element Call widgets", async () => {

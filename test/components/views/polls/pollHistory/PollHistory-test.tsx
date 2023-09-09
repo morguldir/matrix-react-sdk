@@ -15,10 +15,8 @@ limitations under the License.
 */
 
 import React from "react";
-import { fireEvent, render } from "@testing-library/react";
-import { Filter } from "matrix-js-sdk/src/filter";
-import { EventTimeline, Room } from "matrix-js-sdk/src/matrix";
-import { M_POLL_START } from "matrix-js-sdk/src/@types/polls";
+import { act, fireEvent, render } from "@testing-library/react";
+import { Filter, EventTimeline, Room, MatrixEvent, M_POLL_START } from "matrix-js-sdk/src/matrix";
 
 import { PollHistory } from "../../../../../src/components/views/polls/pollHistory/PollHistory";
 import {
@@ -195,7 +193,11 @@ describe("<PollHistory />", () => {
         const fourtyDaysAgoTs = now - 60000 * 60 * 24 * 40;
         const pollStart = makePollStartEvent("Question?", userId, undefined, { ts: fourtyDaysAgoTs, id: "1" });
 
-        jest.spyOn(liveTimeline, "getEvents").mockReset().mockReturnValueOnce([]).mockReturnValueOnce([pollStart]);
+        jest.spyOn(liveTimeline, "getEvents")
+            .mockReset()
+            .mockReturnValueOnce([])
+            .mockReturnValueOnce([pollStart])
+            .mockReturnValue(undefined as unknown as MatrixEvent[]);
 
         // mock three pages of timeline history
         jest.spyOn(liveTimeline, "getPaginationToken")
@@ -204,7 +206,7 @@ describe("<PollHistory />", () => {
             .mockReturnValueOnce("test-pagination-token-3");
 
         const { getByText } = getComponent();
-        await flushPromises();
+        await act(flushPromises);
 
         expect(mockClient.paginateEventTimeline).toHaveBeenCalledTimes(1);
 
@@ -217,7 +219,7 @@ describe("<PollHistory />", () => {
         // load more polls button still in UI, with loader
         expect(getByText("Load more polls")).toMatchSnapshot();
 
-        await flushPromises();
+        await act(flushPromises);
 
         // no more spinner
         expect(getByText("Load more polls")).toMatchSnapshot();

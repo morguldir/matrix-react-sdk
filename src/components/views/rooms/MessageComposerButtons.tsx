@@ -15,12 +15,8 @@ limitations under the License.
 */
 
 import classNames from "classnames";
-import { IEventRelation } from "matrix-js-sdk/src/models/event";
-import { M_POLL_START } from "matrix-js-sdk/src/@types/polls";
-import React, { createContext, MouseEventHandler, ReactElement, ReactNode, useContext, useRef } from "react";
-import { Room } from "matrix-js-sdk/src/models/room";
-import { MatrixClient } from "matrix-js-sdk/src/client";
-import { THREAD_RELATION_TYPE } from "matrix-js-sdk/src/models/thread";
+import { IEventRelation, Room, MatrixClient, THREAD_RELATION_TYPE, M_POLL_START } from "matrix-js-sdk/src/matrix";
+import React, { createContext, ReactElement, ReactNode, useContext, useRef } from "react";
 
 import { _t } from "../../../languageHandler";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
@@ -39,7 +35,9 @@ import { useDispatcher } from "../../../hooks/useDispatcher";
 import { chromeFileInputFix } from "../../../utils/BrowserWorkarounds";
 import IconizedContextMenu, { IconizedContextMenuOptionList } from "../context_menus/IconizedContextMenu";
 import { EmojiButton } from "./EmojiButton";
+import { filterBoolean } from "../../../utils/arrays";
 import { useSettingValue } from "../../../hooks/useSettings";
+import { ButtonEvent } from "../elements/AccessibleButton";
 
 interface IProps {
     addEmoji: (emoji: string) => boolean;
@@ -117,8 +115,8 @@ const MessageComposerButtons: React.FC<IProps> = (props: IProps) => {
         ];
     }
 
-    mainButtons = mainButtons.filter((x: ReactElement) => x);
-    moreButtons = moreButtons.filter((x: ReactElement) => x);
+    mainButtons = filterBoolean(mainButtons);
+    moreButtons = filterBoolean(moreButtons);
 
     const moreOptionsClasses = classNames({
         mx_MessageComposer_button: true,
@@ -247,7 +245,7 @@ const UploadButton: React.FC = () => {
             className="mx_MessageComposer_button"
             iconClassName="mx_MessageComposer_upload"
             onClick={onClick}
-            title={_t("Attachment")}
+            title={_t("common|attachment")}
         />
     );
 };
@@ -260,7 +258,7 @@ function showStickersButton(props: IProps): ReactElement | null {
             className="mx_MessageComposer_button"
             iconClassName="mx_MessageComposer_stickers"
             onClick={() => props.setStickerPickerOpen(!props.isStickerPickerOpen)}
-            title={props.isStickerPickerOpen ? _t("Hide stickers") : _t("Sticker")}
+            title={props.isStickerPickerOpen ? _t("Hide stickers") : _t("common|sticker")}
         />
     ) : null;
 }
@@ -307,7 +305,7 @@ class PollButton extends React.PureComponent<IPollButtonProps> {
         this.context?.(); // close overflow menu
         const canSend = this.props.room.currentState.maySendEvent(
             M_POLL_START.name,
-            MatrixClientPeg.get().getUserId()!,
+            MatrixClientPeg.safeGet().getSafeUserId(),
         );
         if (!canSend) {
             Modal.createDialog(ErrorDialog, {
@@ -362,7 +360,7 @@ function showLocationButton(props: IProps, room: Room, matrixClient: MatrixClien
 
 interface WysiwygToggleButtonProps {
     isRichTextEnabled: boolean;
-    onClick: MouseEventHandler<HTMLDivElement>;
+    onClick: (ev: ButtonEvent) => void;
 }
 
 function ComposerModeButton({ isRichTextEnabled, onClick }: WysiwygToggleButtonProps): JSX.Element {

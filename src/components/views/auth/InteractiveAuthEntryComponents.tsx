@@ -15,17 +15,17 @@ limitations under the License.
 */
 
 import classNames from "classnames";
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { AuthType, IAuthDict, IInputs, IStageStatus } from "matrix-js-sdk/src/interactive-auth";
 import { logger } from "matrix-js-sdk/src/logger";
-import React, { ChangeEvent, createRef, FormEvent, Fragment, MouseEvent } from "react";
+import React, { ChangeEvent, createRef, FormEvent, Fragment } from "react";
 
 import EmailPromptIcon from "../../../../res/img/element-icons/email-prompt.svg";
 import { _t } from "../../../languageHandler";
 import SettingsStore from "../../../settings/SettingsStore";
 import { LocalisedPolicy, Policies } from "../../../Terms";
 import { AuthHeaderModifier } from "../../structures/auth/header/AuthHeaderModifier";
-import AccessibleButton from "../elements/AccessibleButton";
+import AccessibleButton, { ButtonEvent } from "../elements/AccessibleButton";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import Field from "../elements/Field";
 import Spinner from "../elements/Spinner";
@@ -91,6 +91,9 @@ interface IAuthEntryProps {
     onPhaseChange: (phase: number) => void;
     submitAuthDict: (auth: IAuthDict) => void;
     requestEmailToken?: () => Promise<void>;
+    fail: (error: Error) => void;
+    clientSecret: string;
+    showContinue: boolean;
 }
 
 interface IPasswordAuthEntryState {
@@ -150,7 +153,7 @@ export class PasswordAuthEntry extends React.Component<IAuthEntryProps, IPasswor
                     type="submit"
                     className="mx_Dialog_primary"
                     disabled={!this.state.password}
-                    value={_t("Continue")}
+                    value={_t("action|continue")}
                 />
             );
         }
@@ -172,7 +175,7 @@ export class PasswordAuthEntry extends React.Component<IAuthEntryProps, IPasswor
                         className={passwordBoxClass}
                         type="password"
                         name="passwordField"
-                        label={_t("Password")}
+                        label={_t("common|password")}
                         autoFocus={true}
                         value={this.state.password}
                         onChange={this.onPasswordFieldChange}
@@ -214,17 +217,16 @@ export class RecaptchaAuthEntry extends React.Component<IRecaptchaAuthEntryProps
 
         let errorText = this.props.errorText;
 
-        let sitePublicKey;
+        let sitePublicKey: string | undefined;
         if (!this.props.stageParams || !this.props.stageParams.public_key) {
             errorText = _t(
-                "Missing captcha public key in homeserver configuration. Please report " +
-                    "this to your homeserver administrator.",
+                "Missing captcha public key in homeserver configuration. Please report this to your homeserver administrator.",
             );
         } else {
             sitePublicKey = this.props.stageParams.public_key;
         }
 
-        let errorSection;
+        let errorSection: JSX.Element | undefined;
         if (errorText) {
             errorSection = (
                 <div className="error" role="alert">
@@ -235,7 +237,9 @@ export class RecaptchaAuthEntry extends React.Component<IRecaptchaAuthEntryProps
 
         return (
             <div>
-                <CaptchaForm sitePublicKey={sitePublicKey} onCaptchaResponse={this.onCaptchaResponse} />
+                {sitePublicKey && (
+                    <CaptchaForm sitePublicKey={sitePublicKey} onCaptchaResponse={this.onCaptchaResponse} />
+                )}
                 {errorSection}
             </div>
         );
@@ -246,7 +250,6 @@ interface ITermsAuthEntryProps extends IAuthEntryProps {
     stageParams?: {
         policies?: Policies;
     };
-    showContinue: boolean;
 }
 
 interface LocalisedPolicyWithId extends LocalisedPolicy {
@@ -393,7 +396,7 @@ export class TermsAuthEntry extends React.Component<ITermsAuthEntryProps, ITerms
                     onClick={this.trySubmit}
                     disabled={!allChecked}
                 >
-                    {_t("Accept")}
+                    {_t("action|accept")}
                 </AccessibleButton>
             );
         }
@@ -414,7 +417,7 @@ interface IEmailIdentityAuthEntryProps extends IAuthEntryProps {
         emailAddress?: string;
     };
     stageState?: {
-        emailSid: string;
+        emailSid?: string;
     };
 }
 
@@ -505,7 +508,7 @@ export class EmailIdentityAuthEntry extends React.Component<
                                     a: (text: string) => (
                                         <AccessibleTooltipButton
                                             kind="link_inline"
-                                            title={this.state.requested ? _t("Resent!") : _t("Resend")}
+                                            title={this.state.requested ? _t("Resent!") : _t("action|resend")}
                                             alignment={Alignment.Right}
                                             onHideTooltip={
                                                 this.state.requested
@@ -538,12 +541,10 @@ export class EmailIdentityAuthEntry extends React.Component<
 }
 
 interface IMsisdnAuthEntryProps extends IAuthEntryProps {
-    inputs: {
-        phoneCountry: string;
-        phoneNumber: string;
+    inputs?: {
+        phoneCountry?: string;
+        phoneNumber?: string;
     };
-    clientSecret: string;
-    fail: (error: Error) => void;
 }
 
 interface IMsisdnAuthEntryState {
@@ -556,8 +557,8 @@ export class MsisdnAuthEntry extends React.Component<IMsisdnAuthEntryProps, IMsi
     public static LOGIN_TYPE = AuthType.Msisdn;
 
     private submitUrl?: string;
-    private sid: string;
-    private msisdn: string;
+    private sid?: string;
+    private msisdn?: string;
 
     public constructor(props: IMsisdnAuthEntryProps) {
         super(props);
@@ -588,8 +589,8 @@ export class MsisdnAuthEntry extends React.Component<IMsisdnAuthEntryProps, IMsi
     private requestMsisdnToken(): Promise<void> {
         return this.props.matrixClient
             .requestRegisterMsisdnToken(
-                this.props.inputs.phoneCountry,
-                this.props.inputs.phoneNumber,
+                this.props.inputs?.phoneCountry ?? "",
+                this.props.inputs?.phoneNumber ?? "",
                 this.props.clientSecret,
                 1, // TODO: Multiple send attempts?
             )
@@ -615,8 +616,8 @@ export class MsisdnAuthEntry extends React.Component<IMsisdnAuthEntryProps, IMsi
         });
 
         try {
-            let result;
-            if (this.submitUrl) {
+            let result: { success: boolean };
+            if (this.submitUrl && this.sid) {
                 result = await this.props.matrixClient.submitMsisdnTokenOtherUrl(
                     this.submitUrl,
                     this.sid,
@@ -645,7 +646,7 @@ export class MsisdnAuthEntry extends React.Component<IMsisdnAuthEntryProps, IMsi
                 });
             }
         } catch (e) {
-            this.props.fail(e);
+            this.props.fail(e instanceof Error ? e : new Error("Failed to submit msisdn token"));
             logger.log("Failed to submit msisdn token");
         }
     };
@@ -683,7 +684,7 @@ export class MsisdnAuthEntry extends React.Component<IMsisdnAuthEntryProps, IMsi
                             <br />
                             <input
                                 type="submit"
-                                value={_t("Submit")}
+                                value={_t("action|submit")}
                                 className={submitClasses}
                                 disabled={!enableSubmit}
                             />
@@ -744,7 +745,7 @@ export class RegistrationTokenAuthEntry extends React.Component<IAuthEntryProps,
         } else {
             submitButtonOrSpinner = (
                 <AccessibleButton onClick={this.onSubmit} kind="primary" disabled={!this.state.registrationToken}>
-                    {_t("Continue")}
+                    {_t("action|continue")}
                 </AccessibleButton>
             );
         }
@@ -861,12 +862,13 @@ export class SSOAuthEntry extends React.Component<ISSOAuthEntryProps, ISSOAuthEn
 
     public render(): React.ReactNode {
         let continueButton: JSX.Element;
+
         const cancelButton = (
             <AccessibleButton
                 onClick={this.props.onCancel ?? null}
                 kind={this.props.continueKind ? this.props.continueKind + "_outline" : "primary_outline"}
             >
-                {_t("Cancel")}
+                {_t("action|cancel")}
             </AccessibleButton>
         );
         if (this.state.phase === SSOAuthEntry.PHASE_PREAUTH) {
@@ -878,7 +880,7 @@ export class SSOAuthEntry extends React.Component<ISSOAuthEntryProps, ISSOAuthEn
         } else {
             continueButton = (
                 <AccessibleButton onClick={this.onConfirmClick} kind={this.props.continueKind || "primary"}>
-                    {this.props.continueText || _t("Confirm")}
+                    {this.props.continueText || _t("action|confirm")}
                 </AccessibleButton>
             );
         }
@@ -902,8 +904,14 @@ export class SSOAuthEntry extends React.Component<ISSOAuthEntryProps, ISSOAuthEn
             <Fragment>
                 {errorSection}
                 <div className="mx_InteractiveAuthEntryComponents_sso_buttons">
-                    {cancelButton}
-                    {continueButton}
+                    {this.props.busy ? (
+                        <Spinner w={24} h={24} />
+                    ) : (
+                        <>
+                            {cancelButton}
+                            {continueButton}
+                        </>
+                    )}
                 </div>
             </Fragment>
         );
@@ -936,7 +944,7 @@ export class FallbackAuthEntry extends React.Component<IAuthEntryProps> {
         this.fallbackButton.current?.focus();
     };
 
-    private onShowFallbackClick = (e: MouseEvent): void => {
+    private onShowFallbackClick = (e: ButtonEvent): void => {
         if (!this.props.authSessionId) return;
 
         e.preventDefault();
@@ -973,14 +981,11 @@ export class FallbackAuthEntry extends React.Component<IAuthEntryProps> {
 }
 
 export interface IStageComponentProps extends IAuthEntryProps {
-    clientSecret?: string;
     stageParams?: Record<string, any>;
     inputs?: IInputs;
     stageState?: IStageStatus;
-    showContinue?: boolean;
     continueText?: string;
     continueKind?: string;
-    fail?(e: Error): void;
     setEmailSid?(sid: string): void;
     onCancel?(): void;
     requestEmailToken?(): Promise<void>;

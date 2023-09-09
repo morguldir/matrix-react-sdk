@@ -20,8 +20,9 @@ import zxcvbn from "zxcvbn";
 
 import SdkConfig from "../../../SdkConfig";
 import withValidation, { IFieldState, IValidationResult } from "../elements/Validation";
-import { _t, _td } from "../../../languageHandler";
+import { _t, _td, TranslationKey } from "../../../languageHandler";
 import Field, { IInputProps } from "../elements/Field";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
 
 interface IProps extends Omit<IInputProps, "onValidate" | "element"> {
     autoFocus?: boolean;
@@ -30,11 +31,13 @@ interface IProps extends Omit<IInputProps, "onValidate" | "element"> {
     minScore: 0 | 1 | 2 | 3 | 4;
     value: string;
     fieldRef?: RefCallback<Field> | RefObject<Field>;
+    // Additional strings such as a username used to catch bad passwords
+    userInputs?: string[];
 
-    label: string;
-    labelEnterPassword: string;
-    labelStrongPassword: string;
-    labelAllowedButUnsafe: string;
+    label: TranslationKey;
+    labelEnterPassword: TranslationKey;
+    labelStrongPassword: TranslationKey;
+    labelAllowedButUnsafe: TranslationKey;
 
     onChange(ev: React.FormEvent<HTMLElement>): void;
     onValidate?(result: IValidationResult): void;
@@ -42,7 +45,7 @@ interface IProps extends Omit<IInputProps, "onValidate" | "element"> {
 
 class PassphraseField extends PureComponent<IProps> {
     public static defaultProps = {
-        label: _td("Password"),
+        label: _td("common|password"),
         labelEnterPassword: _td("Enter password"),
         labelStrongPassword: _td("Nice, strong password!"),
         labelAllowedButUnsafe: _td("Password is allowed, but unsafe"),
@@ -56,7 +59,7 @@ class PassphraseField extends PureComponent<IProps> {
         deriveData: async ({ value }): Promise<zxcvbn.ZXCVBNResult | null> => {
             if (!value) return null;
             const { scorePassword } = await import("../../../utils/PasswordScorer");
-            return scorePassword(value);
+            return scorePassword(MatrixClientPeg.get(), value, this.props.userInputs);
         },
         rules: [
             {
@@ -92,6 +95,7 @@ class PassphraseField extends PureComponent<IProps> {
                 },
             },
         ],
+        memoize: true,
     });
 
     public onValidate = async (fieldState: IFieldState): Promise<IValidationResult> => {

@@ -27,7 +27,7 @@ import SearchWarning, { WarningKind } from "../elements/SearchWarning";
 
 interface IProps {
     onCancelClick: () => void;
-    onSearch: (query: string, scope: string) => void;
+    onSearch: (query: string, scope: SearchScope) => void;
     searchInProgress?: boolean;
     isRoomEncrypted?: boolean;
 }
@@ -129,13 +129,13 @@ export default class SearchBar extends React.Component<IProps, IState> {
                         <AccessibleButton
                             className={searchButtonClasses}
                             onClick={this.onSearch}
-                            aria-label={_t("Search")}
+                            aria-label={_t("action|search")}
                         />
                     </div>
                     <AccessibleButton
                         className="mx_SearchBar_cancel"
                         onClick={this.props.onCancelClick}
-                        aria-label={_t("Cancel")}
+                        aria-label={_t("action|cancel")}
                     />
                 </div>
                 <SearchWarning isRoomEncrypted={this.props.isRoomEncrypted} kind={WarningKind.Search} />

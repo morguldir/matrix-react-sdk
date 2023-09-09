@@ -28,6 +28,7 @@ import ErrorDialog, { extractErrorMessageFromError } from "./ErrorDialog";
 import QuestionDialog from "./QuestionDialog";
 import BaseDialog from "./BaseDialog";
 import EditableText from "../elements/EditableText";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
 
 interface IProps {
     title: string;
@@ -45,7 +46,7 @@ interface IState {
  * On success, `onFinished(true)` is called.
  */
 export default class SetEmailDialog extends React.Component<IProps, IState> {
-    private addThreepid: AddThreepid;
+    private addThreepid?: AddThreepid;
 
     public constructor(props: IProps) {
         super(props);
@@ -71,16 +72,15 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
             });
             return;
         }
-        this.addThreepid = new AddThreepid();
+        this.addThreepid = new AddThreepid(MatrixClientPeg.safeGet());
         this.addThreepid.addEmailAddress(emailAddress).then(
             () => {
                 Modal.createDialog(QuestionDialog, {
                     title: _t("Verification Pending"),
                     description: _t(
-                        "Please check your email and click on the link it contains. Once this " +
-                            "is done, click continue.",
+                        "Please check your email and click on the link it contains. Once this is done, click continue.",
                     ),
-                    button: _t("Continue"),
+                    button: _t("action|continue"),
                     onFinished: this.onEmailDialogFinished,
                 });
             },
@@ -109,7 +109,7 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
     };
 
     private verifyEmailAddress(): void {
-        this.addThreepid.checkEmailLinkClicked().then(
+        this.addThreepid?.checkEmailLinkClicked().then(
             () => {
                 this.props.onFinished(true);
             },
@@ -131,7 +131,7 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
                     Modal.createDialog(QuestionDialog, {
                         title: _t("Verification Pending"),
                         description: message,
-                        button: _t("Continue"),
+                        button: _t("action|continue"),
                         onFinished: this.onEmailDialogFinished,
                     });
                 } else {
@@ -173,8 +173,13 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
                     {emailInput}
                 </div>
                 <div className="mx_Dialog_buttons">
-                    <input className="mx_Dialog_primary" type="submit" value={_t("Continue")} onClick={this.onSubmit} />
-                    <input type="submit" value={_t("Skip")} onClick={this.onCancelled} />
+                    <input
+                        className="mx_Dialog_primary"
+                        type="submit"
+                        value={_t("action|continue")}
+                        onClick={this.onSubmit}
+                    />
+                    <input type="submit" value={_t("action|skip")} onClick={this.onCancelled} />
                 </div>
             </BaseDialog>
         );

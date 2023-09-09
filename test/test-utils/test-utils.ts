@@ -16,9 +16,8 @@ limitations under the License.
 
 import EventEmitter from "events";
 import { mocked, MockedObject } from "jest-mock";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { JoinRule } from "matrix-js-sdk/src/@types/partials";
 import {
+    MatrixEvent,
     Room,
     User,
     IContent,
@@ -34,20 +33,21 @@ import {
     RoomType,
     KNOWN_SAFE_ROOM_VERSION,
     ConditionKind,
-    PushRuleActionName,
     IPushRules,
+    RelationType,
+    JoinRule,
+    IEventDecryptionResult,
 } from "matrix-js-sdk/src/matrix";
 import { normalize } from "matrix-js-sdk/src/utils";
 import { ReEmitter } from "matrix-js-sdk/src/ReEmitter";
 import { MediaHandler } from "matrix-js-sdk/src/webrtc/mediaHandler";
 import { Feature, ServerSupport } from "matrix-js-sdk/src/feature";
 import { CryptoBackend } from "matrix-js-sdk/src/common-crypto/CryptoBackend";
-import { IEventDecryptionResult } from "matrix-js-sdk/src/@types/crypto";
 import { MapperOpts } from "matrix-js-sdk/src/event-mapper";
 
-import type { GroupCall } from "matrix-js-sdk/src/webrtc/groupCall";
+import type { GroupCall } from "matrix-js-sdk/src/matrix";
 import { MatrixClientPeg as peg } from "../../src/MatrixClientPeg";
-import { ValidatedServerConfig } from "../../src/utils/ValidatedServerConfig";
+import { ValidatedDelegatedAuthConfig, ValidatedServerConfig } from "../../src/utils/ValidatedServerConfig";
 import { EnhancedMap } from "../../src/utils/maps";
 import { AsyncStoreWithClient } from "../../src/stores/AsyncStoreWithClient";
 import MatrixClientBackedSettingsHandler from "../../src/settings/handlers/MatrixClientBackedSettingsHandler";
@@ -59,6 +59,8 @@ import MatrixClientBackedSettingsHandler from "../../src/settings/handlers/Matri
  * TODO: once the components are updated to get their MatrixClients from
  * the react context, we can get rid of this and just inject a test client
  * via the context instead.
+ *
+ * See also `getMockClientWithEventEmitter` which does something similar but different.
  */
 export function stubClient(): MatrixClient {
     const client = createTestClient();
@@ -68,13 +70,13 @@ export function stubClient(): MatrixClient {
     // 'sandbox.restore()' doesn't work correctly on inherited methods,
     // so we do this for each method
     jest.spyOn(peg, "get");
+    jest.spyOn(peg, "safeGet");
     jest.spyOn(peg, "unset");
     jest.spyOn(peg, "replaceUsingCreds");
-    // MatrixClientPeg.get() is called a /lot/, so implement it with our own
+    // MatrixClientPeg.safeGet() is called a /lot/, so implement it with our own
     // fast stub function rather than a sinon stub
-    peg.get = function () {
-        return client;
-    };
+    peg.get = () => client;
+    peg.safeGet = () => client;
     MatrixClientBackedSettingsHandler.matrixClient = client;
     return client;
 }
@@ -99,7 +101,6 @@ export function createTestClient(): MatrixClient {
         getDevice: jest.fn(),
         getDeviceId: jest.fn().mockReturnValue("ABCDEFGHI"),
         getStoredCrossSigningForUser: jest.fn(),
-        checkDeviceTrust: jest.fn(),
         getStoredDevice: jest.fn(),
         requestVerification: jest.fn(),
         deviceId: "ABCDEFGHI",
@@ -121,6 +122,7 @@ export function createTestClient(): MatrixClient {
                 downloadKeys: jest.fn(),
             },
         },
+        getCrypto: jest.fn().mockReturnValue({ getUserDeviceInfo: jest.fn() }),
 
         getPushActionsForEvent: jest.fn(),
         getRoom: jest.fn().mockImplementation((roomId) => mkStubRoom(roomId, "My room", client)),
@@ -156,6 +158,7 @@ export function createTestClient(): MatrixClient {
             });
         }),
         mxcUrlToHttp: (mxc: string) => `http://this.is.a.url/${mxc.substring(6)}`,
+        scheduleAllGroupSessionsForBackup: jest.fn().mockResolvedValue(undefined),
         setAccountData: jest.fn(),
         setRoomAccountData: jest.fn(),
         setRoomTopic: jest.fn(),
@@ -175,7 +178,7 @@ export function createTestClient(): MatrixClient {
         decryptEventIfNeeded: () => Promise.resolve(),
         isUserIgnored: jest.fn().mockReturnValue(false),
         getCapabilities: jest.fn().mockResolvedValue({}),
-        supportsThreads: () => false,
+        supportsThreads: jest.fn().mockReturnValue(false),
         supportsIntentionalMentions: () => false,
         getRoomUpgradeHistory: jest.fn().mockReturnValue([]),
         getOpenIdToken: jest.fn().mockResolvedValue(undefined),
@@ -214,7 +217,6 @@ export function createTestClient(): MatrixClient {
         uploadContent: jest.fn(),
         getEventMapper: (_options?: MapperOpts) => (event: Partial<IEvent>) => new MatrixEvent(event),
         leaveRoomChain: jest.fn((roomId) => ({ [roomId]: null })),
-        doesServerSupportLogoutDevices: jest.fn().mockReturnValue(true),
         requestPasswordEmailToken: jest.fn().mockRejectedValue({}),
         setPassword: jest.fn().mockRejectedValue({}),
         groupCallEventHandler: { groupCalls: new Map<string, GroupCall>() },
@@ -234,6 +236,19 @@ export function createTestClient(): MatrixClient {
         }),
 
         searchUserDirectory: jest.fn().mockResolvedValue({ limited: false, results: [] }),
+        setDeviceVerified: jest.fn(),
+        joinRoom: jest.fn(),
+        getSyncStateData: jest.fn(),
+        getDehydratedDevice: jest.fn(),
+        exportRoomKeys: jest.fn(),
+        knockRoom: jest.fn(),
+        leave: jest.fn(),
+        getVersions: jest.fn().mockResolvedValue({ versions: ["v1.1"] }),
+        requestAdd3pidMsisdnToken: jest.fn(),
+        submitMsisdnTokenOtherUrl: jest.fn(),
+        addThreePidOnly: jest.fn(),
+        requestMsisdnToken: jest.fn(),
+        submitMsisdnToken: jest.fn(),
     } as unknown as MatrixClient;
 
     client.reEmitter = new ReEmitter(client);
@@ -471,6 +486,29 @@ export type MessageEventProps = MakeEventPassThruProps & {
 };
 
 /**
+ * Creates a "🙃" reaction for the given event.
+ * Uses the same room and user as for the event.
+ *
+ * @returns The reaction event
+ */
+export const mkReaction = (event: MatrixEvent, opts: Partial<MakeEventProps> = {}): MatrixEvent => {
+    return mkEvent({
+        event: true,
+        room: event.getRoomId(),
+        type: EventType.Reaction,
+        user: event.getSender()!,
+        content: {
+            "m.relates_to": {
+                rel_type: RelationType.Annotation,
+                event_id: event.getId(),
+                key: "🙃",
+            },
+        },
+        ...opts,
+    });
+};
+
+/**
  * Create an m.room.message event.
  * @param {Object} opts Values for the message
  * @param {string} opts.room The room ID for the event.
@@ -500,6 +538,7 @@ export function mkMessage({
     }
     const message = msg ?? "Random->" + Math.random();
     const event: MakeEventProps = {
+        ts: 0,
         ...opts,
         type: "m.room.message",
         content: {
@@ -536,7 +575,7 @@ export function mkStubRoom(
             on: jest.fn(),
             off: jest.fn(),
         } as unknown as RoomState,
-        eventShouldLiveIn: jest.fn().mockReturnValue({}),
+        eventShouldLiveIn: jest.fn().mockReturnValue({ shouldLiveInRoom: true, shouldLiveInThread: false }),
         fetchRoomThreads: jest.fn().mockReturnValue(Promise.resolve()),
         findEventById: jest.fn().mockReturnValue(undefined),
         findPredecessor: jest.fn().mockReturnValue({ roomId: "", eventId: null }),
@@ -591,12 +630,17 @@ export function mkStubRoom(
     } as unknown as Room;
 }
 
-export function mkServerConfig(hsUrl: string, isUrl: string): ValidatedServerConfig {
+export function mkServerConfig(
+    hsUrl: string,
+    isUrl: string,
+    delegatedAuthentication?: ValidatedDelegatedAuthConfig,
+): ValidatedServerConfig {
     return {
         hsUrl,
         hsName: "TEST_ENVIRONMENT",
         hsNameIsDifferent: false, // yes, we lie
         isUrl,
+        delegatedAuthentication,
     } as ValidatedServerConfig;
 }
 
@@ -760,7 +804,7 @@ export function muteRoom(room: Room): void {
                     pattern: room.roomId,
                 },
             ],
-            actions: [PushRuleActionName.DontNotify],
+            actions: [],
         },
     ];
 }

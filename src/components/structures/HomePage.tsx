@@ -28,7 +28,7 @@ import { OwnProfileStore } from "../../stores/OwnProfileStore";
 import AccessibleButton, { ButtonEvent } from "../views/elements/AccessibleButton";
 import { UPDATE_EVENT } from "../../stores/AsyncStore";
 import { useEventEmitter } from "../../hooks/useEventEmitter";
-import MatrixClientContext from "../../contexts/MatrixClientContext";
+import MatrixClientContext, { useMatrixClientContext } from "../../contexts/MatrixClientContext";
 import MiniAvatarUploader, { AVATAR_SIZE } from "../views/elements/MiniAvatarUploader";
 import PosthogTrackers from "../../PosthogTrackers";
 import EmbeddedPage from "./EmbeddedPage";
@@ -59,7 +59,7 @@ const getOwnProfile = (
     avatarUrl?: string;
 } => ({
     displayName: OwnProfileStore.instance.displayName || userId,
-    avatarUrl: OwnProfileStore.instance.getHttpAvatarUrl(AVATAR_SIZE) ?? undefined,
+    avatarUrl: OwnProfileStore.instance.getHttpAvatarUrl(parseInt(AVATAR_SIZE, 10)) ?? undefined,
 });
 
 const UserWelcomeTop: React.FC = () => {
@@ -84,9 +84,7 @@ const UserWelcomeTop: React.FC = () => {
                     idName={userId}
                     name={ownProfile.displayName}
                     url={ownProfile.avatarUrl}
-                    width={AVATAR_SIZE}
-                    height={AVATAR_SIZE}
-                    resizeMethod="crop"
+                    size={AVATAR_SIZE + "px"}
                 />
             </MiniAvatarUploader>
 
@@ -97,15 +95,16 @@ const UserWelcomeTop: React.FC = () => {
 };
 
 const HomePage: React.FC<IProps> = ({ justRegistered = false }) => {
+    const cli = useMatrixClientContext();
     const config = SdkConfig.get();
-    const pageUrl = getHomePageUrl(config);
+    const pageUrl = getHomePageUrl(config, cli);
 
     if (pageUrl) {
         return <EmbeddedPage className="mx_HomePage" url={pageUrl} scrollbar={true} />;
     }
 
     let introSection: JSX.Element;
-    if (justRegistered || !OwnProfileStore.instance.getHttpAvatarUrl(AVATAR_SIZE)) {
+    if (justRegistered || !OwnProfileStore.instance.getHttpAvatarUrl(parseInt(AVATAR_SIZE, 10))) {
         introSection = <UserWelcomeTop />;
     } else {
         const brandingConfig = SdkConfig.getObject("branding");

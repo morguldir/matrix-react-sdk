@@ -15,16 +15,13 @@ limitations under the License.
 */
 
 import React, { createRef } from "react";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
+import { MatrixEvent } from "matrix-js-sdk/src/matrix";
 import { CallErrorCode, CallState } from "matrix-js-sdk/src/webrtc/call";
 import classNames from "classnames";
 
 import { _t } from "../../../languageHandler";
 import MemberAvatar from "../avatars/MemberAvatar";
-import LegacyCallEventGrouper, {
-    LegacyCallEventGrouperEvent,
-    CustomCallState,
-} from "../../structures/LegacyCallEventGrouper";
+import LegacyCallEventGrouper, { LegacyCallEventGrouperEvent } from "../../structures/LegacyCallEventGrouper";
 import AccessibleButton from "../elements/AccessibleButton";
 import InfoTooltip, { InfoTooltipKind } from "../elements/InfoTooltip";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
@@ -40,7 +37,7 @@ interface IProps {
 }
 
 interface IState {
-    callState: CallState | CustomCallState;
+    callState?: CallState;
     silenced: boolean;
     narrow: boolean;
     length: number;
@@ -48,7 +45,7 @@ interface IState {
 
 export default class LegacyCallEvent extends React.PureComponent<IProps, IState> {
     private wrapperElement = createRef<HTMLDivElement>();
-    private resizeObserver: ResizeObserver;
+    private resizeObserver?: ResizeObserver;
 
     public constructor(props: IProps) {
         super(props);
@@ -75,7 +72,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
         this.props.callEventGrouper.removeListener(LegacyCallEventGrouperEvent.SilencedChanged, this.onSilencedChanged);
         this.props.callEventGrouper.removeListener(LegacyCallEventGrouperEvent.LengthChanged, this.onLengthChanged);
 
-        this.resizeObserver.disconnect();
+        this.resizeObserver?.disconnect();
     }
 
     private onLengthChanged = (length: number): void => {
@@ -120,13 +117,13 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
             <AccessibleTooltipButton
                 className={silenceClass}
                 onClick={this.props.callEventGrouper.toggleSilenced}
-                title={this.state.silenced ? _t("Sound on") : _t("Silence call")}
+                title={this.state.silenced ? _t("voip|unsilence") : _t("voip|silence")}
             />
         );
     }
 
-    private renderContent(state: CallState | CustomCallState): JSX.Element {
-        if (state === CallState.Ringing) {
+    private renderContent(): JSX.Element {
+        if (this.state.callState === CallState.Ringing) {
             let silenceIcon;
             if (!this.state.narrow) {
                 silenceIcon = this.renderSilenceIcon();
@@ -140,20 +137,20 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                         onClick={this.props.callEventGrouper.rejectCall}
                         kind="danger"
                     >
-                        <span> {_t("Decline")} </span>
+                        <span> {_t("action|decline")} </span>
                     </AccessibleButton>
                     <AccessibleButton
                         className="mx_LegacyCallEvent_content_button mx_LegacyCallEvent_content_button_answer"
                         onClick={this.props.callEventGrouper.answerCall}
                         kind="primary"
                     >
-                        <span> {_t("Accept")} </span>
+                        <span> {_t("action|accept")} </span>
                     </AccessibleButton>
                     {this.props.timestamp}
                 </div>
             );
         }
-        if (state === CallState.Ended) {
+        if (this.state.callState === CallState.Ended) {
             const hangupReason = this.props.callEventGrouper.hangupReason;
             const gotRejected = this.props.callEventGrouper.gotRejected;
 
@@ -161,6 +158,21 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                 return (
                     <div className="mx_LegacyCallEvent_content">
                         {_t("Call declined")}
+                        {this.renderCallBackButton(_t("Call back"))}
+                        {this.props.timestamp}
+                    </div>
+                );
+            } else if (hangupReason === CallErrorCode.AnsweredElsewhere) {
+                return (
+                    <div className="mx_LegacyCallEvent_content">
+                        {_t("Answered elsewhere")}
+                        {this.props.timestamp}
+                    </div>
+                );
+            } else if (this.props.callEventGrouper.callWasMissed) {
+                return (
+                    <div className="mx_LegacyCallEvent_content">
+                        {_t("Missed call")}
                         {this.renderCallBackButton(_t("Call back"))}
                         {this.props.timestamp}
                     </div>
@@ -173,7 +185,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                 // Also the correct hangup code as of VoIP v1 (with underscore)
                 // Also, if we don't have a reason
                 const duration = this.props.callEventGrouper.duration!;
-                let text = _t("Call ended");
+                let text = _t("timeline|m.call.hangup|dm");
                 if (duration) {
                     text += " • " + formatPreciseDuration(duration);
                 }
@@ -188,13 +200,6 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                     <div className="mx_LegacyCallEvent_content">
                         {_t("No answer")}
                         {this.renderCallBackButton(_t("Call back"))}
-                        {this.props.timestamp}
-                    </div>
-                );
-            } else if (hangupReason === CallErrorCode.AnsweredElsewhere) {
-                return (
-                    <div className="mx_LegacyCallEvent_content">
-                        {_t("Answered elsewhere")}
                         {this.props.timestamp}
                     </div>
                 );
@@ -229,12 +234,12 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                         kind={InfoTooltipKind.Warning}
                     />
                     {_t("Connection failed")}
-                    {this.renderCallBackButton(_t("Retry"))}
+                    {this.renderCallBackButton(_t("action|retry"))}
                     {this.props.timestamp}
                 </div>
             );
         }
-        if (state === CallState.Connected) {
+        if (this.state.callState === CallState.Connected) {
             return (
                 <div className="mx_LegacyCallEvent_content">
                     <Clock seconds={this.state.length} aria-live="off" />
@@ -242,19 +247,10 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                 </div>
             );
         }
-        if (state === CallState.Connecting) {
+        if (this.state.callState === CallState.Connecting) {
             return (
                 <div className="mx_LegacyCallEvent_content">
                     {_t("Connecting")}
-                    {this.props.timestamp}
-                </div>
-            );
-        }
-        if (state === CustomCallState.Missed) {
-            return (
-                <div className="mx_LegacyCallEvent_content">
-                    {_t("Missed call")}
-                    {this.renderCallBackButton(_t("Call back"))}
                     {this.props.timestamp}
                 </div>
             );
@@ -272,15 +268,15 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
         const event = this.props.mxEvent;
         const sender = event.sender ? event.sender.name : event.getSender();
         const isVoice = this.props.callEventGrouper.isVoice;
-        const callType = isVoice ? _t("Voice call") : _t("Video call");
+        const callType = isVoice ? _t("voip|voice_call") : _t("voip|video_call");
         const callState = this.state.callState;
         const hangupReason = this.props.callEventGrouper.hangupReason;
-        const content = this.renderContent(callState);
+        const content = this.renderContent();
         const className = classNames("mx_LegacyCallEvent", {
             mx_LegacyCallEvent_voice: isVoice,
             mx_LegacyCallEvent_video: !isVoice,
             mx_LegacyCallEvent_narrow: this.state.narrow,
-            mx_LegacyCallEvent_missed: callState === CustomCallState.Missed,
+            mx_LegacyCallEvent_missed: this.props.callEventGrouper.callWasMissed,
             mx_LegacyCallEvent_noAnswer: callState === CallState.Ended && hangupReason === CallErrorCode.InviteTimeout,
             mx_LegacyCallEvent_rejected: callState === CallState.Ended && this.props.callEventGrouper.gotRejected,
         });
@@ -294,7 +290,7 @@ export default class LegacyCallEvent extends React.PureComponent<IProps, IState>
                 <div className={className}>
                     {silenceIcon}
                     <div className="mx_LegacyCallEvent_info">
-                        <MemberAvatar member={event.sender} width={32} height={32} />
+                        <MemberAvatar member={event.sender} size="32px" />
                         <div className="mx_LegacyCallEvent_info_basic">
                             <div className="mx_LegacyCallEvent_sender">{sender}</div>
                             <div className="mx_LegacyCallEvent_type">

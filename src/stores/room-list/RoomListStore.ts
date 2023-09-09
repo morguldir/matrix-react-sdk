@@ -14,11 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { MatrixClient } from "matrix-js-sdk/src/client";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { MatrixClient, Room, RoomState, EventType } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
-import { EventType } from "matrix-js-sdk/src/@types/event";
-import { RoomState } from "matrix-js-sdk/src/matrix";
 
 import SettingsStore from "../../settings/SettingsStore";
 import { DefaultTagID, OrderedDefaultTagIDs, RoomUpdateCause, TagID } from "./models";
@@ -40,6 +37,7 @@ import { RoomListStore as Interface, RoomListStoreEvent } from "./Interface";
 import { SlidingRoomListStoreClass } from "./SlidingRoomListStore";
 import { UPDATE_EVENT } from "../AsyncStore";
 import { SdkContextClass } from "../../contexts/SDKContext";
+import { getChangedOverrideRoomMutePushRules } from "./utils/roomMute";
 
 interface IState {
     // state is tracked in underlying classes
@@ -289,6 +287,17 @@ export class RoomListStoreClass extends AsyncStoreWithClient<IState> implements 
             this.onDispatchMyMembership(<any>payload);
             return;
         }
+
+        const possibleMuteChangeRoomIds = getChangedOverrideRoomMutePushRules(payload);
+        if (possibleMuteChangeRoomIds) {
+            for (const roomId of possibleMuteChangeRoomIds) {
+                const room = roomId && this.matrixClient.getRoom(roomId);
+                if (room) {
+                    await this.handleRoomUpdate(room, RoomUpdateCause.PossibleMuteChange);
+                }
+            }
+            this.updateFn.trigger();
+        }
     }
 
     /**
@@ -457,7 +466,7 @@ export class RoomListStoreClass extends AsyncStoreWithClient<IState> implements 
 
     // logic must match calculateTagSorting
     private calculateListOrder(tagId: TagID): ListAlgorithm {
-        const defaultOrder = ListAlgorithm.Importance;
+        const defaultOrder = ListAlgorithm.Natural;
         const definedOrder = this.getListOrder(tagId);
         const storedOrder = this.getStoredListOrder(tagId);
 
@@ -568,10 +577,9 @@ export class RoomListStoreClass extends AsyncStoreWithClient<IState> implements 
      * @param {IFilterCondition} filter The filter condition to add.
      */
     public async addFilter(filter: IFilterCondition): Promise<void> {
-        let promise = Promise.resolve();
         filter.on(FILTER_CHANGED, this.onPrefilterUpdated);
         this.prefilterConditions.push(filter);
-        promise = this.recalculatePrefiltering();
+        const promise = this.recalculatePrefiltering();
         promise.then(() => this.updateFn.trigger());
     }
 

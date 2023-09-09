@@ -15,11 +15,9 @@ limitations under the License.
 */
 
 import React from "react";
-import { fireEvent, render, RenderResult } from "@testing-library/react";
-import { MatrixClient } from "matrix-js-sdk/src/client";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { fireEvent, render, RenderResult, screen } from "@testing-library/react";
+import { MatrixClient, Room, EventType, MatrixEvent } from "matrix-js-sdk/src/matrix";
 import { mocked } from "jest-mock";
-import { EventType, MatrixEvent } from "matrix-js-sdk/src/matrix";
 
 import AdvancedRoomSettingsTab from "../../../../../../src/components/views/settings/tabs/room/AdvancedRoomSettingsTab";
 import { mkEvent, mkStubRoom, stubClient } from "../../../../../test-utils";
@@ -36,12 +34,12 @@ describe("AdvancedRoomSettingsTab", () => {
     let room: Room;
 
     const renderTab = (): RenderResult => {
-        return render(<AdvancedRoomSettingsTab roomId={roomId} closeSettingsFn={jest.fn()} />);
+        return render(<AdvancedRoomSettingsTab room={room} closeSettingsFn={jest.fn()} />);
     };
 
     beforeEach(() => {
         stubClient();
-        cli = MatrixClientPeg.get();
+        cli = MatrixClientPeg.safeGet();
         room = mkStubRoom(roomId, "test room", cli);
         mocked(cli.getRoom).mockReturnValue(room);
         mocked(dis.dispatch).mockReset();
@@ -67,6 +65,22 @@ describe("AdvancedRoomSettingsTab", () => {
 
         const tab = renderTab();
         tab.getByText("custom_room_version_1");
+    });
+
+    it("displays message when room cannot federate", () => {
+        const createEvent = new MatrixEvent({
+            sender: "@a:b.com",
+            type: EventType.RoomCreate,
+            content: { "m.federate": false },
+            room_id: room.roomId,
+            state_key: "",
+        });
+        jest.spyOn(room.currentState, "getStateEvents").mockImplementation((type) =>
+            type === EventType.RoomCreate ? createEvent : null,
+        );
+
+        renderTab();
+        expect(screen.getByText("This room is not accessible by remote Matrix servers")).toBeInTheDocument();
     });
 
     function mockStateEvents(room: Room) {
@@ -142,6 +156,17 @@ describe("AdvancedRoomSettingsTab", () => {
                 metricsTrigger: "WebPredecessorSettings",
                 metricsViaKeyboard: false,
             });
+        });
+
+        it("handles when room is a space", async () => {
+            mockStateEvents(room);
+            jest.spyOn(room, "isSpaceRoom").mockReturnValue(true);
+
+            mockStateEvents(room);
+            const tab = renderTab();
+            const link = await tab.findByText("View older version of test room.");
+            expect(link).toBeInTheDocument();
+            expect(screen.getByText("Space information")).toBeInTheDocument();
         });
     });
 });

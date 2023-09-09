@@ -15,11 +15,8 @@ limitations under the License.
 */
 
 import React from "react";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { MatrixEvent, Room, RoomStateEvent, EventType } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
-import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
-import { EventType } from "matrix-js-sdk/src/@types/event";
 
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { _t } from "../../../languageHandler";
@@ -50,27 +47,28 @@ export default class ThirdPartyMemberInfo extends React.Component<IProps, IState
     public constructor(props: IProps) {
         super(props);
 
-        this.room = MatrixClientPeg.get().getRoom(this.props.event.getRoomId());
-        const me = this.room?.getMember(MatrixClientPeg.get().getUserId()!);
+        this.room = MatrixClientPeg.safeGet().getRoom(this.props.event.getRoomId());
+        const me = this.room?.getMember(MatrixClientPeg.safeGet().getSafeUserId());
         const powerLevels = this.room?.currentState.getStateEvents("m.room.power_levels", "");
+        const senderId = this.props.event.getSender()!;
 
         let kickLevel = powerLevels ? powerLevels.getContent().kick : 50;
         if (typeof kickLevel !== "number") kickLevel = 50;
 
-        const sender = this.room?.getMember(this.props.event.getSender());
+        const sender = this.room?.getMember(senderId);
 
         this.state = {
-            stateKey: this.props.event.getStateKey(),
-            roomId: this.props.event.getRoomId(),
+            stateKey: this.props.event.getStateKey()!,
+            roomId: this.props.event.getRoomId()!,
             displayName: this.props.event.getContent().display_name,
             invited: true,
             canKick: me ? me.powerLevel > kickLevel : false,
-            senderName: sender ? sender.name : this.props.event.getSender(),
+            senderName: sender?.name ?? senderId,
         };
     }
 
     public componentDidMount(): void {
-        MatrixClientPeg.get().on(RoomStateEvent.Events, this.onRoomStateEvents);
+        MatrixClientPeg.safeGet().on(RoomStateEvent.Events, this.onRoomStateEvents);
     }
 
     public componentWillUnmount(): void {
@@ -99,7 +97,7 @@ export default class ThirdPartyMemberInfo extends React.Component<IProps, IState
     };
 
     public onKickClick = (): void => {
-        MatrixClientPeg.get()
+        MatrixClientPeg.safeGet()
             .sendStateEvent(this.state.roomId, "m.room.third_party_invite", {}, this.state.stateKey)
             .catch((err) => {
                 logger.error(err);
@@ -110,8 +108,7 @@ export default class ThirdPartyMemberInfo extends React.Component<IProps, IState
                 Modal.createDialog(ErrorDialog, {
                     title: _t("Failed to revoke invite"),
                     description: _t(
-                        "Could not revoke the invite. The server may be experiencing a temporary problem or " +
-                            "you do not have sufficient permissions to revoke the invite.",
+                        "Could not revoke the invite. The server may be experiencing a temporary problem or you do not have sufficient permissions to revoke the invite.",
                     ),
                 });
             });
@@ -126,11 +123,9 @@ export default class ThirdPartyMemberInfo extends React.Component<IProps, IState
             adminTools = (
                 <div className="mx_MemberInfo_container">
                     <h3>{_t("Admin Tools")}</h3>
-                    <div className="mx_MemberInfo_buttons">
-                        <AccessibleButton className="mx_MemberInfo_field" onClick={this.onKickClick}>
-                            {_t("Revoke invite")}
-                        </AccessibleButton>
-                    </div>
+                    <AccessibleButton className="mx_MemberInfo_field" onClick={this.onKickClick}>
+                        {_t("Revoke invite")}
+                    </AccessibleButton>
                 </div>
             );
         }
@@ -139,7 +134,7 @@ export default class ThirdPartyMemberInfo extends React.Component<IProps, IState
         if (this.room?.isSpaceRoom()) {
             scopeHeader = (
                 <div className="mx_RightPanel_scopeHeader">
-                    <RoomAvatar room={this.room} height={32} width={32} />
+                    <RoomAvatar room={this.room} size="32px" />
                     <RoomName room={this.room} />
                 </div>
             );
@@ -150,15 +145,15 @@ export default class ThirdPartyMemberInfo extends React.Component<IProps, IState
             <div className="mx_MemberInfo" role="tabpanel">
                 {scopeHeader}
                 <div className="mx_MemberInfo_name">
-                    <AccessibleButton className="mx_MemberInfo_cancel" onClick={this.onCancel} title={_t("Close")} />
+                    <AccessibleButton
+                        className="mx_MemberInfo_cancel"
+                        onClick={this.onCancel}
+                        title={_t("action|close")}
+                    />
                     <h2>{this.state.displayName}</h2>
                 </div>
-                <div className="mx_MemberInfo_container">
-                    <div className="mx_MemberInfo_profile">
-                        <div className="mx_MemberInfo_profileField">
-                            {_t("Invited by %(sender)s", { sender: this.state.senderName })}
-                        </div>
-                    </div>
+                <div className="mx_MemberInfo_container mx_MemberInfo_container--profile">
+                    {_t("Invited by %(sender)s", { sender: this.state.senderName })}
                 </div>
                 {adminTools}
             </div>

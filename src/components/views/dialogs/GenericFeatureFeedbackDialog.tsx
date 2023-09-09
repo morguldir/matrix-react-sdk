@@ -19,7 +19,6 @@ import React, { ReactNode, useState } from "react";
 import QuestionDialog from "./QuestionDialog";
 import { _t } from "../../../languageHandler";
 import Field from "../elements/Field";
-import SdkConfig from "../../../SdkConfig";
 import { submitFeedback } from "../../../rageshake/submit-rageshake";
 import StyledCheckbox from "../elements/StyledCheckbox";
 import Modal from "../../../Modal";
@@ -27,8 +26,8 @@ import InfoDialog from "./InfoDialog";
 
 interface IProps {
     title: string;
-    subheading: string;
-    rageshakeLabel: string;
+    subheading?: string;
+    rageshakeLabel?: string;
     rageshakeData?: Record<string, any>;
     children?: ReactNode;
     onFinished(sendFeedback?: boolean): void;
@@ -48,13 +47,13 @@ const GenericFeatureFeedbackDialog: React.FC<IProps> = ({
     const sendFeedback = async (ok: boolean): Promise<void> => {
         if (!ok) return onFinished(false);
 
-        submitFeedback(SdkConfig.get().bug_report_endpoint_url, rageshakeLabel, comment, canContact, rageshakeData);
+        submitFeedback(rageshakeLabel, comment, canContact, rageshakeData);
         onFinished(true);
 
         Modal.createDialog(InfoDialog, {
             title,
             description: _t("Feedback sent! Thanks, we appreciate it!"),
-            button: _t("Close"),
+            button: _t("action|close"),
             hasCloseButton: false,
             fixedWidth: false,
         });

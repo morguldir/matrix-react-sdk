@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { FormEvent, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { _t } from "../../../../languageHandler";
-import AccessibleButton from "../../elements/AccessibleButton";
+import AccessibleButton, { ButtonEvent } from "../../elements/AccessibleButton";
 import Field from "../../elements/Field";
 import LearnMore from "../../elements/LearnMore";
 import Spinner from "../../elements/Spinner";
@@ -41,7 +41,7 @@ const DeviceNameEditor: React.FC<Props & { stopEditing: () => void }> = ({ devic
 
     const onInputChange = (event: React.ChangeEvent<HTMLInputElement>): void => setDeviceName(event.target.value);
 
-    const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+    const onSubmit = async (event: ButtonEvent): Promise<void> => {
         setIsLoading(true);
         setError(null);
         event.preventDefault();
@@ -84,14 +84,12 @@ const DeviceNameEditor: React.FC<Props & { stopEditing: () => void }> = ({ devic
                             <>
                                 <p>
                                     {_t(
-                                        `Other users in direct messages and rooms that you join ` +
-                                            `are able to view a full list of your sessions.`,
+                                        "Other users in direct messages and rooms that you join are able to view a full list of your sessions.",
                                     )}
                                 </p>
                                 <p>
                                     {_t(
-                                        `This provides them with confidence that they are really speaking to you, ` +
-                                            `but it also means they can see the session name you enter here.`,
+                                        "This provides them with confidence that they are really speaking to you, but it also means they can see the session name you enter here.",
                                     )}
                                 </p>
                             </>
@@ -111,7 +109,7 @@ const DeviceNameEditor: React.FC<Props & { stopEditing: () => void }> = ({ devic
                     data-testid="device-rename-submit-cta"
                     disabled={isLoading}
                 >
-                    {_t("Save")}
+                    {_t("action|save")}
                 </AccessibleButton>
                 <AccessibleButton
                     onClick={stopEditing}
@@ -119,7 +117,7 @@ const DeviceNameEditor: React.FC<Props & { stopEditing: () => void }> = ({ devic
                     data-testid="device-rename-cancel-cta"
                     disabled={isLoading}
                 >
-                    {_t("Cancel")}
+                    {_t("action|cancel")}
                 </AccessibleButton>
                 {isLoading && <Spinner w={16} h={16} />}
             </div>
@@ -134,14 +132,14 @@ export const DeviceDetailHeading: React.FC<Props> = ({ device, saveDeviceName })
         <DeviceNameEditor device={device} saveDeviceName={saveDeviceName} stopEditing={() => setIsEditing(false)} />
     ) : (
         <div className="mx_DeviceDetailHeading" data-testid="device-detail-heading">
-            <Heading size="h4">{device.display_name || device.device_id}</Heading>
+            <Heading size="4">{device.display_name || device.device_id}</Heading>
             <AccessibleButton
                 kind="link_inline"
                 onClick={() => setIsEditing(true)}
                 className="mx_DeviceDetailHeading_renameCta"
                 data-testid="device-heading-rename-cta"
             >
-                {_t("Rename")}
+                {_t("action|rename")}
             </AccessibleButton>
         </div>
     );

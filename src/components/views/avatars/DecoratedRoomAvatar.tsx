@@ -16,11 +16,7 @@ limitations under the License.
 
 import React from "react";
 import classNames from "classnames";
-import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
-import { User, UserEvent } from "matrix-js-sdk/src/models/user";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { EventType } from "matrix-js-sdk/src/@types/event";
-import { JoinRule } from "matrix-js-sdk/src/@types/partials";
+import { Room, RoomEvent, MatrixEvent, User, UserEvent, EventType, JoinRule } from "matrix-js-sdk/src/matrix";
 import { UnstableValue } from "matrix-js-sdk/src/NamespacedValue";
 
 import RoomAvatar from "./RoomAvatar";
@@ -37,7 +33,7 @@ import TooltipTarget from "../elements/TooltipTarget";
 
 interface IProps {
     room: Room;
-    avatarSize: number;
+    size: string;
     displayBadge?: boolean;
     forceCount?: boolean;
     oobData?: IOOBData;
@@ -67,18 +63,18 @@ function tooltipText(variant: Icon): string | undefined {
         case Icon.Globe:
             return _t("This room is public");
         case Icon.PresenceOnline:
-            return _t("Online");
+            return _t("presence|online");
         case Icon.PresenceAway:
-            return _t("Away");
+            return _t("presence|away");
         case Icon.PresenceOffline:
-            return _t("Offline");
+            return _t("presence|offline");
         case Icon.PresenceBusy:
-            return _t("Busy");
+            return _t("presence|busy");
     }
 }
 
 export default class DecoratedRoomAvatar extends React.PureComponent<IProps, IState> {
-    private _dmUser: User | null;
+    private _dmUser: User | null = null;
     private isUnmounted = false;
     private isWatchingTimeline = false;
 
@@ -165,8 +161,8 @@ export default class DecoratedRoomAvatar extends React.PureComponent<IProps, ISt
         const otherUserId = DMRoomMap.shared().getUserIdForRoomId(this.props.room.roomId);
         if (otherUserId && this.props.room.getJoinedMemberCount() === 2) {
             // Track presence, if available
-            if (isPresenceEnabled()) {
-                this.dmUser = MatrixClientPeg.get().getUser(otherUserId);
+            if (isPresenceEnabled(this.props.room.client)) {
+                this.dmUser = MatrixClientPeg.safeGet().getUser(otherUserId);
                 icon = this.getPresenceIcon();
             }
         } else {
@@ -211,8 +207,7 @@ export default class DecoratedRoomAvatar extends React.PureComponent<IProps, ISt
             <div className={classes}>
                 <RoomAvatar
                     room={this.props.room}
-                    width={this.props.avatarSize}
-                    height={this.props.avatarSize}
+                    size={this.props.size}
                     oobData={this.props.oobData}
                     viewAvatarOnClick={this.props.viewAvatarOnClick}
                 />

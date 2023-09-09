@@ -16,10 +16,10 @@ limitations under the License.
 */
 
 import React, { Dispatch } from "react";
+import { DATA_BY_CATEGORY, getEmojiFromUnicode, Emoji as IEmoji } from "@matrix-org/emojibase-bindings";
 
 import { _t } from "../../../languageHandler";
 import * as recent from "../../../emojipicker/recent";
-import { DATA_BY_CATEGORY, getEmojiFromUnicode, IEmoji } from "../../../emoji";
 import AutoHideScrollbar from "../../structures/AutoHideScrollbar";
 import Header from "./Header";
 import Search from "./Search";
@@ -89,63 +89,63 @@ class EmojiPicker extends React.Component<IProps, IState> {
         this.categories = [
             {
                 id: "recent",
-                name: _t("Frequently Used"),
+                name: _t("emoji|category_frequently_used"),
                 enabled: this.recentlyUsed.length > 0,
                 visible: this.recentlyUsed.length > 0,
                 ref: React.createRef(),
             },
             {
                 id: "people",
-                name: _t("Smileys & People"),
+                name: _t("emoji|category_smileys_people"),
                 enabled: true,
                 visible: true,
                 ref: React.createRef(),
             },
             {
                 id: "nature",
-                name: _t("Animals & Nature"),
+                name: _t("emoji|category_animals_nature"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
             },
             {
                 id: "foods",
-                name: _t("Food & Drink"),
+                name: _t("emoji|category_food_drink"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
             },
             {
                 id: "activity",
-                name: _t("Activities"),
+                name: _t("emoji|category_activities"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
             },
             {
                 id: "places",
-                name: _t("Travel & Places"),
+                name: _t("emoji|category_travel_places"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
             },
             {
                 id: "objects",
-                name: _t("Objects"),
+                name: _t("emoji|category_objects"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
             },
             {
                 id: "symbols",
-                name: _t("Symbols"),
+                name: _t("emoji|category_symbols"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
             },
             {
                 id: "flags",
-                name: _t("Flags"),
+                name: _t("emoji|category_flags"),
                 enabled: true,
                 visible: false,
                 ref: React.createRef(),
@@ -164,9 +164,9 @@ class EmojiPicker extends React.Component<IProps, IState> {
     };
 
     private keyboardNavigation(ev: React.KeyboardEvent, state: RovingState, dispatch: Dispatch<RovingAction>): void {
-        const node = state.activeRef.current;
-        const parent = node.parentElement;
-        if (!parent) return;
+        const node = state.activeRef?.current;
+        const parent = node?.parentElement;
+        if (!parent || !state.activeRef) return;
         const rowIndex = Array.from(parent.children).indexOf(node);
         const refIndex = state.refs.indexOf(state.activeRef);
 
@@ -175,12 +175,12 @@ class EmojiPicker extends React.Component<IProps, IState> {
         switch (ev.key) {
             case Key.ARROW_LEFT:
                 focusRef = state.refs[refIndex - 1];
-                newParent = focusRef?.current?.parentElement;
+                newParent = focusRef?.current?.parentElement ?? undefined;
                 break;
 
             case Key.ARROW_RIGHT:
                 focusRef = state.refs[refIndex + 1];
-                newParent = focusRef?.current?.parentElement;
+                newParent = focusRef?.current?.parentElement ?? undefined;
                 break;
 
             case Key.ARROW_UP:
@@ -190,7 +190,7 @@ class EmojiPicker extends React.Component<IProps, IState> {
                     ev.key === Key.ARROW_UP
                         ? state.refs[refIndex - rowIndex - 1]
                         : state.refs[refIndex - rowIndex + EMOJIS_PER_ROW];
-                newParent = ref?.current?.parentElement;
+                newParent = ref?.current?.parentElement ?? undefined;
                 const newTarget = newParent?.children[clamp(rowIndex, 0, newParent.children.length - 1)];
                 focusRef = state.refs.find((r) => r.current === newTarget);
                 break;
@@ -270,25 +270,30 @@ class EmojiPicker extends React.Component<IProps, IState> {
             } else {
                 emojis = cat.id === "recent" ? this.recentlyUsed : DATA_BY_CATEGORY[cat.id];
             }
-            emojis = emojis.filter((emoji) => this.emojiMatchesFilter(emoji, lcFilter));
-            emojis = emojis.sort((a, b) => {
-                const indexA = a.shortcodes[0].indexOf(lcFilter);
-                const indexB = b.shortcodes[0].indexOf(lcFilter);
 
-                // Prioritize emojis containing the filter in its shortcode
-                if (indexA == -1 || indexB == -1) {
-                    return indexB - indexA;
-                }
+            if (lcFilter !== "") {
+                emojis = emojis.filter((emoji) => this.emojiMatchesFilter(emoji, lcFilter));
+                // Copy the array to not clobber the original unfiltered sorting
+                emojis = [...emojis].sort((a, b) => {
+                    const indexA = a.shortcodes[0].indexOf(lcFilter);
+                    const indexB = b.shortcodes[0].indexOf(lcFilter);
 
-                // If both emojis start with the filter
-                // put the shorter emoji first
-                if (indexA == 0 && indexB == 0) {
-                    return a.shortcodes[0].length - b.shortcodes[0].length;
-                }
+                    // Prioritize emojis containing the filter in its shortcode
+                    if (indexA == -1 || indexB == -1) {
+                        return indexB - indexA;
+                    }
 
-                // Prioritize emojis starting with the filter
-                return indexA - indexB;
-            });
+                    // If both emojis start with the filter
+                    // put the shorter emoji first
+                    if (indexA == 0 && indexB == 0) {
+                        return a.shortcodes[0].length - b.shortcodes[0].length;
+                    }
+
+                    // Prioritize emojis starting with the filter
+                    return indexA - indexB;
+                });
+            }
+
             this.memoizedDataByCategory[cat.id] = emojis;
             cat.enabled = emojis.length > 0;
             // The setState below doesn't re-render the header and we already have the refs for updateVisibility, so...
@@ -303,6 +308,10 @@ class EmojiPicker extends React.Component<IProps, IState> {
     };
 
     private emojiMatchesFilter = (emoji: IEmoji, filter: string): boolean => {
+        // If the query is an emoji containing a variation then strip it to provide more useful matches
+        if (filter.includes(ZERO_WIDTH_JOINER)) {
+            filter = filter.split(ZERO_WIDTH_JOINER, 2)[0];
+        }
         return (
             emoji.label.toLowerCase().includes(filter) ||
             (Array.isArray(emoji.emoticon)
@@ -398,7 +407,7 @@ class EmojiPicker extends React.Component<IProps, IState> {
                             </AutoHideScrollbar>
                             {this.props.allowUnlisted && this.state.filter && (
                                 <AccessibleButton kind="link" onClick={() => this.reactWith(this.state.filter)}>
-                                    {_t('React with "%(reaction)s"', { reaction: this.state.filter })}
+                                    React with "{this.state.filter}"
                                 </AccessibleButton>
                             )}
                             {this.state.previewEmoji ? (

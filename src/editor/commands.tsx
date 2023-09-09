@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from "react";
 import { logger } from "matrix-js-sdk/src/logger";
-import { IContent } from "matrix-js-sdk/src/models/event";
+import { IContent, MatrixClient } from "matrix-js-sdk/src/matrix";
 
 import EditorModel from "./model";
 import { Type } from "./parts";
@@ -58,12 +58,13 @@ export function getSlashCommand(model: EditorModel): [Command | undefined, strin
 }
 
 export async function runSlashCommand(
+    matrixClient: MatrixClient,
     cmd: Command,
     args: string | undefined,
     roomId: string,
     threadId: string | null,
 ): Promise<[content: IContent | null, success: boolean]> {
-    const result = cmd.run(roomId, threadId, args);
+    const result = cmd.run(matrixClient, roomId, threadId, args);
     let messageContent: IContent | null = null;
     let error: any = result.error;
     if (result.promise) {
@@ -78,7 +79,7 @@ export async function runSlashCommand(
         }
     }
     if (error) {
-        logger.error("Command failure: %s", error);
+        logger.error(`Command failure: ${error}`);
         // assume the error is a server error when the command is async
         const isServerError = !!result.promise;
         const title = isServerError ? _td("Server error") : _td("Command error");
@@ -114,8 +115,7 @@ export async function shouldSendAnyway(commandText: string): Promise<boolean> {
                 <p>{_t("Unrecognised command: %(commandText)s", { commandText })}</p>
                 <p>
                     {_t(
-                        "You can use <code>/help</code> to list available commands. " +
-                            "Did you mean to send this as a message?",
+                        "You can use <code>/help</code> to list available commands. Did you mean to send this as a message?",
                         {},
                         {
                             code: (t) => <code>{t}</code>,

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useContext, useEffect, useState } from "react";
+import React, { ForwardRefExoticComponent, useCallback, useContext, useEffect, useState } from "react";
 import {
     Beacon,
     BeaconEvent,
@@ -23,10 +23,10 @@ import {
     MatrixClient,
     RelationType,
     IRedactOpts,
+    ContentHelpers,
+    M_BEACON,
 } from "matrix-js-sdk/src/matrix";
-import { BeaconLocationState } from "matrix-js-sdk/src/content-helpers";
 import { randomString } from "matrix-js-sdk/src/randomstring";
-import { M_BEACON } from "matrix-js-sdk/src/@types/beacon";
 import classNames from "classnames";
 
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
@@ -51,7 +51,7 @@ const useBeaconState = (
 ): {
     beacon?: Beacon;
     description?: string;
-    latestLocationState?: BeaconLocationState;
+    latestLocationState?: ContentHelpers.BeaconLocationState;
     isLive?: boolean;
     waitingToStart?: boolean;
 } => {
@@ -131,7 +131,7 @@ const useHandleBeaconRedaction = (
     }, [event, onBeforeBeaconInfoRedaction]);
 };
 
-const MBeaconBody: React.FC<IBodyProps> = React.forwardRef(({ mxEvent, getRelationsForEvent }, ref) => {
+const MBeaconBody = React.forwardRef<HTMLDivElement, IBodyProps>(({ mxEvent, getRelationsForEvent }, ref) => {
     const { beacon, isLive, latestLocationState, waitingToStart } = useBeaconState(mxEvent);
     const mapId = useUniqueId(mxEvent.getId()!);
 
@@ -234,6 +234,6 @@ const MBeaconBody: React.FC<IBodyProps> = React.forwardRef(({ mxEvent, getRelati
             )}
         </div>
     );
-});
+}) as ForwardRefExoticComponent<IBodyProps>;
 
 export default MBeaconBody;

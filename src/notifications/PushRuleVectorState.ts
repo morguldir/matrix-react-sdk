@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { IPushRule, PushRuleAction } from "matrix-js-sdk/src/@types/PushRules";
+import { IPushRule, PushRuleAction } from "matrix-js-sdk/src/matrix";
 
 import { StandardActions } from "./StandardActions";
 import { NotificationUtils } from "./NotificationUtils";
@@ -47,7 +47,7 @@ export class PushRuleVectorState {
      *
      * @return [object] list of push-rule actions
      */
-    public static actionsFor(pushRuleVectorState: VectorState): PushRuleAction[] {
+    public static actionsFor(pushRuleVectorState?: VectorState): PushRuleAction[] {
         if (pushRuleVectorState === VectorState.On) {
             return StandardActions.ACTION_NOTIFY;
         } else if (pushRuleVectorState === VectorState.Loud) {

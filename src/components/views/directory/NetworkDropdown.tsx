@@ -38,11 +38,11 @@ export interface IPublicRoomDirectoryConfig {
     instanceId?: string;
 }
 
-const validServer = withValidation<undefined, { error?: MatrixError }>({
-    deriveData: async ({ value }): Promise<{ error?: MatrixError }> => {
+const validServer = withValidation<undefined, { error?: unknown }>({
+    deriveData: async ({ value }): Promise<{ error?: unknown }> => {
         try {
             // check if we can successfully load this server's room directory
-            await MatrixClientPeg.get().publicRooms({
+            await MatrixClientPeg.safeGet().publicRooms({
                 limit: 1,
                 server: value ?? undefined,
             });
@@ -63,11 +63,12 @@ const validServer = withValidation<undefined, { error?: MatrixError }>({
             test: async (_, { error }) => !error,
             valid: () => _t("Looks good"),
             invalid: ({ error }) =>
-                error?.errcode === "M_FORBIDDEN"
+                error instanceof MatrixError && error.errcode === "M_FORBIDDEN"
                     ? _t("You are not allowed to view this server's rooms list")
                     : _t("Can't find this server or its room list"),
         },
     ],
+    memoize: true,
 });
 
 function useSettingsValueWithSetter<T>(
@@ -154,7 +155,7 @@ export const NetworkDropdown: React.FC<IProps> = ({ protocols, config, setConfig
         options: [
             {
                 key: { roomServer, instanceId: undefined },
-                label: _t("Matrix"),
+                label: _t("common|matrix"),
             },
             ...(roomServer === homeServer && protocols
                 ? Object.values(protocols)
@@ -192,7 +193,7 @@ export const NetworkDropdown: React.FC<IProps> = ({ protocols, config, setConfig
                             {
                                 title: _t("Add a new server"),
                                 description: _t("Enter the name of a new server you want to explore."),
-                                button: _t("Add"),
+                                button: _t("action|add"),
                                 hasCancel: false,
                                 placeholder: _t("Server name"),
                                 validator: validServer,

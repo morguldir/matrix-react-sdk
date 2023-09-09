@@ -15,11 +15,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { ComponentType } from "react";
+import React from "react";
 
 import dis from "../../../../dispatcher/dispatcher";
 import { _t } from "../../../../languageHandler";
-import Modal from "../../../../Modal";
+import Modal, { ComponentType } from "../../../../Modal";
 import { Action } from "../../../../dispatcher/actions";
 import BaseDialog from "../../../../components/views/dialogs/BaseDialog";
 import DialogButtons from "../../../../components/views/elements/DialogButtons";
@@ -37,7 +37,7 @@ export default class RecoveryMethodRemovedDialog extends React.PureComponent<IPr
     private onSetupClick = (): void => {
         this.props.onFinished();
         Modal.createDialogAsync(
-            import("./CreateKeyBackupDialog") as unknown as Promise<ComponentType<{}>>,
+            import("./CreateKeyBackupDialog") as unknown as Promise<ComponentType>,
             undefined,
             undefined,
             /* priority = */ false,
@@ -53,23 +53,17 @@ export default class RecoveryMethodRemovedDialog extends React.PureComponent<IPr
                 <div>
                     <p>
                         {_t(
-                            "This session has detected that your Security Phrase and key " +
-                                "for Secure Messages have been removed.",
+                            "This session has detected that your Security Phrase and key for Secure Messages have been removed.",
                         )}
                     </p>
                     <p>
                         {_t(
-                            "If you did this accidentally, you can setup Secure Messages on " +
-                                "this session which will re-encrypt this session's message " +
-                                "history with a new recovery method.",
+                            "If you did this accidentally, you can setup Secure Messages on this session which will re-encrypt this session's message history with a new recovery method.",
                         )}
                     </p>
                     <p className="warning">
                         {_t(
-                            "If you didn't remove the recovery method, an " +
-                                "attacker may be trying to access your account. " +
-                                "Change your account password and set a new recovery " +
-                                "method immediately in Settings.",
+                            "If you didn't remove the recovery method, an attacker may be trying to access your account. Change your account password and set a new recovery method immediately in Settings.",
                         )}
                     </p>
                     <DialogButtons

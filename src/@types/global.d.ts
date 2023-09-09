@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// eslint-disable-next-line no-restricted-imports
 import "matrix-js-sdk/src/@types/global"; // load matrix-js-sdk's type extensions first
 import "@types/modernizr";
 
@@ -49,6 +50,7 @@ import ActiveWidgetStore from "../stores/ActiveWidgetStore";
 import AutoRageshakeStore from "../stores/AutoRageshakeStore";
 import { IConfigOptions } from "../IConfigOptions";
 import { MatrixDispatcher } from "../dispatcher/dispatcher";
+import { DeepReadonly } from "./common";
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
@@ -59,7 +61,7 @@ declare global {
         Olm: {
             init: () => Promise<void>;
         };
-        mxReactSdkConfig: IConfigOptions;
+        mxReactSdkConfig: DeepReadonly<IConfigOptions>;
 
         // Needed for Safari, unknown to TypeScript
         webkitAudioContext: typeof AudioContext;

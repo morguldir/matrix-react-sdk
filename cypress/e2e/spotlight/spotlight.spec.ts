@@ -114,7 +114,7 @@ Cypress.Commands.add(
 Cypress.Commands.add(
     "roomHeaderName",
     (options?: Partial<Loggable & Timeoutable & Withinable & Shadow>): Chainable<JQuery<HTMLElement>> => {
-        return cy.get(".mx_RoomHeader_nametext", options);
+        return cy.get(".mx_LegacyRoomHeader_nametext", options);
     },
 );
 
@@ -170,10 +170,9 @@ describe("Spotlight", () => {
                 )
                 .then(() =>
                     cy.window({ log: false }).then(({ matrixcs: { Visibility } }) => {
-                        cy.createRoom({ name: room1Name, visibility: Visibility.Public }).then((_room1Id) => {
+                        cy.createRoom({ name: room1Name, visibility: Visibility.Public }).then(async (_room1Id) => {
                             room1Id = _room1Id;
-                            bot1.joinRoom(room1Id);
-                            cy.visit("/#/room/" + room1Id);
+                            await bot1.joinRoom(room1Id);
                         });
                         bot2.createRoom({ name: room2Name, visibility: Visibility.Public }).then(
                             ({ room_id: _room2Id }) => {
@@ -199,7 +198,14 @@ describe("Spotlight", () => {
                         });
                     }),
                 )
-                .then(() => cy.get(".mx_RoomSublist_skeletonUI").should("not.exist"));
+                .then(() => {
+                    cy.visit("/#/room/" + room1Id);
+                    cy.get(".mx_RoomSublist_skeletonUI").should("not.exist");
+                });
+        });
+        // wait for the room to have the right name
+        cy.get(".mx_LegacyRoomHeader").within(() => {
+            cy.findByText(room1Name);
         });
     });
 
@@ -210,18 +216,22 @@ describe("Spotlight", () => {
 
     it("should be able to add and remove filters via keyboard", () => {
         cy.openSpotlightDialog().within(() => {
+            cy.wait(1000); // wait for the dialog to settle, otherwise our keypresses might race with an update
+
+            // initially, public spaces should be highlighted (because there are no other suggestions)
+            cy.get("#mx_SpotlightDialog_button_explorePublicSpaces").should("have.attr", "aria-selected", "true");
+
+            // hitting enter should enable the public rooms filter
+            cy.spotlightSearch().type("{enter}");
+            cy.get(".mx_SpotlightDialog_filter").should("contain", "Public spaces");
+            cy.spotlightSearch().type("{backspace}");
+            cy.get(".mx_SpotlightDialog_filter").should("not.exist");
+            cy.wait(200); // Again, wait to settle so keypresses arrive correctly
+
             cy.spotlightSearch().type("{downArrow}");
             cy.get("#mx_SpotlightDialog_button_explorePublicRooms").should("have.attr", "aria-selected", "true");
             cy.spotlightSearch().type("{enter}");
             cy.get(".mx_SpotlightDialog_filter").should("contain", "Public rooms");
-            cy.spotlightSearch().type("{backspace}");
-            cy.get(".mx_SpotlightDialog_filter").should("not.exist");
-
-            cy.spotlightSearch().type("{downArrow}");
-            cy.spotlightSearch().type("{downArrow}");
-            cy.get("#mx_SpotlightDialog_button_startChat").should("have.attr", "aria-selected", "true");
-            cy.spotlightSearch().type("{enter}");
-            cy.get(".mx_SpotlightDialog_filter").should("contain", "People");
             cy.spotlightSearch().type("{backspace}");
             cy.get(".mx_SpotlightDialog_filter").should("not.exist");
         });
@@ -230,8 +240,8 @@ describe("Spotlight", () => {
     it("should find joined rooms", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightSearch().clear().type(room1Name);
-                cy.wait(3000); // wait for the dialog code to settle
                 cy.spotlightResults().should("have.length", 1);
                 cy.spotlightResults().eq(0).should("contain", room1Name);
                 cy.spotlightResults().eq(0).click();
@@ -245,9 +255,9 @@ describe("Spotlight", () => {
     it("should find known public rooms", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.PublicRooms);
                 cy.spotlightSearch().clear().type(room1Name);
-                cy.wait(3000); // wait for the dialog code to settle
                 cy.spotlightResults().should("have.length", 1);
                 cy.spotlightResults().eq(0).should("contain", room1Name);
                 cy.spotlightResults().eq(0).should("contain", "View");
@@ -262,9 +272,9 @@ describe("Spotlight", () => {
     it("should find unknown public rooms", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.PublicRooms);
                 cy.spotlightSearch().clear().type(room2Name);
-                cy.wait(3000); // wait for the dialog code to settle
                 cy.spotlightResults().should("have.length", 1);
                 cy.spotlightResults().eq(0).should("contain", room2Name);
                 cy.spotlightResults().eq(0).should("contain", "Join");
@@ -280,9 +290,9 @@ describe("Spotlight", () => {
     it("should find unknown public world readable rooms", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.PublicRooms);
                 cy.spotlightSearch().clear().type(room3Name);
-                cy.wait(3000); // wait for the dialog code to settle
                 cy.spotlightResults().should("have.length", 1);
                 cy.spotlightResults().eq(0).should("contain", room3Name);
                 cy.spotlightResults().eq(0).should("contain", "View");
@@ -300,6 +310,7 @@ describe("Spotlight", () => {
     it.skip("should find unknown public rooms on other homeservers", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.PublicRooms);
                 cy.spotlightSearch().clear().type(room3Name);
                 cy.get("[aria-haspopup=true][role=button]").click();
@@ -312,6 +323,7 @@ describe("Spotlight", () => {
             })
             .then(() =>
                 cy.spotlightDialog().within(() => {
+                    cy.wait(500); // Wait for dialog to settle
                     cy.spotlightResults().should("have.length", 1);
                     cy.spotlightResults().eq(0).should("contain", room3Name);
                     cy.spotlightResults().eq(0).should("contain", room3Id);
@@ -322,9 +334,9 @@ describe("Spotlight", () => {
     it("should find known people", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.People);
                 cy.spotlightSearch().clear().type(bot1Name);
-                cy.wait(3000); // wait for the dialog code to settle
                 cy.spotlightResults().should("have.length", 1);
                 cy.spotlightResults().eq(0).should("contain", bot1Name);
                 cy.spotlightResults().eq(0).click();
@@ -337,9 +349,9 @@ describe("Spotlight", () => {
     it("should find unknown people", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.People);
                 cy.spotlightSearch().clear().type(bot2Name);
-                cy.wait(3000); // wait for the dialog code to settle
                 cy.spotlightResults().should("have.length", 1);
                 cy.spotlightResults().eq(0).should("contain", bot2Name);
                 cy.spotlightResults().eq(0).click();
@@ -355,9 +367,9 @@ describe("Spotlight", () => {
 
         // Starting a DM with ByteBot (will be turned into a group dm later)
         cy.openSpotlightDialog().within(() => {
+            cy.wait(500); // Wait for dialog to settle
             cy.spotlightFilter(Filter.People);
             cy.spotlightSearch().clear().type(bot2Name);
-            cy.wait(3000); // wait for the dialog code to settle
             cy.spotlightResults().should("have.length", 1);
             cy.spotlightResults().eq(0).should("contain", bot2Name);
             cy.spotlightResults().eq(0).click();
@@ -411,6 +423,7 @@ describe("Spotlight", () => {
     // Test against https://github.com/vector-im/element-web/issues/22851
     it("should show each person result only once", () => {
         cy.openSpotlightDialog().within(() => {
+            cy.wait(500); // Wait for dialog to settle
             cy.spotlightFilter(Filter.People);
 
             // 2 rounds of search to simulate the bug conditions. Specifically, the first search
@@ -431,6 +444,7 @@ describe("Spotlight", () => {
     it("should allow opening group chat dialog", () => {
         cy.openSpotlightDialog()
             .within(() => {
+                cy.wait(500); // Wait for dialog to settle
                 cy.spotlightFilter(Filter.People);
                 cy.spotlightSearch().clear().type(bot2Name);
                 cy.wait(3000); // wait for the dialog code to settle
@@ -454,6 +468,7 @@ describe("Spotlight", () => {
         cy.visit("/#/home");
 
         cy.openSpotlightDialog().within(() => {
+            cy.wait(500); // Wait for dialog to settle
             cy.spotlightFilter(Filter.People);
             cy.spotlightSearch().clear().type(bot1Name);
             cy.wait(3000); // wait for the dialog code to settle
@@ -464,6 +479,7 @@ describe("Spotlight", () => {
 
     it("should be able to navigate results via keyboard", () => {
         cy.openSpotlightDialog().within(() => {
+            cy.wait(500); // Wait for dialog to settle
             cy.spotlightFilter(Filter.People);
             cy.spotlightSearch().clear().type("b");
             // our debouncing logic only starts the search after a short timeout,
@@ -472,6 +488,7 @@ describe("Spotlight", () => {
             cy.get(".mx_Spinner")
                 .should("not.exist")
                 .then(() => {
+                    cy.wait(500); // Wait to settle again
                     cy.spotlightResults()
                         .should("have.length", 2)
                         .then(() => {

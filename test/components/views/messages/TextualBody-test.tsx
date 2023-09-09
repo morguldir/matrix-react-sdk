@@ -60,6 +60,7 @@ const mkFormattedMessage = (body: string, formattedBody: string): MatrixEvent =>
 describe("<TextualBody />", () => {
     afterEach(() => {
         jest.spyOn(MatrixClientPeg, "get").mockRestore();
+        jest.spyOn(global.Math, "random").mockRestore();
     });
 
     const defaultRoom = mkStubRoom(room1Id, "test room", undefined);
@@ -98,6 +99,7 @@ describe("<TextualBody />", () => {
             if (eventId === defaultEvent.getId()) return defaultEvent;
             return undefined;
         });
+        jest.spyOn(global.Math, "random").mockReturnValue(0.123456);
     });
 
     const defaultProps = {
@@ -118,7 +120,7 @@ describe("<TextualBody />", () => {
         );
 
     it("renders m.emote correctly", () => {
-        DMRoomMap.makeShared();
+        DMRoomMap.makeShared(defaultMatrixClient);
 
         const ev = mkEvent({
             type: "m.room.message",
@@ -138,7 +140,7 @@ describe("<TextualBody />", () => {
     });
 
     it("renders m.notice correctly", () => {
-        DMRoomMap.makeShared();
+        DMRoomMap.makeShared(defaultMatrixClient);
 
         const ev = mkEvent({
             type: "m.room.message",
@@ -159,7 +161,7 @@ describe("<TextualBody />", () => {
 
     describe("renders plain-text m.text correctly", () => {
         beforeEach(() => {
-            DMRoomMap.makeShared();
+            DMRoomMap.makeShared(defaultMatrixClient);
         });
 
         it("simple message renders as expected", () => {
@@ -197,7 +199,7 @@ describe("<TextualBody />", () => {
             const { container } = getComponent({ mxEvent: ev });
             const content = container.querySelector(".mx_EventTile_body");
             expect(content.innerHTML).toMatchInlineSnapshot(
-                `"Chat with <span><bdi><a class="mx_Pill mx_UserPill mx_UserPill_me" href="https://matrix.to/#/@user:example.com"><img class="mx_BaseAvatar mx_BaseAvatar_image" src="mxc://avatar.url/image.png" style="width: 16px; height: 16px;" alt="" data-testid="avatar-img" aria-hidden="true"><span class="mx_Pill_text">Member</span></a></bdi></span>"`,
+                `"Chat with <span><bdi><a class="mx_Pill mx_UserPill mx_UserPill_me" href="https://matrix.to/#/@user:example.com" aria-describedby="mx_Pill_0.123456"><span aria-label="Profile picture" aria-hidden="true" data-testid="avatar-img" data-type="round" data-color="8" class="_avatar_2lhia_17 mx_BaseAvatar" style="--cpd-avatar-size: 16px;"><img loading="lazy" alt="" src="mxc://avatar.url/image.png" crossorigin="anonymous" referrerpolicy="no-referrer" class="_image_2lhia_45" data-type="round" width="16px" height="16px"></span><span class="mx_Pill_text">Member</span></a></bdi></span>"`,
             );
         });
 
@@ -215,7 +217,7 @@ describe("<TextualBody />", () => {
             const { container } = getComponent({ mxEvent: ev });
             const content = container.querySelector(".mx_EventTile_body");
             expect(content.innerHTML).toMatchInlineSnapshot(
-                `"Visit <span><bdi><a class="mx_Pill mx_RoomPill" href="https://matrix.to/#/#room:example.com"><div class="mx_Pill_LinkIcon mx_BaseAvatar mx_BaseAvatar_image"></div><span class="mx_Pill_text">#room:example.com</span></a></bdi></span>"`,
+                `"Visit <span><bdi><a class="mx_Pill mx_RoomPill" href="https://matrix.to/#/#room:example.com" aria-describedby="mx_Pill_0.123456"><div class="mx_Pill_LinkIcon mx_BaseAvatar"></div><span class="mx_Pill_text">#room:example.com</span></a></bdi></span>"`,
             );
         });
 
@@ -262,7 +264,7 @@ describe("<TextualBody />", () => {
                 isGuest: () => false,
                 mxcUrlToHttp: (s: string) => s,
             });
-            DMRoomMap.makeShared();
+            DMRoomMap.makeShared(defaultMatrixClient);
         });
 
         it("italics, bold, underline and strikethrough render as expected", () => {
@@ -291,10 +293,10 @@ describe("<TextualBody />", () => {
             expect(content).toContainHTML(
                 '<span class="mx_EventTile_body markdown-body" dir="auto">' +
                     "Hey <span>" +
-                    '<span class="mx_EventTile_spoiler">' +
+                    '<button class="mx_EventTile_spoiler">' +
                     '<span class="mx_EventTile_spoiler_reason">(movie)</span>&nbsp;' +
                     '<span class="mx_EventTile_spoiler_content"><span>the movie was awesome</span></span>' +
-                    "</span></span></span>",
+                    "</span></button></span>",
             );
         });
 
@@ -406,7 +408,7 @@ describe("<TextualBody />", () => {
             isGuest: () => false,
             mxcUrlToHttp: (s: string) => s,
         });
-        DMRoomMap.makeShared();
+        DMRoomMap.makeShared(defaultMatrixClient);
 
         const ev = mkRoomTextMessage("Visit https://matrix.org/");
         const { container, rerender } = getComponent(

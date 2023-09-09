@@ -50,17 +50,31 @@ exports[`<TextualBody /> renders formatted m.text correctly pills appear for an 
   <span>
     <bdi>
       <a
+        aria-describedby="mx_Pill_0.123456"
         class="mx_Pill mx_UserPill"
         href="https://matrix.to/#/@user:example.com"
       >
-        <img
-          alt=""
+        <span
           aria-hidden="true"
-          class="mx_BaseAvatar mx_BaseAvatar_image"
+          aria-label="Profile picture"
+          class="_avatar_2lhia_17 mx_BaseAvatar"
+          data-color="8"
           data-testid="avatar-img"
-          src="mxc://avatar.url/image.png"
-          style="width: 16px; height: 16px;"
-        />
+          data-type="round"
+          style="--cpd-avatar-size: 16px;"
+        >
+          <img
+            alt=""
+            class="_image_2lhia_45"
+            crossorigin="anonymous"
+            data-type="round"
+            height="16px"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+            src="mxc://avatar.url/image.png"
+            width="16px"
+          />
+        </span>
         <span
           class="mx_Pill_text"
         >
@@ -85,17 +99,31 @@ exports[`<TextualBody /> renders formatted m.text correctly pills appear for eve
       <span>
         <bdi>
           <a
+            aria-describedby="mx_Pill_0.123456"
             class="mx_Pill mx_EventPill"
             href="https://matrix.to/#/!ZxbRYPQXDXKGmDnJNg:example.com/$16085560162aNpaH:example.com?via=example.com"
           >
-            <img
-              alt=""
+            <span
               aria-hidden="true"
-              class="mx_BaseAvatar mx_BaseAvatar_image"
+              aria-label="Avatar"
+              class="_avatar_2lhia_17 mx_BaseAvatar"
+              data-color="3"
               data-testid="avatar-img"
-              src="mxc://avatar.url/room.png"
-              style="width: 16px; height: 16px;"
-            />
+              data-type="round"
+              style="--cpd-avatar-size: 16px;"
+            >
+              <img
+                alt=""
+                class="_image_2lhia_45"
+                crossorigin="anonymous"
+                data-type="round"
+                height="16px"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                src="mxc://avatar.url/room.png"
+                width="16px"
+              />
+            </span>
             <span
               class="mx_Pill_text"
             >
@@ -122,17 +150,31 @@ exports[`<TextualBody /> renders formatted m.text correctly pills appear for roo
       <span>
         <bdi>
           <a
+            aria-describedby="mx_Pill_0.123456"
             class="mx_Pill mx_RoomPill"
             href="https://matrix.to/#/!ZxbRYPQXDXKGmDnJNg:example.com?via=example.com&via=bob.com"
           >
-            <img
-              alt=""
+            <span
               aria-hidden="true"
-              class="mx_BaseAvatar mx_BaseAvatar_image"
+              aria-label="Avatar"
+              class="_avatar_2lhia_17 mx_BaseAvatar"
+              data-color="3"
               data-testid="avatar-img"
-              src="mxc://avatar.url/room.png"
-              style="width: 16px; height: 16px;"
-            />
+              data-type="round"
+              style="--cpd-avatar-size: 16px;"
+            >
+              <img
+                alt=""
+                class="_image_2lhia_45"
+                crossorigin="anonymous"
+                data-type="round"
+                height="16px"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                src="mxc://avatar.url/room.png"
+                width="16px"
+              />
+            </span>
             <span
               class="mx_Pill_text"
             >
@@ -218,17 +260,31 @@ exports[`<TextualBody /> renders formatted m.text correctly pills get injected c
   <span>
     <bdi>
       <a
+        aria-describedby="mx_Pill_0.123456"
         class="mx_Pill mx_UserPill"
         href="https://matrix.to/#/@user:server"
       >
-        <img
-          alt=""
+        <span
           aria-hidden="true"
-          class="mx_BaseAvatar mx_BaseAvatar_image"
+          aria-label="Profile picture"
+          class="_avatar_2lhia_17 mx_BaseAvatar"
+          data-color="8"
           data-testid="avatar-img"
-          src="mxc://avatar.url/image.png"
-          style="width: 16px; height: 16px;"
-        />
+          data-type="round"
+          style="--cpd-avatar-size: 16px;"
+        >
+          <img
+            alt=""
+            class="_image_2lhia_45"
+            crossorigin="anonymous"
+            data-type="round"
+            height="16px"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+            src="mxc://avatar.url/image.png"
+            width="16px"
+          />
+        </span>
         <span
           class="mx_Pill_text"
         >
@@ -247,14 +303,26 @@ exports[`<TextualBody /> renders plain-text m.text correctly should pillify a pe
     ><a
       class="mx_Pill mx_EventPill"
       href="https://matrix.to/#/!room1:example.com/%event_id%"
-      ><img
-        class="mx_BaseAvatar mx_BaseAvatar_image"
-        src="mxc://avatar.url/image.png"
-        style="width: 16px; height: 16px"
-        alt=""
-        data-testid="avatar-img"
+      aria-describedby="mx_Pill_0.123456"
+      ><span
+        aria-label="Profile picture"
         aria-hidden="true"
-      /><span class="mx_Pill_text">Message from Member</span></a
+        data-testid="avatar-img"
+        data-type="round"
+        data-color="8"
+        class="_avatar_2lhia_17 mx_BaseAvatar"
+        style="--cpd-avatar-size: 16px"
+        ><img
+          loading="lazy"
+          alt=""
+          src="mxc://avatar.url/image.png"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"
+          class="_image_2lhia_45"
+          data-type="round"
+          width="16px"
+          height="16px" /></span
+      ><span class="mx_Pill_text">Message from Member</span></a
     ></bdi
   ></span
 >
@@ -268,14 +336,26 @@ exports[`<TextualBody /> renders plain-text m.text correctly should pillify a pe
     ><a
       class="mx_Pill mx_EventPill"
       href="https://matrix.to/#/!room2:example.com/%event_id%"
-      ><img
-        class="mx_BaseAvatar mx_BaseAvatar_image"
-        src="mxc://avatar.url/room.png"
-        style="width: 16px; height: 16px"
-        alt=""
-        data-testid="avatar-img"
+      aria-describedby="mx_Pill_0.123456"
+      ><span
+        aria-label="Avatar"
         aria-hidden="true"
-      /><span class="mx_Pill_text">Message in Room 2</span></a
+        data-testid="avatar-img"
+        data-type="round"
+        data-color="4"
+        class="_avatar_2lhia_17 mx_BaseAvatar"
+        style="--cpd-avatar-size: 16px"
+        ><img
+          loading="lazy"
+          alt=""
+          src="mxc://avatar.url/room.png"
+          crossorigin="anonymous"
+          referrerpolicy="no-referrer"
+          class="_image_2lhia_45"
+          data-type="round"
+          width="16px"
+          height="16px" /></span
+      ><span class="mx_Pill_text">Message in Room 2</span></a
     ></bdi
   ></span
 >
@@ -291,11 +371,12 @@ exports[`<TextualBody /> renders plain-text m.text correctly should pillify a pe
   <span>
     <bdi>
       <a
+        aria-describedby="mx_Pill_0.123456"
         class="mx_Pill mx_EventPill"
         href="https://matrix.to/#/!room1:example.com/!abc123"
       >
         <div
-          class="mx_Pill_LinkIcon mx_BaseAvatar mx_BaseAvatar_image"
+          class="mx_Pill_LinkIcon mx_BaseAvatar"
         />
         <span
           class="mx_Pill_text"

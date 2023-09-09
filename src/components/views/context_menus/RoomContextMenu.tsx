@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useContext } from "react";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { Room } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
 import { IProps as IContextMenuProps } from "../../structures/ContextMenu";
@@ -38,7 +38,7 @@ import ExportDialog from "../dialogs/ExportDialog";
 import { useFeatureEnabled } from "../../../hooks/useSettings";
 import { usePinnedEvents } from "../right_panel/PinnedMessagesCard";
 import { RightPanelPhases } from "../../../stores/right-panel/RightPanelStorePhases";
-import { ROOM_NOTIFICATIONS_TAB } from "../dialogs/RoomSettingsDialog";
+import { RoomSettingsTab } from "../dialogs/RoomSettingsDialog";
 import { useEventEmitterState } from "../../../hooks/useEventEmitter";
 import RightPanelStore from "../../../stores/right-panel/RightPanelStore";
 import DMRoomMap from "../../../utils/DMRoomMap";
@@ -59,6 +59,7 @@ interface IProps extends IContextMenuProps {
 
 /**
  * Room context menu accessible via the room header.
+ * @deprecated will be removed as part of `feature_new_room_decoration_ui`
  */
 const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
     const cli = useContext(MatrixClientContext);
@@ -104,7 +105,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
         leaveOption = (
             <IconizedContextMenuOption
                 onClick={onLeaveRoomClick}
-                label={_t("Leave")}
+                label={_t("action|leave")}
                 className="mx_IconizedContextMenu_option_red"
                 iconClassName="mx_RoomTile_iconSignOut"
             />
@@ -135,7 +136,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
         inviteOption = (
             <IconizedContextMenuOption
                 onClick={onInviteClick}
-                label={_t("Invite")}
+                label={_t("action|invite")}
                 iconClassName="mx_RoomTile_iconInvite"
             />
         );
@@ -185,7 +186,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
                 iconClassName = "mx_RoomTile_iconNotificationsMentionsKeywords";
                 break;
             case RoomNotifState.Mute:
-                notificationLabel = _t("Mute");
+                notificationLabel = _t("common|mute");
                 iconClassName = "mx_RoomTile_iconNotificationsNone";
                 break;
         }
@@ -199,7 +200,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
                     dis.dispatch({
                         action: "open_room_settings",
                         room_id: room.roomId,
-                        initial_tab_id: ROOM_NOTIFICATIONS_TAB,
+                        initial_tab_id: RoomSettingsTab.Notifications,
                     });
                     onFinished();
 
@@ -227,7 +228,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
                     onFinished();
                     PosthogTrackers.trackInteraction("WebRoomHeaderContextMenuPeopleItem", ev);
                 }}
-                label={_t("People")}
+                label={_t("common|people")}
                 iconClassName="mx_RoomTile_iconPeople"
             >
                 <span className="mx_IconizedContextMenu_sublabel">{room.getJoinedMemberCount()}</span>
@@ -389,7 +390,7 @@ const RoomContextMenu: React.FC<IProps> = ({ room, onFinished, ...props }) => {
                         onFinished();
                         PosthogTrackers.trackInteraction("WebRoomHeaderContextMenuSettingsItem", ev);
                     }}
-                    label={_t("Settings")}
+                    label={_t("common|settings")}
                     iconClassName="mx_RoomTile_iconSettings"
                 />
 

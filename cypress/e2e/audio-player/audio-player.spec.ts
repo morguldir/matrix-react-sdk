@@ -29,7 +29,7 @@ describe("Audio player", () => {
         ".mx_SeekBar, " +
         // Exclude various components from the snapshot, for consistency
         ".mx_JumpToBottomButton, " +
-        ".mx_MessageTimestamp, .mx_RoomView_myReadMarker { visibility: hidden !important; }";
+        ".mx_MessageTimestamp, .mx_MessagePanel_myReadMarker { visibility: hidden !important; }";
 
     const uploadFile = (file: string) => {
         // Upload a file from the message composer
@@ -43,6 +43,8 @@ describe("Audio player", () => {
         // Wait until the file is sent
         cy.get(".mx_RoomView_statusArea_expanded").should("not.exist");
         cy.get(".mx_EventTile.mx_EventTile_last .mx_EventTile_receiptSent").should("exist");
+        // wait for the tile to finish loading
+        cy.get(".mx_AudioPlayer_mediaName").should("exist");
     };
 
     /**
@@ -166,7 +168,8 @@ describe("Audio player", () => {
     it("should be correctly rendered - light theme with monospace font", () => {
         uploadFile("cypress/fixtures/1sec-long-name-audio-file.ogg");
 
-        takeSnapshots("Selected EventTile of audio player (light theme, monospace font)", true); // Enable monospace
+        // Disabled because flaky - see https://github.com/vector-im/element-web/issues/24881
+        //takeSnapshots("Selected EventTile of audio player (light theme, monospace font)", true); // Enable monospace
     });
 
     it("should be correctly rendered - high contrast theme", () => {
@@ -176,7 +179,7 @@ describe("Audio player", () => {
 
         // Enable high contrast manually
         cy.openUserSettings("Appearance")
-            .get(".mx_ThemeChoicePanel")
+            .findByTestId("mx_ThemeChoicePanel")
             .findByLabelText("Use high contrast")
             .click({ force: true }); // force click because the size of the checkbox is zero
 
@@ -184,7 +187,8 @@ describe("Audio player", () => {
 
         uploadFile("cypress/fixtures/1sec-long-name-audio-file.ogg");
 
-        takeSnapshots("Selected EventTile of audio player (high contrast)");
+        // Disabled because flaky - see https://github.com/vector-im/element-web/issues/24881
+        //takeSnapshots("Selected EventTile of audio player (high contrast)");
     });
 
     it("should be correctly rendered - dark theme", () => {
@@ -204,8 +208,9 @@ describe("Audio player", () => {
             // Assert that the counter is zero before clicking the play button
             cy.contains(".mx_AudioPlayer_seek [role='timer']", "00:00").should("exist");
 
-            // Find and click "Play" button
-            cy.findByRole("button", { name: "Play" }).click();
+            // Find and click "Play" button, the wait is to make the test less flaky
+            cy.findByRole("button", { name: "Play" }).should("exist");
+            cy.wait(500).findByRole("button", { name: "Play" }).click();
 
             // Assert that "Pause" button can be found
             cy.findByRole("button", { name: "Pause" }).should("exist");
@@ -251,8 +256,8 @@ describe("Audio player", () => {
             });
         });
 
-        // Take snapshots
-        takeSnapshots("Selected EventTile of audio player with a reply");
+        // Disabled because flaky - see https://github.com/vector-im/element-web/issues/24881
+        //takeSnapshots("Selected EventTile of audio player with a reply");
     });
 
     it("should support creating a reply chain with multiple audio files", () => {
@@ -332,29 +337,33 @@ describe("Audio player", () => {
 
         // On a thread
         cy.get(".mx_ThreadView").within(() => {
-            cy.get(".mx_EventTile_last")
-                .within(() => {
-                    // Assert that the player is correctly rendered on a thread
-                    cy.get(".mx_EventTile_mediaLine .mx_MAudioBody .mx_AudioPlayer_container").within(() => {
-                        // Assert that the counter is zero before clicking the play button
-                        cy.contains(".mx_AudioPlayer_seek [role='timer']", "00:00").should("exist");
+            cy.get(".mx_EventTile_last").within(() => {
+                // Assert that the player is correctly rendered on a thread
+                cy.get(".mx_EventTile_mediaLine .mx_MAudioBody .mx_AudioPlayer_container").within(() => {
+                    // Assert that the counter is zero before clicking the play button
+                    cy.contains(".mx_AudioPlayer_seek [role='timer']", "00:00").should("exist");
 
-                        // Find and click "Play" button
-                        cy.findByRole("button", { name: "Play" }).click();
+                    // Find and click "Play" button, the wait is to make the test less flaky
+                    cy.findByRole("button", { name: "Play" }).should("exist");
+                    cy.wait(500).findByRole("button", { name: "Play" }).click();
 
-                        // Assert that "Pause" button can be found
-                        cy.findByRole("button", { name: "Pause" }).should("exist");
+                    // Assert that "Pause" button can be found
+                    cy.findByRole("button", { name: "Pause" }).should("exist");
 
-                        // Assert that the timer is reset when the audio file finished playing
-                        cy.contains(".mx_AudioPlayer_seek [role='timer']", "00:00").should("exist");
+                    // Assert that the timer is reset when the audio file finished playing
+                    cy.contains(".mx_AudioPlayer_seek [role='timer']", "00:00").should("exist");
 
-                        // Assert that "Play" button can be found
-                        cy.findByRole("button", { name: "Play" }).should("exist");
-                    });
-                })
-                .realHover()
-                .findByRole("button", { name: "Reply" })
-                .click(); // Find and click "Reply" button
+                    // Assert that "Play" button can be found
+                    cy.findByRole("button", { name: "Play" }).should("exist").should("not.have.attr", "disabled");
+                });
+            });
+
+            // Find and click "Reply" button
+            //
+            // Calling cy.get(".mx_EventTile_last") again here is a workaround for
+            // https://github.com/matrix-org/matrix-js-sdk/issues/3394: the event tile may have been re-mounted while
+            // the audio was playing.
+            cy.get(".mx_EventTile_last").realHover().findByRole("button", { name: "Reply" }).click();
 
             cy.get(".mx_MessageComposer--compact").within(() => {
                 // Assert that the reply preview is rendered on the message composer
