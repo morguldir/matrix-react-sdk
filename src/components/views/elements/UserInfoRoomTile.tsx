@@ -68,7 +68,7 @@ export default class UserInfoRoomTile extends React.PureComponent<IProps, IState
             mx_RoomTile_selected: this.state.selected,
         });
 
-        const roomAvatar = <DecoratedRoomAvatar room={this.props.room} avatarSize={32} displayBadge={false} />;
+        const roomAvatar = <DecoratedRoomAvatar room={this.props.room} size={"32px"} displayBadge={false} />;
 
         let badge: React.ReactNode;
 
