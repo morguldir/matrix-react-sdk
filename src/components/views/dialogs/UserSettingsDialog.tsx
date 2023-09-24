@@ -113,7 +113,7 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
         tabs.push(
             new Tab(
                 UserTab.Keyboard,
-                _td("Keyboard"),
+                _td("settings|keyboard|title"),
                 "mx_UserSettingsDialog_keyboardIcon",
                 <KeyboardUserSettingsTab />,
                 "UserSettingsKeyboard",
@@ -144,7 +144,7 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
         tabs.push(
             new Tab(
                 UserTab.Security,
-                _td("Security & Privacy"),
+                _td("room_settings|security|title"),
                 "mx_UserSettingsDialog_securityIcon",
                 <SecurityUserSettingsTab closeSettingsFn={this.props.onFinished} />,
                 "UserSettingsSecurityPrivacy",
@@ -179,7 +179,7 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
             tabs.push(
                 new Tab(
                     UserTab.Mjolnir,
-                    _td("Ignored users"),
+                    _td("labs_mjolnir|title"),
                     "mx_UserSettingsDialog_mjolnirIcon",
                     <MjolnirUserSettingsTab />,
                     "UserSettingMjolnir",
@@ -189,7 +189,7 @@ export default class UserSettingsDialog extends React.Component<IProps, IState> 
         tabs.push(
             new Tab(
                 UserTab.Help,
-                _td("Help & About"),
+                _td("setting|help_about|title"),
                 "mx_UserSettingsDialog_helpIcon",
                 <HelpUserSettingsTab closeSettingsFn={() => this.props.onFinished()} />,
                 "UserSettingsHelpAbout",

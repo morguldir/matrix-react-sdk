@@ -177,10 +177,7 @@ export default class ForgotPassword extends React.Component<Props, State> {
 
         if (err?.name === "ConnectionError") {
             this.setState({
-                errorText:
-                    _t("Cannot reach homeserver") +
-                    ": " +
-                    _t("Ensure you have a stable internet connection, or get in touch with the server admin"),
+                errorText: _t("cannot_reach_homeserver") + ": " + _t("cannot_reach_homeserver_detail"),
             });
             return;
         }
@@ -384,19 +381,19 @@ export default class ForgotPassword extends React.Component<Props, State> {
 
     public renderSetPassword(): JSX.Element {
         const submitButtonChild =
-            this.state.phase === Phase.ResettingPassword ? <Spinner w={16} h={16} /> : _t("Reset password");
+            this.state.phase === Phase.ResettingPassword ? <Spinner w={16} h={16} /> : _t("auth|reset_password_action");
 
         return (
             <>
                 <LockIcon className="mx_AuthBody_lockIcon" />
-                <h1>{_t("Reset your password")}</h1>
+                <h1>{_t("auth|reset_password_title")}</h1>
                 <form onSubmit={this.onSubmitForm}>
                     <fieldset disabled={this.state.phase === Phase.ResettingPassword}>
                         <div className="mx_AuthBody_fieldRow">
                             <PassphraseField
                                 name="reset_password"
                                 type="password"
-                                label={_td("New Password")}
+                                label={_td("auth|change_password_new_label")}
                                 value={this.state.password}
                                 minScore={PASSWORD_MIN_SCORE}
                                 fieldRef={(field) => (this.fieldPassword = field)}
