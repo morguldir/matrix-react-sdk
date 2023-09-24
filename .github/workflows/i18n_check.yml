@@ -7,12 +7,12 @@ jobs:
         permissions:
             pull-requests: read
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
 
             - name: "Get modified files"
               id: changed_files
-              if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'RiotTranslateBot'
-              uses: tj-actions/changed-files@84ed30e2f4daf616144de7e0c1db59d5b33025e3 # v35
+              if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'RiotTranslateBot' && github.event.pull_request.user.login != 't3chguy'
+              uses: tj-actions/changed-files@41960309398d165631f08c5df47a11147e14712b # v39
               with:
                   files: |
                       src/i18n/strings/*
@@ -25,8 +25,8 @@ jobs:
                   github.event.pull_request.user.login != 'RiotTranslateBot' &&
                   steps.changed_files.outputs.any_modified == 'true'
               run: |
-                  echo "Only translation files modified by `yarn i18n` can be committed - other translation files will confuse weblate in unrecoverable ways."
                   exit 1
+                  echo "Only translation files modified by 'yarn i18n' can be committed - other translation files will confuse weblate in unrecoverable ways."
 
             - uses: actions/setup-node@v3
               with:
@@ -34,7 +34,7 @@ jobs:
 
             # Does not need branch matching as only analyses this layer
             - name: Install Deps
-              run: "yarn install --pure-lockfile"
+              run: "yarn install --frozen-lockfile"
 
             - name: i18n Check
               run: "yarn run diff-i18n"

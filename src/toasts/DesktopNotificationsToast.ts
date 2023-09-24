@@ -23,7 +23,7 @@ import { getLocalNotificationAccountDataEventType } from "../utils/notifications
 
 const onAccept = (): void => {
     Notifier.setEnabled(true);
-    const cli = MatrixClientPeg.get();
+    const cli = MatrixClientPeg.safeGet();
     const eventType = getLocalNotificationAccountDataEventType(cli.deviceId!);
     cli.setAccountData(eventType, {
         is_silenced: false,
@@ -42,9 +42,9 @@ export const showToast = (fromMessageSend: boolean): void => {
         title: fromMessageSend ? _t("Don't miss a reply") : _t("Notifications"),
         props: {
             description: _t("Enable desktop notifications"),
-            acceptLabel: _t("Enable"),
+            acceptLabel: _t("action|enable"),
             onAccept,
-            rejectLabel: _t("Dismiss"),
+            rejectLabel: _t("action|dismiss"),
             onReject,
         },
         component: GenericToast,

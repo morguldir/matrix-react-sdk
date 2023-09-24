@@ -15,9 +15,17 @@ limitations under the License.
 */
 
 import { mocked, MockedObject } from "jest-mock";
-import { MatrixClient, ClientEvent, ITurnServer as IClientTurnServer } from "matrix-js-sdk/src/client";
+import {
+    MatrixClient,
+    ClientEvent,
+    ITurnServer as IClientTurnServer,
+    Direction,
+    EventType,
+    MatrixEvent,
+    MsgType,
+    RelationType,
+} from "matrix-js-sdk/src/matrix";
 import { DeviceInfo } from "matrix-js-sdk/src/crypto/deviceinfo";
-import { Direction, EventType, MatrixEvent, MsgType, RelationType } from "matrix-js-sdk/src/matrix";
 import {
     Widget,
     MatrixWidgetType,
@@ -61,8 +69,9 @@ describe("StopGapWidgetDriver", () => {
 
     beforeEach(() => {
         stubClient();
-        client = mocked(MatrixClientPeg.get());
+        client = mocked(MatrixClientPeg.safeGet());
         client.getUserId.mockReturnValue("@alice:example.org");
+        client.getSafeUserId.mockReturnValue("@alice:example.org");
     });
 
     it("auto-approves capabilities of virtual Element Call widgets", async () => {
@@ -185,10 +194,18 @@ describe("StopGapWidgetDriver", () => {
             const aliceMobile = new DeviceInfo("aliceMobile");
             const bobDesktop = new DeviceInfo("bobDesktop");
 
-            mocked(client.crypto!.deviceList).downloadKeys.mockResolvedValue({
-                "@alice:example.org": { aliceWeb, aliceMobile },
-                "@bob:example.org": { bobDesktop },
-            });
+            mocked(client.crypto!.deviceList).downloadKeys.mockResolvedValue(
+                new Map([
+                    [
+                        "@alice:example.org",
+                        new Map([
+                            ["aliceWeb", aliceWeb],
+                            ["aliceMobile", aliceMobile],
+                        ]),
+                    ],
+                    ["@bob:example.org", new Map([["bobDesktop", bobDesktop]])],
+                ]),
+            );
 
             await driver.sendToDevice("org.example.foo", true, contentMap);
             expect(client.encryptAndSendToDevices.mock.calls).toMatchSnapshot();
@@ -392,6 +409,82 @@ describe("StopGapWidgetDriver", () => {
             const driver = mkDefaultDriver();
             driver.readRoomEvents(EventType.CallAnswer, "", 0, ["*"]);
             expect(client.getVisibleRooms).toHaveBeenCalledWith(true);
+        });
+    });
+
+    describe("searchUserDirectory", () => {
+        let driver: WidgetDriver;
+
+        beforeEach(() => {
+            driver = mkDefaultDriver();
+        });
+
+        it("searches for users in the user directory", async () => {
+            client.searchUserDirectory.mockResolvedValue({
+                limited: false,
+                results: [{ user_id: "@user", display_name: "Name", avatar_url: "mxc://" }],
+            });
+
+            await expect(driver.searchUserDirectory("foo")).resolves.toEqual({
+                limited: false,
+                results: [{ userId: "@user", displayName: "Name", avatarUrl: "mxc://" }],
+            });
+
+            expect(client.searchUserDirectory).toHaveBeenCalledWith({ term: "foo", limit: undefined });
+        });
+
+        it("searches for users with a custom limit", async () => {
+            client.searchUserDirectory.mockResolvedValue({
+                limited: true,
+                results: [],
+            });
+
+            await expect(driver.searchUserDirectory("foo", 25)).resolves.toEqual({
+                limited: true,
+                results: [],
+            });
+
+            expect(client.searchUserDirectory).toHaveBeenCalledWith({ term: "foo", limit: 25 });
+        });
+    });
+
+    describe("getMediaConfig", () => {
+        let driver: WidgetDriver;
+
+        beforeEach(() => {
+            driver = mkDefaultDriver();
+        });
+
+        it("gets the media configuration", async () => {
+            client.getMediaConfig.mockResolvedValue({
+                "m.upload.size": 1000,
+            });
+
+            await expect(driver.getMediaConfig()).resolves.toEqual({
+                "m.upload.size": 1000,
+            });
+
+            expect(client.getMediaConfig).toHaveBeenCalledWith();
+        });
+    });
+
+    describe("uploadFile", () => {
+        let driver: WidgetDriver;
+
+        beforeEach(() => {
+            driver = mkDefaultDriver();
+        });
+
+        it("uploads a file", async () => {
+            client.uploadContent.mockResolvedValue({
+                content_uri: "mxc://...",
+            });
+
+            await expect(driver.uploadFile("data")).resolves.toEqual({
+                contentUri: "mxc://...",
+            });
+
+            expect(client.uploadContent).toHaveBeenCalledWith("data");
         });
     });
 });

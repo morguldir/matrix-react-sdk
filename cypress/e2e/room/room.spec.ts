@@ -16,7 +16,7 @@ limitations under the License.
 
 /// <reference types="cypress" />
 
-import { EventType } from "matrix-js-sdk/src/@types/event";
+import { EventType } from "matrix-js-sdk/src/matrix";
 
 import { HomeserverInstance } from "../../plugins/utils/homeserver";
 import { MatrixClient } from "../../global";
@@ -71,11 +71,11 @@ describe("Room Directory", () => {
         // we want to make sure it is never displayed when switching these rooms
         cy.get(".mx_RoomPreviewBar_spinnerTitle", { timeout: 1 }).should("not.exist");
         // confirm the room was loaded
-        cy.contains("Bob joined the room").should("exist");
+        cy.findByText("Bob joined the room").should("exist");
 
         cy.viewRoomByName("Charlie");
         cy.get(".mx_RoomPreviewBar_spinnerTitle", { timeout: 1 }).should("not.exist");
         // confirm the room was loaded
-        cy.contains("Charlie joined the room").should("exist");
+        cy.findByText("Charlie joined the room").should("exist");
     });
 });

@@ -23,9 +23,12 @@ import React, {
     useContext,
     RefAttributes,
 } from "react";
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 
-const MatrixClientContext = createContext<MatrixClient>(undefined);
+// This context is available to components under LoggedInView,
+// the context must not be used by components outside a MatrixClientContext tree.
+// This assertion allows us to make the type not nullable.
+const MatrixClientContext = createContext<MatrixClient>(null as any);
 MatrixClientContext.displayName = "MatrixClientContext";
 export default MatrixClientContext;
 

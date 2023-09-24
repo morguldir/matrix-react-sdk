@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { filesize } from "filesize";
 import React from "react";
 
 import { _t } from "../../../languageHandler";
 import ContentMessages from "../../../ContentMessages";
 import BaseDialog from "./BaseDialog";
 import DialogButtons from "../elements/DialogButtons";
+import { fileSize } from "../../../utils/FileUtils";
 
 interface IProps {
     badFiles: File[];
@@ -49,11 +49,10 @@ export default class UploadFailureDialog extends React.Component<IProps> {
         let buttons;
         if (this.props.totalFiles === 1 && this.props.badFiles.length === 1) {
             message = _t(
-                "This file is <b>too large</b> to upload. " +
-                    "The file size limit is %(limit)s but this file is %(sizeOfThisFile)s.",
+                "This file is <b>too large</b> to upload. The file size limit is %(limit)s but this file is %(sizeOfThisFile)s.",
                 {
-                    limit: filesize(this.props.contentMessages.getUploadLimit()),
-                    sizeOfThisFile: filesize(this.props.badFiles[0].size),
+                    limit: fileSize(this.props.contentMessages.getUploadLimit()!),
+                    sizeOfThisFile: fileSize(this.props.badFiles[0].size),
                 },
                 {
                     b: (sub) => <b>{sub}</b>,
@@ -61,7 +60,7 @@ export default class UploadFailureDialog extends React.Component<IProps> {
             );
             buttons = (
                 <DialogButtons
-                    primaryButton={_t("OK")}
+                    primaryButton={_t("action|ok")}
                     hasCancel={false}
                     onPrimaryButtonClick={this.onCancelClick}
                     focus={true}
@@ -69,9 +68,9 @@ export default class UploadFailureDialog extends React.Component<IProps> {
             );
         } else if (this.props.totalFiles === this.props.badFiles.length) {
             message = _t(
-                "These files are <b>too large</b> to upload. " + "The file size limit is %(limit)s.",
+                "These files are <b>too large</b> to upload. The file size limit is %(limit)s.",
                 {
-                    limit: filesize(this.props.contentMessages.getUploadLimit()),
+                    limit: fileSize(this.props.contentMessages.getUploadLimit()!),
                 },
                 {
                     b: (sub) => <b>{sub}</b>,
@@ -79,7 +78,7 @@ export default class UploadFailureDialog extends React.Component<IProps> {
             );
             buttons = (
                 <DialogButtons
-                    primaryButton={_t("OK")}
+                    primaryButton={_t("action|ok")}
                     hasCancel={false}
                     onPrimaryButtonClick={this.onCancelClick}
                     focus={true}
@@ -87,9 +86,9 @@ export default class UploadFailureDialog extends React.Component<IProps> {
             );
         } else {
             message = _t(
-                "Some files are <b>too large</b> to be uploaded. " + "The file size limit is %(limit)s.",
+                "Some files are <b>too large</b> to be uploaded. The file size limit is %(limit)s.",
                 {
-                    limit: filesize(this.props.contentMessages.getUploadLimit()),
+                    limit: fileSize(this.props.contentMessages.getUploadLimit()!),
                 },
                 {
                     b: (sub) => <b>{sub}</b>,

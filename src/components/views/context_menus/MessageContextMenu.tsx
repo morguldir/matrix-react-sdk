@@ -17,12 +17,17 @@ limitations under the License.
 */
 
 import React, { createRef, useContext } from "react";
-import { EventStatus, MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { EventType, RelationType } from "matrix-js-sdk/src/@types/event";
-import { Relations } from "matrix-js-sdk/src/models/relations";
-import { RoomMemberEvent } from "matrix-js-sdk/src/models/room-member";
-import { M_POLL_START } from "matrix-js-sdk/src/@types/polls";
-import { Thread } from "matrix-js-sdk/src/models/thread";
+import {
+    EventStatus,
+    MatrixEvent,
+    MatrixEventEvent,
+    RoomMemberEvent,
+    EventType,
+    RelationType,
+    Relations,
+    Thread,
+    M_POLL_START,
+} from "matrix-js-sdk/src/matrix";
 
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import dis from "../../../dispatcher/dispatcher";
@@ -114,7 +119,7 @@ interface IProps extends MenuProps {
     // True if the menu is being used as a right click menu
     rightClick?: boolean;
     // The Relations model from the JS SDK for reactions to `mxEvent`
-    reactions?: Relations | null | undefined;
+    reactions?: Relations | null;
     // A permalink to this event or an href of an anchor element the user has clicked
     link?: string;
 
@@ -146,7 +151,12 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     }
 
     public componentDidMount(): void {
-        MatrixClientPeg.get().on(RoomMemberEvent.PowerLevel, this.checkPermissions);
+        MatrixClientPeg.safeGet().on(RoomMemberEvent.PowerLevel, this.checkPermissions);
+
+        // re-check the permissions on send progress (`maySendRedactionForEvent` only returns true for events that have
+        // been fully sent and echoed back, and we want to ensure the "Remove" option is added once that happens.)
+        this.props.mxEvent.on(MatrixEventEvent.Status, this.checkPermissions);
+
         this.checkPermissions();
     }
 
@@ -155,10 +165,11 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         if (cli) {
             cli.removeListener(RoomMemberEvent.PowerLevel, this.checkPermissions);
         }
+        this.props.mxEvent.removeListener(MatrixEventEvent.Status, this.checkPermissions);
     }
 
     private checkPermissions = (): void => {
-        const cli = MatrixClientPeg.get();
+        const cli = MatrixClientPeg.safeGet();
         const room = cli.getRoom(this.props.mxEvent.getRoomId());
 
         // We explicitly decline to show the redact option on ACL events as it has a potential
@@ -183,7 +194,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private isPinned(): boolean {
-        const room = MatrixClientPeg.get().getRoom(this.props.mxEvent.getRoomId());
+        const room = MatrixClientPeg.safeGet().getRoom(this.props.mxEvent.getRoomId());
         const pinnedEvent = room?.currentState.getStateEvents(EventType.RoomPinnedEvents, "");
         if (!pinnedEvent) return false;
         const content = pinnedEvent.getContent();
@@ -194,13 +205,13 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         return (
             M_POLL_START.matches(mxEvent.getType()) &&
             this.state.canRedact &&
-            !isPollEnded(mxEvent, MatrixClientPeg.get())
+            !isPollEnded(mxEvent, MatrixClientPeg.safeGet())
         );
     }
 
     private onResendReactionsClick = (): void => {
         for (const reaction of this.getUnsentReactions()) {
-            Resend.resend(reaction);
+            Resend.resend(MatrixClientPeg.safeGet(), reaction);
         }
         this.closeMenu();
     };
@@ -267,7 +278,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private onPinClick = (): void => {
-        const cli = MatrixClientPeg.get();
+        const cli = MatrixClientPeg.safeGet();
         const room = cli.getRoom(this.props.mxEvent.getRoomId());
         if (!room) return;
         const eventId = this.props.mxEvent.getId();
@@ -304,7 +315,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         this.closeMenu();
     };
 
-    private onShareClick = (e: React.MouseEvent): void => {
+    private onShareClick = (e: ButtonEvent): void => {
         e.preventDefault();
         Modal.createDialog(ShareDialog, {
             target: this.props.mxEvent,
@@ -331,7 +342,12 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private onEditClick = (): void => {
-        editEvent(this.props.mxEvent, this.context.timelineRenderingType, this.props.getRelationsForEvent);
+        editEvent(
+            MatrixClientPeg.safeGet(),
+            this.props.mxEvent,
+            this.context.timelineRenderingType,
+            this.props.getRelationsForEvent,
+        );
         this.closeMenu();
     };
 
@@ -354,7 +370,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private onEndPollClick = (): void => {
-        const matrixClient = MatrixClientPeg.get();
+        const matrixClient = MatrixClientPeg.safeGet();
         Modal.createDialog(
             EndPollDialog,
             {
@@ -368,7 +384,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     private getReactions(filter: (e: MatrixEvent) => boolean): MatrixEvent[] {
-        const cli = MatrixClientPeg.get();
+        const cli = MatrixClientPeg.safeGet();
         const room = cli.getRoom(this.props.mxEvent.getRoomId());
         const eventId = this.props.mxEvent.getId();
         return (
@@ -395,7 +411,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
     };
 
     public render(): React.ReactNode {
-        const cli = MatrixClientPeg.get();
+        const cli = MatrixClientPeg.safeGet();
         const me = cli.getUserId();
         const { mxEvent, rightClick, link, eventTileOps, reactions, collapseReplyChain, ...other } = this.props;
         delete other.getRelationsForEvent;
@@ -441,7 +457,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             redactButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconRedact"
-                    label={_t("Remove")}
+                    label={_t("action|remove")}
                     onClick={this.onRedactClick}
                 />
             );
@@ -472,7 +488,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             forwardButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconForward"
-                    label={_t("Forward")}
+                    label={_t("action|forward")}
                     onClick={this.onForwardClick(forwardableEvent)}
                 />
             );
@@ -483,7 +499,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             pinButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconPin"
-                    label={this.isPinned() ? _t("Unpin") : _t("Pin")}
+                    label={this.isPinned() ? _t("action|unpin") : _t("action|pin")}
                     onClick={this.onPinClick}
                 />
             );
@@ -515,7 +531,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconPermalink"
                     onClick={this.onShareClick}
-                    label={_t("Share")}
+                    label={_t("action|share")}
                     element="a"
                     {
                         // XXX: Typescript signature for AccessibleButton doesn't work properly for non-inputs like `a`
@@ -546,7 +562,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             quoteButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconQuote"
-                    label={_t("Quote")}
+                    label={_t("action|quote")}
                     onClick={this.onQuoteClick}
                 />
             );
@@ -588,7 +604,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         }
 
         let jumpToRelatedEventButton: JSX.Element | undefined;
-        const relatedEventId = mxEvent.getWireContent()?.["m.relates_to"]?.event_id;
+        const relatedEventId = mxEvent.relationEventId;
         if (relatedEventId && SettingsStore.getValue("developerMode")) {
             jumpToRelatedEventButton = (
                 <IconizedContextMenuOption
@@ -616,7 +632,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconCopy"
                     onClick={this.onCopyLinkClick}
-                    label={_t("Copy link")}
+                    label={_t("action|copy_link")}
                     element="a"
                     {
                         // XXX: Typescript signature for AccessibleButton doesn't work properly for non-inputs like `a`
@@ -635,7 +651,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             copyButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconCopy"
-                    label={_t("Copy")}
+                    label={_t("action|copy")}
                     triggerOnMouseDown={true} // We use onMouseDown so that the selection isn't cleared when we click
                     onClick={this.onCopyClick}
                 />
@@ -643,11 +659,11 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         }
 
         let editButton: JSX.Element | undefined;
-        if (rightClick && canEditContent(mxEvent)) {
+        if (rightClick && canEditContent(cli, mxEvent)) {
             editButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconEdit"
-                    label={_t("Edit")}
+                    label={_t("action|edit")}
                     onClick={this.onEditClick}
                 />
             );
@@ -658,7 +674,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             replyButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconReply"
-                    label={_t("Reply")}
+                    label={_t("action|reply")}
                     onClick={this.onReplyClick}
                 />
             );
@@ -680,7 +696,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             reactButton = (
                 <IconizedContextMenuOption
                     iconClassName="mx_MessageContextMenu_iconReact"
-                    label={_t("React")}
+                    label={_t("action|react")}
                     onClick={this.onReactClick}
                     inputRef={this.reactButtonRef}
                 />

@@ -17,12 +17,16 @@ limitations under the License.
 */
 
 import React from "react";
-import { MatrixClient } from "matrix-js-sdk/src/client";
-import { AuthType, IAuthData } from "matrix-js-sdk/src/interactive-auth";
+import { MatrixClient, UIAResponse } from "matrix-js-sdk/src/matrix";
+import { AuthType } from "matrix-js-sdk/src/interactive-auth";
 
 import { _t } from "../../../languageHandler";
 import AccessibleButton from "../elements/AccessibleButton";
-import InteractiveAuth, { ERROR_USER_CANCELLED, InteractiveAuthCallback } from "../../structures/InteractiveAuth";
+import InteractiveAuth, {
+    ERROR_USER_CANCELLED,
+    InteractiveAuthCallback,
+    InteractiveAuthProps,
+} from "../../structures/InteractiveAuth";
 import { SSOAuthEntry } from "../auth/InteractiveAuthEntryComponents";
 import BaseDialog from "./BaseDialog";
 
@@ -37,16 +41,10 @@ type DialogAesthetics = Partial<{
     };
 }>;
 
-export interface InteractiveAuthDialogProps {
+export interface InteractiveAuthDialogProps<T = unknown>
+    extends Pick<InteractiveAuthProps<T>, "makeRequest" | "authData"> {
     // matrix client to use for UI auth requests
     matrixClient: MatrixClient;
-
-    // response from initial request. If not supplied, will do a request on
-    // mount.
-    authData?: IAuthData;
-
-    // callback
-    makeRequest: (auth: IAuthData) => Promise<IAuthData>;
 
     // Optional title and body to show when not showing a particular stage
     title?: string;
@@ -72,7 +70,7 @@ export interface InteractiveAuthDialogProps {
     // Default is defined in _getDefaultDialogAesthetics()
     aestheticsForStagePhases?: DialogAesthetics;
 
-    onFinished(success?: boolean, result?: IAuthData | Error | null): void;
+    onFinished(success?: boolean, result?: UIAResponse<T> | Error | null): void;
 }
 
 interface IState {
@@ -83,8 +81,8 @@ interface IState {
     uiaStagePhase: number | null;
 }
 
-export default class InteractiveAuthDialog extends React.Component<InteractiveAuthDialogProps, IState> {
-    public constructor(props: InteractiveAuthDialogProps) {
+export default class InteractiveAuthDialog<T> extends React.Component<InteractiveAuthDialogProps<T>, IState> {
+    public constructor(props: InteractiveAuthDialogProps<T>) {
         super(props);
 
         this.state = {
@@ -99,15 +97,15 @@ export default class InteractiveAuthDialog extends React.Component<InteractiveAu
     private getDefaultDialogAesthetics(): DialogAesthetics {
         const ssoAesthetics = {
             [SSOAuthEntry.PHASE_PREAUTH]: {
-                title: _t("Use Single Sign On to continue"),
+                title: _t("auth|uia|sso_title"),
                 body: _t("To continue, use Single Sign On to prove your identity."),
-                continueText: _t("Single Sign On"),
+                continueText: _t("auth|sso"),
                 continueKind: "primary",
             },
             [SSOAuthEntry.PHASE_POSTAUTH]: {
                 title: _t("Confirm to continue"),
                 body: _t("Click the button below to confirm your identity."),
-                continueText: _t("Confirm"),
+                continueText: _t("action|confirm"),
                 continueKind: "primary",
             },
         };
@@ -118,7 +116,7 @@ export default class InteractiveAuthDialog extends React.Component<InteractiveAu
         };
     }
 
-    private onAuthFinished: InteractiveAuthCallback = (success, result): void => {
+    private onAuthFinished: InteractiveAuthCallback<T> = async (success, result): Promise<void> => {
         if (success) {
             this.props.onFinished(true, result);
         } else {
@@ -173,7 +171,7 @@ export default class InteractiveAuthDialog extends React.Component<InteractiveAu
                     <div role="alert">{this.state.authError.message || this.state.authError.toString()}</div>
                     <br />
                     <AccessibleButton onClick={this.onDismissClick} className="mx_GeneralButton" autoFocus={true}>
-                        {_t("Dismiss")}
+                        {_t("action|dismiss")}
                     </AccessibleButton>
                 </div>
             );

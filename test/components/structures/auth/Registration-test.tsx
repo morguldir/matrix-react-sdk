@@ -17,8 +17,7 @@ limitations under the License.
 
 import React from "react";
 import { fireEvent, render, screen, waitForElementToBeRemoved } from "@testing-library/react";
-import { createClient, MatrixClient } from "matrix-js-sdk/src/matrix";
-import { MatrixError } from "matrix-js-sdk/src/http-api/errors";
+import { createClient, MatrixClient, MatrixError } from "matrix-js-sdk/src/matrix";
 import { mocked } from "jest-mock";
 import fetchMock from "fetch-mock-jest";
 
@@ -26,7 +25,10 @@ import SdkConfig, { DEFAULTS } from "../../../../src/SdkConfig";
 import { mkServerConfig, mockPlatformPeg, unmockPlatformPeg } from "../../../test-utils";
 import Registration from "../../../../src/components/structures/auth/Registration";
 
-jest.mock("matrix-js-sdk/src/matrix");
+jest.mock("matrix-js-sdk/src/matrix", () => ({
+    ...jest.requireActual("matrix-js-sdk/src/matrix"),
+    createClient: jest.fn(),
+}));
 jest.useFakeTimers();
 
 describe("Registration", function () {
@@ -34,6 +36,7 @@ describe("Registration", function () {
     const mockClient = mocked({
         registerRequest,
         loginFlows: jest.fn(),
+        getVersions: jest.fn().mockResolvedValue({ versions: ["v1.1"] }),
     } as unknown as MatrixClient);
 
     beforeEach(function () {
@@ -57,7 +60,7 @@ describe("Registration", function () {
         });
         fetchMock.get("https://matrix.org/_matrix/client/versions", {
             unstable_features: {},
-            versions: [],
+            versions: ["v1.1"],
         });
         mockPlatformPeg({
             startSingleSignOn: jest.fn(),
@@ -66,13 +69,12 @@ describe("Registration", function () {
 
     afterEach(function () {
         fetchMock.restore();
-        SdkConfig.unset(); // we touch the config, so clean up
+        SdkConfig.reset(); // we touch the config, so clean up
         unmockPlatformPeg();
     });
 
     const defaultProps = {
         defaultDeviceDisplayName: "test-device-display-name",
-        makeRegistrationUrl: jest.fn(),
         onLoggedIn: jest.fn(),
         onLoginClick: jest.fn(),
         onServerConfigChange: jest.fn(),
@@ -123,7 +125,7 @@ describe("Registration", function () {
 
         fetchMock.get("https://server2/_matrix/client/versions", {
             unstable_features: {},
-            versions: [],
+            versions: ["v1.1"],
         });
         rerender(getRawComponent("https://server2"));
         await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));

@@ -22,14 +22,14 @@ import { _t } from "../../../languageHandler";
 import BaseDialog from "./BaseDialog";
 import DialogButtons from "../elements/DialogButtons";
 import BugReportDialog from "./BugReportDialog";
-import AccessibleButton from "../elements/AccessibleButton";
+import AccessibleButton, { ButtonEvent } from "../elements/AccessibleButton";
 
 interface IProps {
     onFinished(signOut?: boolean): void;
 }
 
 export default class StorageEvictedDialog extends React.Component<IProps> {
-    private sendBugReport = (ev: React.MouseEvent): void => {
+    private sendBugReport = (ev: ButtonEvent): void => {
         ev.preventDefault();
         Modal.createDialog(BugReportDialog, {});
     };
@@ -65,9 +65,7 @@ export default class StorageEvictedDialog extends React.Component<IProps> {
                 <div className="mx_Dialog_content" id="mx_Dialog_content">
                     <p>
                         {_t(
-                            "Some session data, including encrypted message keys, is " +
-                                "missing. Sign out and sign in to fix this, restoring keys " +
-                                "from backup.",
+                            "Some session data, including encrypted message keys, is missing. Sign out and sign in to fix this, restoring keys from backup.",
                         )}
                     </p>
                     <p>
@@ -75,7 +73,7 @@ export default class StorageEvictedDialog extends React.Component<IProps> {
                     </p>
                 </div>
                 <DialogButtons
-                    primaryButton={_t("Sign out")}
+                    primaryButton={_t("action|sign_out")}
                     onPrimaryButtonClick={this.onSignOutClick}
                     focus={true}
                     hasCancel={false}

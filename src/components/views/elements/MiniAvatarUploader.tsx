@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import classNames from "classnames";
-import { EventType } from "matrix-js-sdk/src/@types/event";
+import { EventType } from "matrix-js-sdk/src/matrix";
 import React, { useContext, useRef, useState, MouseEvent, ReactNode } from "react";
 
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
@@ -26,7 +26,7 @@ import { chromeFileInputFix } from "../../../utils/BrowserWorkarounds";
 import AccessibleButton from "./AccessibleButton";
 import Spinner from "./Spinner";
 
-export const AVATAR_SIZE = 52;
+export const AVATAR_SIZE = "52px";
 
 interface IProps {
     hasAvatar: boolean;
@@ -59,7 +59,7 @@ const MiniAvatarUploader: React.FC<IProps> = ({
         setShow(false);
     }, 13000); // hide after being shown for 10 seconds
 
-    const uploadRef = useRef<HTMLInputElement>();
+    const uploadRef = useRef<HTMLInputElement>(null);
 
     const label = hasAvatar || busy ? hasAvatarLabel : noAvatarLabel;
 
@@ -97,7 +97,7 @@ const MiniAvatarUploader: React.FC<IProps> = ({
                 })}
                 disabled={busy}
                 onClick={() => {
-                    uploadRef.current.click();
+                    uploadRef.current?.click();
                 }}
                 onMouseOver={() => setHover(true)}
                 onMouseLeave={() => setHover(false)}

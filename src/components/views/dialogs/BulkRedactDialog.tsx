@@ -16,12 +16,7 @@ limitations under the License.
 
 import React, { useState } from "react";
 import { logger } from "matrix-js-sdk/src/logger";
-import { MatrixClient } from "matrix-js-sdk/src/client";
-import { RoomMember } from "matrix-js-sdk/src/models/room-member";
-import { Room } from "matrix-js-sdk/src/models/room";
-import { EventTimeline } from "matrix-js-sdk/src/models/event-timeline";
-import { EventType } from "matrix-js-sdk/src/@types/event";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
+import { MatrixClient, RoomMember, Room, MatrixEvent, EventTimeline, EventType } from "matrix-js-sdk/src/matrix";
 
 import { _t } from "../../../languageHandler";
 import dis from "../../../dispatcher/dispatcher";
@@ -42,7 +37,7 @@ const BulkRedactDialog: React.FC<Props> = (props) => {
     const { matrixClient: cli, room, member, onFinished } = props;
     const [keepStateEvents, setKeepStateEvents] = useState(true);
 
-    let timeline = room.getLiveTimeline();
+    let timeline: EventTimeline | null = room.getLiveTimeline();
     let eventsToRedact: MatrixEvent[] = [];
     while (timeline) {
         eventsToRedact = [
@@ -93,7 +88,7 @@ const BulkRedactDialog: React.FC<Props> = (props) => {
             await Promise.all(
                 eventsToRedact.reverse().map(async (event): Promise<void> => {
                     try {
-                        await cli.redactEvent(room.roomId, event.getId());
+                        await cli.redactEvent(room.roomId, event.getId()!);
                     } catch (err) {
                         // log and swallow errors
                         logger.error("Could not redact", event.getId());
@@ -119,16 +114,13 @@ const BulkRedactDialog: React.FC<Props> = (props) => {
                 <div className="mx_Dialog_content" id="mx_Dialog_content">
                     <p>
                         {_t(
-                            "You are about to remove %(count)s messages by %(user)s. " +
-                                "This will remove them permanently for everyone in the conversation. " +
-                                "Do you wish to continue?",
+                            "You are about to remove %(count)s messages by %(user)s. This will remove them permanently for everyone in the conversation. Do you wish to continue?",
                             { count, user },
                         )}
                     </p>
                     <p>
                         {_t(
-                            "For a large amount of messages, this might take some time. " +
-                                "Please don't refresh your client in the meantime.",
+                            "For a large amount of messages, this might take some time. Please don't refresh your client in the meantime.",
                         )}
                     </p>
                     <StyledCheckbox checked={keepStateEvents} onChange={(e) => setKeepStateEvents(e.target.checked)}>
@@ -136,8 +128,7 @@ const BulkRedactDialog: React.FC<Props> = (props) => {
                     </StyledCheckbox>
                     <div className="mx_BulkRedactDialog_checkboxMicrocopy">
                         {_t(
-                            "Uncheck if you also want to remove system messages on this user " +
-                                "(e.g. membership change, profile change…)",
+                            "Uncheck if you also want to remove system messages on this user (e.g. membership change, profile change…)",
                         )}
                     </div>
                 </div>

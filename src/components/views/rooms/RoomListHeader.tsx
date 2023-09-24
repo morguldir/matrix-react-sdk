@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { EventType, RoomType } from "matrix-js-sdk/src/@types/event";
-import { ClientEvent } from "matrix-js-sdk/src/client";
-import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
+import { EventType, RoomType, Room, RoomEvent, ClientEvent } from "matrix-js-sdk/src/matrix";
 import React, { useContext, useEffect, useState } from "react";
 
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
@@ -45,7 +43,13 @@ import {
     showCreateNewSubspace,
     showSpaceInvite,
 } from "../../../utils/space";
-import { ChevronFace, ContextMenuTooltipButton, useContextMenu, MenuProps } from "../../structures/ContextMenu";
+import {
+    ChevronFace,
+    ContextMenuTooltipButton,
+    useContextMenu,
+    MenuProps,
+    ContextMenuButton,
+} from "../../structures/ContextMenu";
 import { BetaPill } from "../beta/BetaCard";
 import IconizedContextMenu, {
     IconizedContextMenuOption,
@@ -171,7 +175,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
         contextMenu = (
             <ContextMenuComponent
                 {...contextMenuBelow(mainMenuHandle.current.getBoundingClientRect())}
-                space={activeSpace}
+                space={activeSpace!}
                 onFinished={closeMainMenu}
                 hideHeader={true}
             />
@@ -181,7 +185,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
         if (shouldShowSpaceInvite(activeSpace)) {
             inviteOption = (
                 <IconizedContextMenuOption
-                    label={_t("Invite")}
+                    label={_t("action|invite")}
                     iconClassName="mx_RoomListHeader_iconInvite"
                     onClick={(e) => {
                         e.preventDefault();
@@ -231,7 +235,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
 
         contextMenu = (
             <IconizedContextMenu
-                {...contextMenuBelow(plusMenuHandle.current.getBoundingClientRect())}
+                {...contextMenuBelow(plusMenuHandle.current!.getBoundingClientRect())}
                 onFinished={closePlusMenu}
                 compact
             >
@@ -263,9 +267,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                             closePlusMenu();
                         }}
                         disabled={!canAddSubRooms}
-                        tooltip={
-                            !canAddSubRooms ? _t("You do not have permissions to add rooms to this space") : undefined
-                        }
+                        tooltip={!canAddSubRooms ? _t("spaces|error_no_permission_add_room") : undefined}
                     />
                     {canCreateSpaces && (
                         <IconizedContextMenuOption
@@ -278,11 +280,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                                 closePlusMenu();
                             }}
                             disabled={!canAddSubSpaces}
-                            tooltip={
-                                !canAddSubSpaces
-                                    ? _t("You do not have permissions to add spaces to this space")
-                                    : undefined
-                            }
+                            tooltip={!canAddSubSpaces ? _t("spaces|error_no_permission_add_space") : undefined}
                         >
                             <BetaPill />
                         </IconizedContextMenuOption>
@@ -357,7 +355,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
 
         contextMenu = (
             <IconizedContextMenu
-                {...contextMenuBelow(plusMenuHandle.current.getBoundingClientRect())}
+                {...contextMenuBelow(plusMenuHandle.current!.getBoundingClientRect())}
                 onFinished={closePlusMenu}
                 compact
             >
@@ -390,21 +388,24 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
 
     let contextMenuButton: JSX.Element = <div className="mx_RoomListHeader_contextLessTitle">{title}</div>;
     if (canShowMainMenu) {
-        contextMenuButton = (
-            <ContextMenuTooltipButton
-                inputRef={mainMenuHandle}
-                onClick={openMainMenu}
-                isExpanded={mainMenuDisplayed}
-                className="mx_RoomListHeader_contextMenuButton"
-                title={
-                    activeSpace
-                        ? _t("%(spaceName)s menu", { spaceName: spaceName ?? activeSpace.name })
-                        : _t("Home options")
-                }
-            >
-                {title}
-            </ContextMenuTooltipButton>
-        );
+        const commonProps = {
+            inputRef: mainMenuHandle,
+            onClick: openMainMenu,
+            isExpanded: mainMenuDisplayed,
+            className: "mx_RoomListHeader_contextMenuButton",
+            children: title,
+        };
+
+        if (!!activeSpace) {
+            contextMenuButton = (
+                <ContextMenuButton
+                    {...commonProps}
+                    label={_t("%(spaceName)s menu", { spaceName: spaceName ?? activeSpace.name })}
+                />
+            );
+        } else {
+            contextMenuButton = <ContextMenuTooltipButton {...commonProps} title={_t("Home options")} />;
+        }
     }
 
     return (
@@ -421,7 +422,7 @@ const RoomListHeader: React.FC<IProps> = ({ onVisibilityChange }) => {
                     onClick={openPlusMenu}
                     isExpanded={plusMenuDisplayed}
                     className="mx_RoomListHeader_plusButton"
-                    title={_t("Add")}
+                    title={_t("action|add")}
                 />
             )}
 

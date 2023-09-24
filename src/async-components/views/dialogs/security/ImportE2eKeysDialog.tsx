@@ -16,7 +16,7 @@ limitations under the License.
 */
 
 import React, { createRef } from "react";
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
 import * as MegolmExportEncryption from "../../../../utils/MegolmExportEncryption";
@@ -84,8 +84,7 @@ export default class ImportE2eKeysDialog extends React.Component<IProps, IState>
     };
 
     private onPassphraseChange = (ev: React.ChangeEvent<HTMLInputElement>): void => {
-        this.setState({ passphrase: ev.target.value });
-        this.onFormChange(); // update general form state too
+        this.setState({ passphrase: ev.target.value }, this.onFormChange); // update general form state too
     };
 
     private onFormSubmit = (ev: React.FormEvent): boolean => {
@@ -147,16 +146,12 @@ export default class ImportE2eKeysDialog extends React.Component<IProps, IState>
                     <div className="mx_Dialog_content">
                         <p>
                             {_t(
-                                "This process allows you to import encryption keys " +
-                                    "that you had previously exported from another Matrix " +
-                                    "client. You will then be able to decrypt any " +
-                                    "messages that the other client could decrypt.",
+                                "This process allows you to import encryption keys that you had previously exported from another Matrix client. You will then be able to decrypt any messages that the other client could decrypt.",
                             )}
                         </p>
                         <p>
                             {_t(
-                                "The export file will be protected with a passphrase. " +
-                                    "You should enter the passphrase here, to decrypt the file.",
+                                "The export file will be protected with a passphrase. You should enter the passphrase here, to decrypt the file.",
                             )}
                         </p>
                         <div className="error">{this.state.errStr}</div>
@@ -192,11 +187,11 @@ export default class ImportE2eKeysDialog extends React.Component<IProps, IState>
                         <input
                             className="mx_Dialog_primary"
                             type="submit"
-                            value={_t("Import")}
+                            value={_t("action|import")}
                             disabled={!this.state.enableSubmit || disableForm}
                         />
                         <button onClick={this.onCancelClick} disabled={disableForm}>
-                            {_t("Cancel")}
+                            {_t("action|cancel")}
                         </button>
                     </div>
                 </form>

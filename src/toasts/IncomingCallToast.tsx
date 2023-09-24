@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect } from "react";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
+import { MatrixEvent, MatrixEventEvent } from "matrix-js-sdk/src/matrix";
 
 import { _t } from "../languageHandler";
 import RoomAvatar from "../components/views/avatars/RoomAvatar";
@@ -36,6 +36,7 @@ import { ButtonEvent } from "../components/views/elements/AccessibleButton";
 import { useDispatcher } from "../hooks/useDispatcher";
 import { ActionPayload } from "../dispatcher/payloads";
 import { Call } from "../models/Call";
+import { useTypedEventEmitter } from "../hooks/useEventEmitter";
 
 export const getIncomingCallToastKey = (stateKey: string): string => `call_${stateKey}`;
 
@@ -55,7 +56,7 @@ function JoinCallButtonWithCall({ onClick, call }: JoinCallButtonWithCallProps):
             tooltip={disabledTooltip}
             kind="primary"
         >
-            {_t("Join")}
+            {_t("action|join")}
         </AccessibleTooltipButton>
     );
 }
@@ -66,7 +67,7 @@ interface Props {
 
 export function IncomingCallToast({ callEvent }: Props): JSX.Element {
     const roomId = callEvent.getRoomId()!;
-    const room = MatrixClientPeg.get().getRoom(roomId) ?? undefined;
+    const room = MatrixClientPeg.safeGet().getRoom(roomId) ?? undefined;
     const call = useCall(roomId);
 
     const dismissToast = useCallback((): void => {
@@ -88,6 +89,8 @@ export function IncomingCallToast({ callEvent }: Props): JSX.Element {
             dismissToast();
         }
     }, [latestEvent, dismissToast]);
+
+    useTypedEventEmitter(latestEvent, MatrixEventEvent.BeforeRedaction, dismissToast);
 
     useDispatcher(
         defaultDispatcher,
@@ -127,17 +130,17 @@ export function IncomingCallToast({ callEvent }: Props): JSX.Element {
 
     return (
         <React.Fragment>
-            <RoomAvatar room={room ?? undefined} height={24} width={24} />
+            <RoomAvatar room={room ?? undefined} size="24px" />
             <div className="mx_IncomingCallToast_content">
                 <div className="mx_IncomingCallToast_info">
                     <span className="mx_IncomingCallToast_room">{room ? room.name : _t("Unknown room")}</span>
-                    <div className="mx_IncomingCallToast_message">{_t("Video call started")}</div>
+                    <div className="mx_IncomingCallToast_message">{_t("voip|video_call_started")}</div>
                     {call ? (
                         <LiveContentSummaryWithCall call={call} />
                     ) : (
                         <LiveContentSummary
                             type={LiveContentType.Video}
-                            text={_t("Video")}
+                            text={_t("common|video")}
                             active={false}
                             participantCount={0}
                         />
@@ -151,14 +154,14 @@ export function IncomingCallToast({ callEvent }: Props): JSX.Element {
                         onClick={onJoinClick}
                         kind="primary"
                     >
-                        {_t("Join")}
+                        {_t("action|join")}
                     </AccessibleTooltipButton>
                 )}
             </div>
             <AccessibleTooltipButton
                 className="mx_IncomingCallToast_closeButton"
                 onClick={onCloseClick}
-                title={_t("Close")}
+                title={_t("action|close")}
             />
         </React.Fragment>
     );

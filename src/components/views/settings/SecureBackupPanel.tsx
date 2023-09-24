@@ -15,11 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
-import { IKeyBackupInfo } from "matrix-js-sdk/src/crypto/keybackup";
-import { TrustInfo } from "matrix-js-sdk/src/crypto/backup";
+import React, { ReactNode } from "react";
 import { CryptoEvent } from "matrix-js-sdk/src/crypto";
 import { logger } from "matrix-js-sdk/src/logger";
+import { BackupTrustInfo, KeyBackupInfo } from "matrix-js-sdk/src/crypto-api";
 
 import type CreateKeyBackupDialog from "../../../async-components/views/dialogs/security/CreateKeyBackupDialog";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
@@ -31,18 +30,44 @@ import AccessibleButton from "../elements/AccessibleButton";
 import QuestionDialog from "../dialogs/QuestionDialog";
 import RestoreKeyBackupDialog from "../dialogs/security/RestoreKeyBackupDialog";
 import { accessSecretStorage } from "../../../SecurityManager";
+import { SettingsSubsectionText } from "./shared/SettingsSubsection";
 
 interface IState {
     loading: boolean;
-    error: Error | null;
+    error: boolean;
     backupKeyStored: boolean | null;
     backupKeyCached: boolean | null;
     backupKeyWellFormed: boolean | null;
     secretStorageKeyInAccount: boolean | null;
     secretStorageReady: boolean | null;
-    backupInfo: IKeyBackupInfo | null;
-    backupSigStatus: TrustInfo | null;
-    sessionsRemaining: number;
+
+    /** Information on the current key backup version, as returned by the server.
+     *
+     * `null` could mean any of:
+     *    * we haven't yet requested the data from the server.
+     *    * we were unable to reach the server.
+     *    * the server returned key backup version data we didn't understand or was malformed.
+     *    * there is actually no backup on the server.
+     */
+    backupInfo: KeyBackupInfo | null;
+
+    /**
+     * Information on whether the backup in `backupInfo` is correctly signed, and whether we have the right key to
+     * decrypt it.
+     *
+     * `undefined` if `backupInfo` is null, or if crypto is not enabled in the client.
+     */
+    backupTrustInfo: BackupTrustInfo | undefined;
+
+    /**
+     * If key backup is currently enabled, the backup version we are backing up to.
+     */
+    activeBackupVersion: string | null;
+
+    /**
+     * Number of sessions remaining to be backed up. `null` if we have no information on this.
+     */
+    sessionsRemaining: number | null;
 }
 
 export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
@@ -53,31 +78,32 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
 
         this.state = {
             loading: true,
-            error: null,
+            error: false,
             backupKeyStored: null,
             backupKeyCached: null,
             backupKeyWellFormed: null,
             secretStorageKeyInAccount: null,
             secretStorageReady: null,
             backupInfo: null,
-            backupSigStatus: null,
-            sessionsRemaining: 0,
+            backupTrustInfo: undefined,
+            activeBackupVersion: null,
+            sessionsRemaining: null,
         };
     }
 
     public componentDidMount(): void {
-        this.checkKeyBackupStatus();
+        this.loadBackupStatus();
 
-        MatrixClientPeg.get().on(CryptoEvent.KeyBackupStatus, this.onKeyBackupStatus);
-        MatrixClientPeg.get().on(CryptoEvent.KeyBackupSessionsRemaining, this.onKeyBackupSessionsRemaining);
+        MatrixClientPeg.safeGet().on(CryptoEvent.KeyBackupStatus, this.onKeyBackupStatus);
+        MatrixClientPeg.safeGet().on(CryptoEvent.KeyBackupSessionsRemaining, this.onKeyBackupSessionsRemaining);
     }
 
     public componentWillUnmount(): void {
         this.unmounted = true;
 
         if (MatrixClientPeg.get()) {
-            MatrixClientPeg.get().removeListener(CryptoEvent.KeyBackupStatus, this.onKeyBackupStatus);
-            MatrixClientPeg.get().removeListener(
+            MatrixClientPeg.get()!.removeListener(CryptoEvent.KeyBackupStatus, this.onKeyBackupStatus);
+            MatrixClientPeg.get()!.removeListener(
                 CryptoEvent.KeyBackupSessionsRemaining,
                 this.onKeyBackupSessionsRemaining,
             );
@@ -96,63 +122,50 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
         this.loadBackupStatus();
     };
 
-    private async checkKeyBackupStatus(): Promise<void> {
-        this.getUpdatedDiagnostics();
-        try {
-            const { backupInfo, trustInfo } = await MatrixClientPeg.get().checkKeyBackup();
-            this.setState({
-                loading: false,
-                error: null,
-                backupInfo,
-                backupSigStatus: trustInfo,
-            });
-        } catch (e) {
-            logger.log("Unable to fetch check backup status", e);
-            if (this.unmounted) return;
-            this.setState({
-                loading: false,
-                error: e,
-                backupInfo: null,
-                backupSigStatus: null,
-            });
-        }
-    }
-
     private async loadBackupStatus(): Promise<void> {
         this.setState({ loading: true });
         this.getUpdatedDiagnostics();
         try {
-            const backupInfo = await MatrixClientPeg.get().getKeyBackupVersion();
-            const backupSigStatus = await MatrixClientPeg.get().isKeyBackupTrusted(backupInfo);
+            const cli = MatrixClientPeg.safeGet();
+            const backupInfo = await cli.getKeyBackupVersion();
+            const backupTrustInfo = backupInfo ? await cli.getCrypto()?.isKeyBackupTrusted(backupInfo) : undefined;
+
+            const activeBackupVersion = (await cli.getCrypto()?.getActiveSessionBackupVersion()) ?? null;
+
             if (this.unmounted) return;
             this.setState({
                 loading: false,
-                error: null,
+                error: false,
                 backupInfo,
-                backupSigStatus,
+                backupTrustInfo,
+                activeBackupVersion,
             });
         } catch (e) {
             logger.log("Unable to fetch key backup status", e);
             if (this.unmounted) return;
             this.setState({
                 loading: false,
-                error: e,
+                error: true,
                 backupInfo: null,
-                backupSigStatus: null,
+                backupTrustInfo: undefined,
+                activeBackupVersion: null,
             });
         }
     }
 
     private async getUpdatedDiagnostics(): Promise<void> {
-        const cli = MatrixClientPeg.get();
-        const secretStorage = cli.crypto!.secretStorage;
+        const cli = MatrixClientPeg.safeGet();
+        const crypto = cli.getCrypto();
+        if (!crypto) return;
+
+        const secretStorage = cli.secretStorage;
 
         const backupKeyStored = !!(await cli.isKeyBackupKeyStored());
-        const backupKeyFromCache = await cli.crypto!.getSessionBackupPrivateKey();
+        const backupKeyFromCache = await crypto.getSessionBackupPrivateKey();
         const backupKeyCached = !!backupKeyFromCache;
         const backupKeyWellFormed = backupKeyFromCache instanceof Uint8Array;
         const secretStorageKeyInAccount = await secretStorage.hasKey();
-        const secretStorageReady = await cli.isSecretStorageReady();
+        const secretStorageReady = await crypto.isSecretStorageReady();
 
         if (this.unmounted) return;
         this.setState({
@@ -191,8 +204,10 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
             onFinished: (proceed) => {
                 if (!proceed) return;
                 this.setState({ loading: true });
-                MatrixClientPeg.get()
-                    .deleteKeyBackupVersion(this.state.backupInfo.version)
+                const versionToDelete = this.state.backupInfo!.version!;
+                MatrixClientPeg.safeGet()
+                    .getCrypto()
+                    ?.deleteKeyBackupVersion(versionToDelete)
                     .then(() => {
                         this.loadBackupStatus();
                     });
@@ -205,13 +220,13 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
     };
 
     private resetSecretStorage = async (): Promise<void> => {
-        this.setState({ error: null });
+        this.setState({ error: false });
         try {
             await accessSecretStorage(async (): Promise<void> => {}, /* forceReset = */ true);
         } catch (e) {
             logger.error("Error resetting secret storage", e);
             if (this.unmounted) return;
-            this.setState({ error: e });
+            this.setState({ error: true });
         }
         if (this.unmounted) return;
         this.loadBackupStatus();
@@ -227,48 +242,51 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
             secretStorageKeyInAccount,
             secretStorageReady,
             backupInfo,
-            backupSigStatus,
+            backupTrustInfo,
             sessionsRemaining,
         } = this.state;
 
-        let statusDescription;
-        let extraDetailsTableRows;
-        let extraDetails;
+        let statusDescription: JSX.Element;
+        let extraDetailsTableRows: JSX.Element | undefined;
+        let extraDetails: JSX.Element | undefined;
         const actions: JSX.Element[] = [];
         if (error) {
-            statusDescription = <div className="error">{_t("Unable to load key backup status")}</div>;
+            statusDescription = (
+                <SettingsSubsectionText className="error">
+                    {_t("Unable to load key backup status")}
+                </SettingsSubsectionText>
+            );
         } else if (loading) {
             statusDescription = <Spinner />;
         } else if (backupInfo) {
             let restoreButtonCaption = _t("Restore from Backup");
 
-            if (MatrixClientPeg.get().getKeyBackupEnabled()) {
-                statusDescription = <p>✅ {_t("This session is backing up your keys.")}</p>;
+            if (this.state.activeBackupVersion !== null) {
+                statusDescription = (
+                    <SettingsSubsectionText>✅ {_t("This session is backing up your keys.")}</SettingsSubsectionText>
+                );
             } else {
                 statusDescription = (
                     <>
-                        <p>
+                        <SettingsSubsectionText>
                             {_t(
-                                "This session is <b>not backing up your keys</b>, " +
-                                    "but you do have an existing backup you can restore from " +
-                                    "and add to going forward.",
+                                "This session is <b>not backing up your keys</b>, but you do have an existing backup you can restore from and add to going forward.",
                                 {},
                                 { b: (sub) => <b>{sub}</b> },
                             )}
-                        </p>
-                        <p>
+                        </SettingsSubsectionText>
+                        <SettingsSubsectionText>
                             {_t(
-                                "Connect this session to key backup before signing out to avoid " +
-                                    "losing any keys that may only be on this session.",
+                                "Connect this session to key backup before signing out to avoid losing any keys that may only be on this session.",
                             )}
-                        </p>
+                        </SettingsSubsectionText>
                     </>
                 );
                 restoreButtonCaption = _t("Connect this session to Key Backup");
             }
 
-            let uploadStatus;
-            if (!MatrixClientPeg.get().getKeyBackupEnabled()) {
+            let uploadStatus: ReactNode;
+            if (sessionsRemaining === null) {
                 // No upload status to show when backup disabled.
                 uploadStatus = "";
             } else if (sessionsRemaining > 0) {
@@ -285,118 +303,22 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
                 );
             }
 
-            let backupSigStatuses: React.ReactNode = backupSigStatus.sigs.map((sig, i) => {
-                const deviceName = sig.device ? sig.device.getDisplayName() || sig.device.deviceId : null;
-                const validity = (sub: string): JSX.Element => (
-                    <span className={sig.valid ? "mx_SecureBackupPanel_sigValid" : "mx_SecureBackupPanel_sigInvalid"}>
-                        {sub}
-                    </span>
-                );
-                const verify = (sub: string): JSX.Element => (
-                    <span
-                        className={
-                            sig.device && sig.deviceTrust.isVerified()
-                                ? "mx_SecureBackupPanel_deviceVerified"
-                                : "mx_SecureBackupPanel_deviceNotVerified"
-                        }
-                    >
-                        {sub}
-                    </span>
-                );
-                const device = (sub: string): JSX.Element => (
-                    <span className="mx_SecureBackupPanel_deviceName">{deviceName}</span>
-                );
-                const fromThisDevice =
-                    sig.device && sig.device.getFingerprint() === MatrixClientPeg.get().getDeviceEd25519Key();
-                const fromThisUser = sig.crossSigningId && sig.deviceId === MatrixClientPeg.get().getCrossSigningId();
-                let sigStatus;
-                if (sig.valid && fromThisUser) {
-                    sigStatus = _t(
-                        "Backup has a <validity>valid</validity> signature from this user",
-                        {},
-                        { validity },
-                    );
-                } else if (!sig.valid && fromThisUser) {
-                    sigStatus = _t(
-                        "Backup has a <validity>invalid</validity> signature from this user",
-                        {},
-                        { validity },
-                    );
-                } else if (sig.crossSigningId) {
-                    sigStatus = _t(
-                        "Backup has a signature from <verify>unknown</verify> user with ID %(deviceId)s",
-                        { deviceId: sig.deviceId },
-                        { verify },
-                    );
-                } else if (!sig.device) {
-                    sigStatus = _t(
-                        "Backup has a signature from <verify>unknown</verify> session with ID %(deviceId)s",
-                        { deviceId: sig.deviceId },
-                        { verify },
-                    );
-                } else if (sig.valid && fromThisDevice) {
-                    sigStatus = _t(
-                        "Backup has a <validity>valid</validity> signature from this session",
-                        {},
-                        { validity },
-                    );
-                } else if (!sig.valid && fromThisDevice) {
-                    // it can happen...
-                    sigStatus = _t(
-                        "Backup has an <validity>invalid</validity> signature from this session",
-                        {},
-                        { validity },
-                    );
-                } else if (sig.valid && sig.deviceTrust.isVerified()) {
-                    sigStatus = _t(
-                        "Backup has a <validity>valid</validity> signature from " +
-                            "<verify>verified</verify> session <device></device>",
-                        {},
-                        { validity, verify, device },
-                    );
-                } else if (sig.valid && !sig.deviceTrust.isVerified()) {
-                    sigStatus = _t(
-                        "Backup has a <validity>valid</validity> signature from " +
-                            "<verify>unverified</verify> session <device></device>",
-                        {},
-                        { validity, verify, device },
-                    );
-                } else if (!sig.valid && sig.deviceTrust.isVerified()) {
-                    sigStatus = _t(
-                        "Backup has an <validity>invalid</validity> signature from " +
-                            "<verify>verified</verify> session <device></device>",
-                        {},
-                        { validity, verify, device },
-                    );
-                } else if (!sig.valid && !sig.deviceTrust.isVerified()) {
-                    sigStatus = _t(
-                        "Backup has an <validity>invalid</validity> signature from " +
-                            "<verify>unverified</verify> session <device></device>",
-                        {},
-                        { validity, verify, device },
-                    );
-                }
-
-                return <div key={i}>{sigStatus}</div>;
-            });
-            if (backupSigStatus.sigs.length === 0) {
-                backupSigStatuses = _t("Backup is not signed by any of your sessions");
-            }
-
-            let trustedLocally;
-            if (backupSigStatus.trusted_locally) {
-                trustedLocally = _t("This backup is trusted because it has been restored on this session");
+            let trustedLocally: string | undefined;
+            if (backupTrustInfo?.matchesDecryptionKey) {
+                trustedLocally = _t("This backup can be restored on this session");
             }
 
             extraDetailsTableRows = (
                 <>
                     <tr>
-                        <td>{_t("Backup version:")}</td>
-                        <td>{backupInfo.version}</td>
+                        <th scope="row">{_t("Latest backup version on server:")}</th>
+                        <td>
+                            {backupInfo.version} ({_t("Algorithm:")} <code>{backupInfo.algorithm}</code>)
+                        </td>
                     </tr>
                     <tr>
-                        <td>{_t("Algorithm:")}</td>
-                        <td>{backupInfo.algorithm}</td>
+                        <th scope="row">{_t("Active backup version:")}</th>
+                        <td>{this.state.activeBackupVersion === null ? _t("None") : this.state.activeBackupVersion}</td>
                     </tr>
                 </>
             );
@@ -404,7 +326,6 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
             extraDetails = (
                 <>
                     {uploadStatus}
-                    <div>{backupSigStatuses}</div>
                     <div>{trustedLocally}</div>
                 </>
             );
@@ -415,7 +336,7 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
                 </AccessibleButton>,
             );
 
-            if (!isSecureBackupRequired()) {
+            if (!isSecureBackupRequired(MatrixClientPeg.safeGet())) {
                 actions.push(
                     <AccessibleButton key="delete" kind="danger" onClick={this.deleteBackup}>
                         {_t("Delete Backup")}
@@ -425,14 +346,16 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
         } else {
             statusDescription = (
                 <>
-                    <p>
+                    <SettingsSubsectionText>
                         {_t(
                             "Your keys are <b>not being backed up from this session</b>.",
                             {},
                             { b: (sub) => <b>{sub}</b> },
                         )}
-                    </p>
-                    <p>{_t("Back up your keys before signing out to avoid losing them.")}</p>
+                    </SettingsSubsectionText>
+                    <SettingsSubsectionText>
+                        {_t("Back up your keys before signing out to avoid losing them.")}
+                    </SettingsSubsectionText>
                 </>
             );
             actions.push(
@@ -445,7 +368,7 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
         if (secretStorageKeyInAccount) {
             actions.push(
                 <AccessibleButton key="reset" kind="danger" onClick={this.resetSecretStorage}>
-                    {_t("Reset")}
+                    {_t("action|reset")}
                 </AccessibleButton>,
             );
         }
@@ -460,51 +383,57 @@ export default class SecureBackupPanel extends React.PureComponent<{}, IState> {
             }
         }
 
-        let actionRow;
+        let actionRow: JSX.Element | undefined;
         if (actions.length) {
             actionRow = <div className="mx_SecureBackupPanel_buttonRow">{actions}</div>;
         }
 
         return (
-            <div>
-                <p>
+            <>
+                <SettingsSubsectionText>
                     {_t(
-                        "Back up your encryption keys with your account data in case you " +
-                            "lose access to your sessions. Your keys will be secured with a " +
-                            "unique Security Key.",
+                        "Back up your encryption keys with your account data in case you lose access to your sessions. Your keys will be secured with a unique Security Key.",
                     )}
-                </p>
+                </SettingsSubsectionText>
                 {statusDescription}
                 <details>
                     <summary>{_t("Advanced")}</summary>
                     <table className="mx_SecureBackupPanel_statusList">
-                        <tbody>
-                            <tr>
-                                <td>{_t("Backup key stored:")}</td>
-                                <td>{backupKeyStored === true ? _t("in secret storage") : _t("not stored")}</td>
-                            </tr>
-                            <tr>
-                                <td>{_t("Backup key cached:")}</td>
-                                <td>
-                                    {backupKeyCached ? _t("cached locally") : _t("not found locally")}
-                                    {backupKeyWellFormedText}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>{_t("Secret storage public key:")}</td>
-                                <td>{secretStorageKeyInAccount ? _t("in account data") : _t("not found")}</td>
-                            </tr>
-                            <tr>
-                                <td>{_t("Secret storage:")}</td>
-                                <td>{secretStorageReady ? _t("ready") : _t("not ready")}</td>
-                            </tr>
-                            {extraDetailsTableRows}
-                        </tbody>
+                        <tr>
+                            <th scope="row">{_t("Backup key stored:")}</th>
+                            <td>
+                                {backupKeyStored === true
+                                    ? _t("settings|security|cross_signing_in_4s")
+                                    : _t("not stored")}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">{_t("Backup key cached:")}</th>
+                            <td>
+                                {backupKeyCached
+                                    ? _t("settings|security|cross_signing_cached")
+                                    : _t("settings|security|cross_signing_not_cached")}
+                                {backupKeyWellFormedText}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">{_t("Secret storage public key:")}</th>
+                            <td>
+                                {secretStorageKeyInAccount
+                                    ? _t("in account data")
+                                    : _t("settings|security|cross_signing_not_found")}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">{_t("Secret storage:")}</th>
+                            <td>{secretStorageReady ? _t("ready") : _t("not ready")}</td>
+                        </tr>
+                        {extraDetailsTableRows}
                     </table>
                     {extraDetails}
                 </details>
                 {actionRow}
-            </div>
+            </>
         );
     }
 }

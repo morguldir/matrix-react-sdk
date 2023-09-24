@@ -47,7 +47,7 @@ interface IGroupProps {
 export const Group: React.FC<IGroupProps> = ({ className, title, children }) => {
     return (
         <div className={classNames("mx_BaseCard_Group", className)}>
-            <h1>{title}</h1>
+            <h2>{title}</h2>
             {children}
         </div>
     );
@@ -63,7 +63,7 @@ const BaseCard: React.FC<IProps> = forwardRef<HTMLDivElement, IProps>(
                 onBack?.(ev);
                 RightPanelStore.instance.popCard();
             };
-            const label = backLabelForPhase(prevCard.phase) ?? _t("Back");
+            const label = backLabelForPhase(prevCard.phase) ?? _t("action|back");
             backButton = <AccessibleButton className="mx_BaseCard_back" onClick={onBackClick} title={label} />;
         }
 
@@ -74,7 +74,7 @@ const BaseCard: React.FC<IProps> = forwardRef<HTMLDivElement, IProps>(
                     data-testid="base-card-close-button"
                     className="mx_BaseCard_close"
                     onClick={onClose}
-                    title={closeLabel || _t("Close")}
+                    title={closeLabel || _t("action|close")}
                 />
             );
         }

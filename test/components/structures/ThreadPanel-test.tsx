@@ -18,8 +18,14 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "focus-visible"; // to fix context menus
 import { mocked } from "jest-mock";
-import { MatrixClient, MatrixEvent, PendingEventOrdering, Room } from "matrix-js-sdk/src/matrix";
-import { FeatureSupport, Thread } from "matrix-js-sdk/src/models/thread";
+import {
+    MatrixClient,
+    MatrixEvent,
+    PendingEventOrdering,
+    Room,
+    FeatureSupport,
+    Thread,
+} from "matrix-js-sdk/src/matrix";
 
 import ThreadPanel, { ThreadFilterType, ThreadPanelHeader } from "../../../src/components/structures/ThreadPanel";
 import MatrixClientContext from "../../../src/contexts/MatrixClientContext";
@@ -85,7 +91,7 @@ describe("ThreadPanel", () => {
             expect(found).toHaveLength(2);
             const foundButton = screen.queryByRole("menuitemradio", { checked: true });
             expect(foundButton?.textContent).toEqual(
-                `${_t("All threads")}${_t("Shows all threads from current room")}`,
+                `${_t("threads|all_threads")}${_t("threads|all_threads_description")}`,
             );
             expect(foundButton).toMatchSnapshot();
         });
@@ -120,7 +126,7 @@ describe("ThreadPanel", () => {
 
             stubClient();
             mockPlatformPeg();
-            mockClient = mocked(MatrixClientPeg.get());
+            mockClient = mocked(MatrixClientPeg.safeGet());
             Thread.setServerSideSupport(FeatureSupport.Stable);
             Thread.setServerSideListSupport(FeatureSupport.Stable);
             Thread.setServerSideFwdPaginationSupport(FeatureSupport.Stable);
@@ -133,7 +139,7 @@ describe("ThreadPanel", () => {
             jest.spyOn(mockClient, "getRoom").mockReturnValue(room);
             await room.createThreadsTimelineSets();
             const [allThreads, myThreads] = room.threadsTimelineSets;
-            jest.spyOn(room, "createThreadsTimelineSets").mockReturnValue(Promise.resolve([allThreads, myThreads]));
+            jest.spyOn(room, "createThreadsTimelineSets").mockReturnValue(Promise.resolve([allThreads!, myThreads!]));
         });
 
         function toggleThreadFilter(container: HTMLElement, newFilter: ThreadFilterType) {
@@ -141,8 +147,8 @@ describe("ThreadPanel", () => {
             const found = screen.queryAllByRole("menuitemradio");
             expect(found).toHaveLength(2);
 
-            const allThreadsContent = `${_t("All threads")}${_t("Shows all threads from current room")}`;
-            const myThreadsContent = `${_t("My threads")}${_t("Shows all threads you've participated in")}`;
+            const allThreadsContent = `${_t("threads|all_threads")}${_t("threads|all_threads_description")}`;
+            const myThreadsContent = `${_t("threads|my_threads")}${_t("threads|my_threads_description")}`;
 
             const allThreadsOption = found.find((it) => it.textContent === allThreadsContent);
             const myThreadsOption = found.find((it) => it.textContent === myThreadsContent);
@@ -195,11 +201,11 @@ describe("ThreadPanel", () => {
                 return event ? Promise.resolve(event) : Promise.reject();
             });
             const [allThreads, myThreads] = room.threadsTimelineSets;
-            allThreads.addLiveEvent(otherThread.rootEvent);
-            allThreads.addLiveEvent(mixedThread.rootEvent);
-            allThreads.addLiveEvent(ownThread.rootEvent);
-            myThreads.addLiveEvent(mixedThread.rootEvent);
-            myThreads.addLiveEvent(ownThread.rootEvent);
+            allThreads!.addLiveEvent(otherThread.rootEvent);
+            allThreads!.addLiveEvent(mixedThread.rootEvent);
+            allThreads!.addLiveEvent(ownThread.rootEvent);
+            myThreads!.addLiveEvent(mixedThread.rootEvent);
+            myThreads!.addLiveEvent(ownThread.rootEvent);
 
             let events: EventData[] = [];
             const renderResult = render(<TestThreadPanel />);
@@ -245,7 +251,7 @@ describe("ThreadPanel", () => {
                 return event ? Promise.resolve(event) : Promise.reject();
             });
             const [allThreads] = room.threadsTimelineSets;
-            allThreads.addLiveEvent(otherThread.rootEvent);
+            allThreads!.addLiveEvent(otherThread.rootEvent);
 
             let events: EventData[] = [];
             const renderResult = render(<TestThreadPanel />);

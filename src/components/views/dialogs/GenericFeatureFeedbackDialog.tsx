@@ -19,7 +19,6 @@ import React, { ReactNode, useState } from "react";
 import QuestionDialog from "./QuestionDialog";
 import { _t } from "../../../languageHandler";
 import Field from "../elements/Field";
-import SdkConfig from "../../../SdkConfig";
 import { submitFeedback } from "../../../rageshake/submit-rageshake";
 import StyledCheckbox from "../elements/StyledCheckbox";
 import Modal from "../../../Modal";
@@ -27,9 +26,9 @@ import InfoDialog from "./InfoDialog";
 
 interface IProps {
     title: string;
-    subheading: string;
-    rageshakeLabel: string;
-    rageshakeData?: Record<string, string>;
+    subheading?: string;
+    rageshakeLabel?: string;
+    rageshakeData?: Record<string, any>;
     children?: ReactNode;
     onFinished(sendFeedback?: boolean): void;
 }
@@ -48,13 +47,13 @@ const GenericFeatureFeedbackDialog: React.FC<IProps> = ({
     const sendFeedback = async (ok: boolean): Promise<void> => {
         if (!ok) return onFinished(false);
 
-        submitFeedback(SdkConfig.get().bug_report_endpoint_url, rageshakeLabel, comment, canContact, rageshakeData);
+        submitFeedback(rageshakeLabel, comment, canContact, rageshakeData);
         onFinished(true);
 
         Modal.createDialog(InfoDialog, {
             title,
             description: _t("Feedback sent! Thanks, we appreciate it!"),
-            button: _t("Close"),
+            button: _t("action|close"),
             hasCloseButton: false,
             fixedWidth: false,
         });
@@ -70,14 +69,14 @@ const GenericFeatureFeedbackDialog: React.FC<IProps> = ({
                     <div className="mx_GenericFeatureFeedbackDialog_subheading">
                         {subheading}
                         &nbsp;
-                        {_t("Your platform and username will be noted to help us use your feedback as much as we can.")}
+                        {_t("feedback|platform_username")}
                         &nbsp;
                         {children}
                     </div>
 
                     <Field
                         id="feedbackComment"
-                        label={_t("Feedback")}
+                        label={_t("common|feedback")}
                         type="text"
                         autoComplete="off"
                         value={comment}
@@ -96,7 +95,7 @@ const GenericFeatureFeedbackDialog: React.FC<IProps> = ({
                     </StyledCheckbox>
                 </React.Fragment>
             }
-            button={_t("Send feedback")}
+            button={_t("feedback|send_feedback_action")}
             buttonDisabled={!comment}
             onFinished={sendFeedback}
         />

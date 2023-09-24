@@ -15,32 +15,19 @@ limitations under the License.
 */
 
 import React from "react";
-import { render } from "@testing-library/react";
-import { defer } from "matrix-js-sdk/src/utils";
+import { render, screen } from "@testing-library/react";
 
 import LabsUserSettingsTab from "../../../../../../src/components/views/settings/tabs/user/LabsUserSettingsTab";
 import SettingsStore from "../../../../../../src/settings/SettingsStore";
-import {
-    getMockClientWithEventEmitter,
-    mockClientMethodsServer,
-    mockClientMethodsUser,
-} from "../../../../../test-utils";
 import SdkConfig from "../../../../../../src/SdkConfig";
-import MatrixClientBackedController from "../../../../../../src/settings/controllers/MatrixClientBackedController";
 
-describe("<SecurityUserSettingsTab />", () => {
+describe("<LabsUserSettingsTab />", () => {
     const sdkConfigSpy = jest.spyOn(SdkConfig, "get");
 
     const defaultProps = {
         closeSettingsFn: jest.fn(),
     };
     const getComponent = () => <LabsUserSettingsTab {...defaultProps} />;
-
-    const userId = "@alice:server.org";
-    const cli = getMockClientWithEventEmitter({
-        ...mockClientMethodsUser(userId),
-        ...mockClientMethodsServer(),
-    });
 
     const settingsValueSpy = jest.spyOn(SettingsStore, "getValue");
 
@@ -51,17 +38,16 @@ describe("<SecurityUserSettingsTab />", () => {
     });
 
     it("renders settings marked as beta as beta cards", () => {
-        const { getByTestId } = render(getComponent());
-        expect(getByTestId("labs-beta-section")).toMatchSnapshot();
+        render(getComponent());
+        expect(screen.getByText("Upcoming features").parentElement!).toMatchSnapshot();
     });
 
     it("does not render non-beta labs settings when disabled in config", () => {
-        const { container } = render(getComponent());
+        render(getComponent());
         expect(sdkConfigSpy).toHaveBeenCalledWith("show_labs_settings");
 
-        const labsSections = container.getElementsByClassName("mx_SettingsTab_section");
         // only section is beta section
-        expect(labsSections.length).toEqual(1);
+        expect(screen.queryByText("Early previews")).not.toBeInTheDocument();
     });
 
     it("renders non-beta labs settings when enabled in config", () => {
@@ -69,24 +55,9 @@ describe("<SecurityUserSettingsTab />", () => {
         sdkConfigSpy.mockImplementation((configName) => configName === "show_labs_settings");
         const { container } = render(getComponent());
 
-        const labsSections = container.getElementsByClassName("mx_SettingsTab_section");
-        expect(labsSections.length).toEqual(11);
-    });
-
-    it("renders a labs flag which requires unstable support once support is confirmed", async () => {
-        // enable labs
-        sdkConfigSpy.mockImplementation((configName) => configName === "show_labs_settings");
-
-        const deferred = defer<boolean>();
-        cli.doesServerSupportUnstableFeature.mockImplementation(async (featureName) => {
-            return featureName === "org.matrix.msc3827.stable" ? deferred.promise : false;
-        });
-        MatrixClientBackedController.matrixClient = cli;
-
-        const { queryByText, findByText } = render(getComponent());
-
-        expect(queryByText("Explore public spaces in the new search dialog")).toBeFalsy();
-        deferred.resolve(true);
-        await expect(findByText("Explore public spaces in the new search dialog")).resolves.toBeDefined();
+        // non-beta labs section
+        expect(screen.getByText("Early previews")).toBeInTheDocument();
+        const labsSections = container.getElementsByClassName("mx_SettingsSubsection");
+        expect(labsSections).toHaveLength(9);
     });
 });

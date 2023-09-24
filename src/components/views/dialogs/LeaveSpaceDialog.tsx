@@ -15,14 +15,14 @@ limitations under the License.
 */
 
 import React, { useMemo, useState } from "react";
-import { Room } from "matrix-js-sdk/src/models/room";
-import { JoinRule } from "matrix-js-sdk/src/@types/partials";
+import { Room, JoinRule } from "matrix-js-sdk/src/matrix";
 
 import { _t } from "../../../languageHandler";
 import DialogButtons from "../elements/DialogButtons";
 import BaseDialog from "../dialogs/BaseDialog";
 import SpaceStore from "../../../stores/spaces/SpaceStore";
 import SpaceChildrenPicker from "../spaces/SpaceChildrenPicker";
+import { filterBoolean } from "../../../utils/arrays";
 
 interface IProps {
     space: Room;
@@ -30,8 +30,8 @@ interface IProps {
 }
 
 const isOnlyAdmin = (room: Room): boolean => {
-    const userId = room.client.getUserId();
-    if (room.getMember(userId).powerLevelNorm !== 100) {
+    const userId = room.client.getSafeUserId();
+    if (room.getMember(userId)?.powerLevelNorm !== 100) {
         return false; // user is not an admin
     }
     return room.getJoinedMembers().every((member) => {
@@ -51,9 +51,7 @@ const LeaveSpaceDialog: React.FC<IProps> = ({ space, onFinished }) => {
             },
             false,
         );
-        return Array.from(roomSet)
-            .map((roomId) => space.client.getRoom(roomId))
-            .filter(Boolean);
+        return filterBoolean(Array.from(roomSet).map((roomId) => space.client.getRoom(roomId)));
     }, [space]);
     const [roomsToLeave, setRoomsToLeave] = useState<Room[]>([]);
     const selectedRooms = useMemo(() => new Set(roomsToLeave), [roomsToLeave]);
@@ -65,15 +63,12 @@ const LeaveSpaceDialog: React.FC<IProps> = ({ space, onFinished }) => {
 
     let onlyAdminWarning;
     if (isOnlyAdmin(space)) {
-        onlyAdminWarning = _t(
-            "You're the only admin of this space. " + "Leaving it will mean no one has control over it.",
-        );
+        onlyAdminWarning = _t("You're the only admin of this space. Leaving it will mean no one has control over it.");
     } else {
         const numChildrenOnlyAdminIn = roomsToLeave.filter(isOnlyAdmin).length;
         if (numChildrenOnlyAdminIn > 0) {
             onlyAdminWarning = _t(
-                "You're the only admin of some of the rooms or spaces you wish to leave. " +
-                    "Leaving them will leave them without any admins.",
+                "You're the only admin of some of the rooms or spaces you wish to leave. Leaving them will leave them without any admins.",
             );
         }
     }

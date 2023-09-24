@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import * as Sentry from "@sentry/browser";
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 
 import SdkConfig from "./SdkConfig";
 import { MatrixClientPeg } from "./MatrixClientPeg";
@@ -132,9 +132,6 @@ async function getCryptoContext(client: MatrixClient): Promise<CryptoContext> {
     return {
         device_keys: keys.join(", "),
         cross_signing_ready: String(await client.isCrossSigningReady()),
-        cross_signing_supported_by_hs: String(
-            await client.doesServerSupportUnstableFeature("org.matrix.e2e_cross_signing"),
-        ),
         cross_signing_key: crossSigning.getId()!,
         cross_signing_privkey_in_secret_storage: String(!!(await crossSigning.isStoredInSecretStorage(secretStorage))),
         cross_signing_master_privkey_cached: String(!!(pkCache && (await pkCache.getCrossSigningKeyCache?.("master")))),
@@ -142,7 +139,7 @@ async function getCryptoContext(client: MatrixClient): Promise<CryptoContext> {
             !!(pkCache && (await pkCache.getCrossSigningKeyCache?.("user_signing"))),
         ),
         secret_storage_ready: String(await client.isSecretStorageReady()),
-        secret_storage_key_in_account: String(!!(await secretStorage.hasKey())),
+        secret_storage_key_in_account: String(await secretStorage.hasKey()),
         session_backup_key_in_secret_storage: String(!!(await client.isKeyBackupKeyStored())),
         session_backup_key_cached: String(!!sessionBackupKeyFromCache),
         session_backup_key_well_formed: String(sessionBackupKeyFromCache instanceof Uint8Array),
@@ -168,7 +165,7 @@ function getDeviceContext(client: MatrixClient): DeviceContext {
 }
 
 async function getContexts(): Promise<Contexts> {
-    const client = MatrixClientPeg.get();
+    const client = MatrixClientPeg.safeGet();
     return {
         user: getUserContext(client),
         crypto: await getCryptoContext(client),
@@ -177,7 +174,7 @@ async function getContexts(): Promise<Contexts> {
     };
 }
 
-export async function sendSentryReport(userText: string, issueUrl: string, error?: Error): Promise<void> {
+export async function sendSentryReport(userText: string, issueUrl: string, error?: unknown): Promise<void> {
     const sentryConfig = SdkConfig.getObject("sentry");
     if (!sentryConfig) return;
 

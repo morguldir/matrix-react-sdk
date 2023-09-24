@@ -17,9 +17,7 @@ limitations under the License.
 
 import React from "react";
 import classNames from "classnames";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { Room } from "matrix-js-sdk/src/models/room";
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixEvent, Room, MatrixClient } from "matrix-js-sdk/src/matrix";
 
 import { _t } from "../../../languageHandler";
 import dis from "../../../dispatcher/dispatcher";
@@ -31,7 +29,7 @@ import { Action } from "../../../dispatcher/actions";
 import Spinner from "./Spinner";
 import ReplyTile from "../rooms/ReplyTile";
 import { Pill, PillType } from "./Pill";
-import AccessibleButton, { ButtonEvent } from "./AccessibleButton";
+import AccessibleButton from "./AccessibleButton";
 import { getParentEventId, shouldDisplayReply } from "../../../utils/Reply";
 import RoomContext from "../../../contexts/RoomContext";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
@@ -45,9 +43,9 @@ const SHOW_EXPAND_QUOTE_PIXELS = 60;
 
 interface IProps {
     // the latest event in this chain of replies
-    parentEv?: MatrixEvent;
+    parentEv: MatrixEvent;
     // called when the ReplyChain contents has changed, including EventTiles thereof
-    onHeightChanged: () => void;
+    onHeightChanged?: () => void;
     permalinkCreator?: RoomPermalinkCreator;
     // Specifies which layout to use.
     layout?: Layout;
@@ -91,11 +89,11 @@ export default class ReplyChain extends React.Component<IProps, IState> {
             err: false,
         };
 
-        this.room = this.matrixClient.getRoom(this.props.parentEv.getRoomId());
+        this.room = this.matrixClient.getRoom(this.props.parentEv.getRoomId())!;
     }
 
     private get matrixClient(): MatrixClient {
-        return MatrixClientPeg.get();
+        return MatrixClientPeg.safeGet();
     }
 
     public componentDidMount(): void {
@@ -104,7 +102,7 @@ export default class ReplyChain extends React.Component<IProps, IState> {
     }
 
     public componentDidUpdate(): void {
-        this.props.onHeightChanged();
+        this.props.onHeightChanged?.();
         this.trySetExpandableQuotes();
     }
 
@@ -148,13 +146,14 @@ export default class ReplyChain extends React.Component<IProps, IState> {
     private async getNextEvent(ev: MatrixEvent): Promise<MatrixEvent | null> {
         try {
             const inReplyToEventId = getParentEventId(ev);
+            if (!inReplyToEventId) return null;
             return await this.getEvent(inReplyToEventId);
         } catch (e) {
             return null;
         }
     }
 
-    private async getEvent(eventId: string): Promise<MatrixEvent | null> {
+    private async getEvent(eventId?: string): Promise<MatrixEvent | null> {
         if (!eventId) return null;
         const event = this.room.findEventById(eventId);
         if (event) return event;
@@ -179,7 +178,8 @@ export default class ReplyChain extends React.Component<IProps, IState> {
         this.initialize();
     };
 
-    private onQuoteClick = async (event: ButtonEvent): Promise<void> => {
+    private onQuoteClick = async (): Promise<void> => {
+        if (!this.state.loadedEv) return;
         const events = [this.state.loadedEv, ...this.state.events];
 
         let loadedEv: MatrixEvent | null = null;
@@ -196,7 +196,7 @@ export default class ReplyChain extends React.Component<IProps, IState> {
     };
 
     private getReplyChainColorClass(ev: MatrixEvent): string {
-        return getUserNameColorClass(ev.getSender()).replace("Username", "ReplyChain");
+        return getUserNameColorClass(ev.getSender()!).replace("Username", "ReplyChain");
     }
 
     public render(): React.ReactNode {
@@ -205,8 +205,7 @@ export default class ReplyChain extends React.Component<IProps, IState> {
             header = (
                 <blockquote className="mx_ReplyChain mx_ReplyChain_error">
                     {_t(
-                        "Unable to load event that was replied to, " +
-                            "it either does not exist or you do not have permission to view it.",
+                        "Unable to load event that was replied to, it either does not exist or you do not have permission to view it.",
                     )}
                 </blockquote>
             );
@@ -231,8 +230,8 @@ export default class ReplyChain extends React.Component<IProps, IState> {
                             pill: (
                                 <Pill
                                     type={PillType.UserMention}
-                                    room={room}
-                                    url={makeUserPermalink(ev.getSender())}
+                                    room={room ?? undefined}
+                                    url={makeUserPermalink(ev.getSender()!)}
                                     shouldShowPillAvatar={SettingsStore.getValue("Pill.shouldShowPillAvatar")}
                                 />
                             ),

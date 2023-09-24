@@ -42,7 +42,9 @@ export const useAudioDeviceSelection = (
     if (shouldRequestPermissionsRef.current) {
         shouldRequestPermissionsRef.current = false;
         requestMediaPermissions(false).then((stream: MediaStream | undefined) => {
-            MediaDeviceHandler.getDevices().then(({ audioinput }) => {
+            MediaDeviceHandler.getDevices().then((devices) => {
+                if (!devices) return;
+                const { audioinput } = devices;
                 MediaDeviceHandler.getDefaultDevice(audioinput);
                 const deviceFromSettings = MediaDeviceHandler.getAudioInput();
                 const device =
@@ -75,7 +77,7 @@ export const useAudioDeviceSelection = (
 
     return {
         currentDevice: state.device,
-        currentDeviceLabel: state.device?.label || _t("Default Device"),
+        currentDeviceLabel: state.device?.label || _t("voip|default_device"),
         devices: state.devices,
         setDevice,
     };

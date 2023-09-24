@@ -72,7 +72,7 @@ const KeySignatureUploadFailedDialog: React.FC<IProps> = ({ failures, source, co
     }, [continuation, onFinished]);
 
     let body;
-    if (!success && !cancelled && continuation && retry > 0) {
+    if (!success && !cancelled && retry > 0) {
         const reason = causes.get(source) || defaultCause;
         const brand = SdkConfig.get().brand;
 
@@ -100,7 +100,7 @@ const KeySignatureUploadFailedDialog: React.FC<IProps> = ({ failures, source, co
         body = (
             <div>
                 <span>{text}</span>
-                <DialogButtons primaryButton={_t("OK")} hasCancel={false} onPrimaryButtonClick={onFinished} />
+                <DialogButtons primaryButton={_t("action|ok")} hasCancel={false} onPrimaryButtonClick={onFinished} />
             </div>
         );
     }

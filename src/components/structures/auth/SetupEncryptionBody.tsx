@@ -17,7 +17,7 @@ limitations under the License.
 import React from "react";
 import { ISecretStorageKeyInfo } from "matrix-js-sdk/src/crypto/api";
 import { IKeyBackupInfo } from "matrix-js-sdk/src/crypto/keybackup";
-import { VerificationRequest } from "matrix-js-sdk/src/crypto/verification/request/VerificationRequest";
+import { VerificationRequest } from "matrix-js-sdk/src/crypto-api";
 import { logger } from "matrix-js-sdk/src/logger";
 
 import { _t } from "../../../languageHandler";
@@ -26,7 +26,7 @@ import Modal from "../../../Modal";
 import VerificationRequestDialog from "../../views/dialogs/VerificationRequestDialog";
 import { SetupEncryptionStore, Phase } from "../../../stores/SetupEncryptionStore";
 import EncryptionPanel from "../../views/right_panel/EncryptionPanel";
-import AccessibleButton from "../../views/elements/AccessibleButton";
+import AccessibleButton, { ButtonEvent } from "../../views/elements/AccessibleButton";
 import Spinner from "../../views/elements/Spinner";
 
 function keyHasPassphrase(keyInfo: ISecretStorageKeyInfo): boolean {
@@ -38,9 +38,9 @@ interface IProps {
 }
 
 interface IState {
-    phase: Phase;
-    verificationRequest: VerificationRequest;
-    backupInfo: IKeyBackupInfo;
+    phase?: Phase;
+    verificationRequest: VerificationRequest | null;
+    backupInfo: IKeyBackupInfo | null;
     lostKeys: boolean;
 }
 
@@ -87,16 +87,16 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
     };
 
     private onVerifyClick = (): void => {
-        const cli = MatrixClientPeg.get();
+        const cli = MatrixClientPeg.safeGet();
         const userId = cli.getSafeUserId();
-        const requestPromise = cli.requestVerification(userId);
+        const requestPromise = cli.getCrypto()!.requestOwnUserVerification();
 
         // We need to call onFinished now to close this dialog, and
         // again later to signal that the verification is complete.
         this.props.onFinished();
         Modal.createDialog(VerificationRequestDialog, {
             verificationRequestPromise: requestPromise,
-            member: cli.getUser(userId),
+            member: cli.getUser(userId) ?? undefined,
             onFinished: async (): Promise<void> => {
                 const request = await requestPromise;
                 request.cancel();
@@ -115,7 +115,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
         store.returnAfterSkip();
     };
 
-    private onResetClick = (ev: React.MouseEvent<HTMLButtonElement>): void => {
+    private onResetClick = (ev: ButtonEvent): void => {
         ev.preventDefault();
         const store = SetupEncryptionStore.sharedInstance();
         store.reset();
@@ -142,15 +142,16 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
     };
 
     public render(): React.ReactNode {
+        const cli = MatrixClientPeg.safeGet();
         const { phase, lostKeys } = this.state;
 
-        if (this.state.verificationRequest) {
+        if (this.state.verificationRequest && cli.getUser(this.state.verificationRequest.otherUserId)) {
             return (
                 <EncryptionPanel
                     layout="dialog"
                     verificationRequest={this.state.verificationRequest}
                     onClose={this.onEncryptionPanelClose}
-                    member={MatrixClientPeg.get().getUser(this.state.verificationRequest.otherUserId)}
+                    member={cli.getUser(this.state.verificationRequest.otherUserId)!}
                     isRoomEncrypted={false}
                 />
             );
@@ -160,10 +161,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                     <div>
                         <p>
                             {_t(
-                                "It looks like you don't have a Security Key or any other devices you can " +
-                                    "verify against.  This device will not be able to access old encrypted messages. " +
-                                    "In order to verify your identity on this device, you'll need to reset " +
-                                    "your verification keys.",
+                                "It looks like you don't have a Security Key or any other devices you can verify against.  This device will not be able to access old encrypted messages. In order to verify your identity on this device, you'll need to reset your verification keys.",
                             )}
                         </p>
 
@@ -233,8 +231,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                 message = (
                     <p>
                         {_t(
-                            "Your new device is now verified. It has access to your " +
-                                "encrypted messages, and other users will see it as trusted.",
+                            "Your new device is now verified. It has access to your encrypted messages, and other users will see it as trusted.",
                         )}
                     </p>
                 );
@@ -247,7 +244,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                     {message}
                     <div className="mx_CompleteSecurity_actionRow">
                         <AccessibleButton kind="primary" onClick={this.onDoneClick}>
-                            {_t("Done")}
+                            {_t("action|done")}
                         </AccessibleButton>
                     </div>
                 </div>
@@ -257,8 +254,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                 <div>
                     <p>
                         {_t(
-                            "Without verifying, you won't have access to all your messages " +
-                                "and may appear as untrusted to others.",
+                            "Without verifying, you won't have access to all your messages and may appear as untrusted to others.",
                         )}
                     </p>
                     <div className="mx_CompleteSecurity_actionRow">
@@ -266,7 +262,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                             {_t("I'll verify later")}
                         </AccessibleButton>
                         <AccessibleButton kind="primary" onClick={this.onSkipBackClick}>
-                            {_t("Go Back")}
+                            {_t("action|go_back")}
                         </AccessibleButton>
                     </div>
                 </div>
@@ -276,16 +272,12 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                 <div>
                     <p>
                         {_t(
-                            "Resetting your verification keys cannot be undone. After resetting, " +
-                                "you won't have access to old encrypted messages, and any friends who " +
-                                "have previously verified you will see security warnings until you " +
-                                "re-verify with them.",
+                            "Resetting your verification keys cannot be undone. After resetting, you won't have access to old encrypted messages, and any friends who have previously verified you will see security warnings until you re-verify with them.",
                         )}
                     </p>
                     <p>
                         {_t(
-                            "Please only proceed if you're sure you've lost all of your other " +
-                                "devices and your Security Key.",
+                            "Please only proceed if you're sure you've lost all of your other devices and your Security Key.",
                         )}
                     </p>
 
@@ -294,7 +286,7 @@ export default class SetupEncryptionBody extends React.Component<IProps, IState>
                             {_t("Proceed with reset")}
                         </AccessibleButton>
                         <AccessibleButton kind="primary" onClick={this.onResetBackClick}>
-                            {_t("Go Back")}
+                            {_t("action|go_back")}
                         </AccessibleButton>
                     </div>
                 </div>

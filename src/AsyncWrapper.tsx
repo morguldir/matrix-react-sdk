@@ -45,9 +45,6 @@ export default class AsyncWrapper extends React.Component<IProps, IState> {
     public state: IState = {};
 
     public componentDidMount(): void {
-        // XXX: temporary logging to try to diagnose
-        // https://github.com/vector-im/element-web/issues/3148
-        logger.log("Starting load of AsyncWrapper for modal");
         this.props.prom
             .then((result) => {
                 if (this.unmounted) return;
@@ -80,10 +77,10 @@ export default class AsyncWrapper extends React.Component<IProps, IState> {
             return <Component {...this.props} />;
         } else if (this.state.error) {
             return (
-                <BaseDialog onFinished={this.props.onFinished} title={_t("Error")}>
-                    {_t("Unable to load! Check your network connectivity and try again.")}
+                <BaseDialog onFinished={this.props.onFinished} title={_t("common|error")}>
+                    {_t("failed_load_async_component")}
                     <DialogButtons
-                        primaryButton={_t("Dismiss")}
+                        primaryButton={_t("action|dismiss")}
                         onPrimaryButtonClick={this.onWrapperCancelClick}
                         hasCancel={false}
                     />

@@ -26,6 +26,7 @@ import * as FormattingUtils from "../../../utils/FormattingUtils";
 import SettingsStore from "../../../settings/SettingsStore";
 import SettingsFlag from "../elements/SettingsFlag";
 import { SettingLevel } from "../../../settings/SettingLevel";
+import SettingsSubsection, { SettingsSubsectionText } from "./shared/SettingsSubsection";
 
 interface IProps {}
 
@@ -37,7 +38,7 @@ export default class CryptographyPanel extends React.Component<IProps, IState> {
     }
 
     public render(): React.ReactNode {
-        const client = MatrixClientPeg.get();
+        const client = MatrixClientPeg.safeGet();
         const deviceId = client.deviceId;
         let identityKey = client.getDeviceEd25519Key();
         if (!identityKey) {
@@ -51,10 +52,10 @@ export default class CryptographyPanel extends React.Component<IProps, IState> {
             importExportButtons = (
                 <div className="mx_CryptographyPanel_importExportButtons">
                     <AccessibleButton kind="primary" onClick={this.onExportE2eKeysClicked}>
-                        {_t("Export E2E room keys")}
+                        {_t("settings|security|export_megolm_keys")}
                     </AccessibleButton>
                     <AccessibleButton kind="primary" onClick={this.onImportE2eKeysClicked}>
-                        {_t("Import E2E room keys")}
+                        {_t("settings|security|import_megolm_keys")}
                     </AccessibleButton>
                 </div>
             );
@@ -72,29 +73,28 @@ export default class CryptographyPanel extends React.Component<IProps, IState> {
         }
 
         return (
-            <div className="mx_SettingsTab_section mx_CryptographyPanel">
-                <span className="mx_SettingsTab_subheading">{_t("Cryptography")}</span>
-                <table className="mx_SettingsTab_subsectionText mx_CryptographyPanel_sessionInfo">
-                    <tbody>
+            <SettingsSubsection heading={_t("settings|security|cryptography_section")}>
+                <SettingsSubsectionText>
+                    <table className="mx_CryptographyPanel_sessionInfo">
                         <tr>
-                            <td>{_t("Session ID:")}</td>
+                            <th scope="row">{_t("settings|security|session_id")}</th>
                             <td>
                                 <code>{deviceId}</code>
                             </td>
                         </tr>
                         <tr>
-                            <td>{_t("Session key:")}</td>
+                            <th scope="row">{_t("settings|security|session_key")}</th>
                             <td>
                                 <code>
                                     <b>{identityKey}</b>
                                 </code>
                             </td>
                         </tr>
-                    </tbody>
-                </table>
+                    </table>
+                </SettingsSubsectionText>
                 {importExportButtons}
                 {noSendUnverifiedSetting}
-            </div>
+            </SettingsSubsection>
         );
     }
 
@@ -103,7 +103,7 @@ export default class CryptographyPanel extends React.Component<IProps, IState> {
             import("../../../async-components/views/dialogs/security/ExportE2eKeysDialog") as unknown as Promise<
                 typeof ExportE2eKeysDialog
             >,
-            { matrixClient: MatrixClientPeg.get() },
+            { matrixClient: MatrixClientPeg.safeGet() },
         );
     };
 
@@ -112,11 +112,11 @@ export default class CryptographyPanel extends React.Component<IProps, IState> {
             import("../../../async-components/views/dialogs/security/ImportE2eKeysDialog") as unknown as Promise<
                 typeof ImportE2eKeysDialog
             >,
-            { matrixClient: MatrixClientPeg.get() },
+            { matrixClient: MatrixClientPeg.safeGet() },
         );
     };
 
     private updateBlacklistDevicesFlag = (checked: boolean): void => {
-        MatrixClientPeg.get().setGlobalBlacklistUnverifiedDevices(checked);
+        MatrixClientPeg.safeGet().setGlobalBlacklistUnverifiedDevices(checked);
     };
 }

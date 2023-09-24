@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { EventEmitter } from "events";
 
 import { EchoContext } from "./EchoContext";
@@ -28,7 +28,7 @@ export const PROPERTY_UPDATED = "property_updated";
 
 export abstract class GenericEchoChamber<C extends EchoContext, K, V> extends EventEmitter {
     private cache = new Map<K, { txn: EchoTransaction; val: V }>();
-    protected matrixClient: MatrixClient | null;
+    protected matrixClient: MatrixClient | null = null;
 
     protected constructor(public readonly context: C, private lookupFn: (key: K) => V) {
         super();

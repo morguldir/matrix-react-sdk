@@ -16,16 +16,18 @@ limitations under the License.
 */
 
 import React from "react";
-import { IThreepid } from "matrix-js-sdk/src/@types/threepids";
 import { logger } from "matrix-js-sdk/src/logger";
+import { MatrixError } from "matrix-js-sdk/src/matrix";
 
-import { _t } from "../../../../languageHandler";
+import { _t, UserFriendlyError } from "../../../../languageHandler";
 import { MatrixClientPeg } from "../../../../MatrixClientPeg";
 import Modal from "../../../../Modal";
-import AddThreepid, { Binding } from "../../../../AddThreepid";
-import ErrorDialog from "../../dialogs/ErrorDialog";
+import AddThreepid, { Binding, ThirdPartyIdentifier } from "../../../../AddThreepid";
+import ErrorDialog, { extractErrorMessageFromError } from "../../dialogs/ErrorDialog";
 import Field from "../../elements/Field";
-import AccessibleButton from "../../elements/AccessibleButton";
+import SettingsSubsection from "../shared/SettingsSubsection";
+import InlineSpinner from "../../elements/InlineSpinner";
+import AccessibleButton, { ButtonEvent } from "../../elements/AccessibleButton";
 
 /*
 TODO: Improve the UX for everything in here.
@@ -35,7 +37,8 @@ This is a copy/paste of EmailAddresses, mostly.
 // TODO: Combine EmailAddresses and PhoneNumbers to be 3pid agnostic
 
 interface IPhoneNumberProps {
-    msisdn: IThreepid;
+    msisdn: ThirdPartyIdentifier;
+    disabled?: boolean;
 }
 
 interface IPhoneNumberState {
@@ -71,15 +74,11 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
     }
 
     private async changeBinding({ bind, label, errorTitle }: Binding): Promise<void> {
-        if (!(await MatrixClientPeg.get().doesServerSupportSeparateAddAndBind())) {
-            return this.changeBindingTangledAddBind({ bind, label, errorTitle });
-        }
-
         const { medium, address } = this.props.msisdn;
 
         try {
             if (bind) {
-                const task = new AddThreepid();
+                const task = new AddThreepid(MatrixClientPeg.safeGet());
                 this.setState({
                     verifying: true,
                     continueDisabled: true,
@@ -95,11 +94,11 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
                     continueDisabled: false,
                 });
             } else {
-                await MatrixClientPeg.get().unbindThreePid(medium, address);
+                await MatrixClientPeg.safeGet().unbindThreePid(medium, address);
             }
             this.setState({ bound: bind });
         } catch (err) {
-            logger.error(`Unable to ${label} phone number ${address} ${err}`);
+            logger.error(`changeBinding: Unable to ${label} phone number ${address}`, err);
             this.setState({
                 verifying: false,
                 continueDisabled: false,
@@ -107,53 +106,12 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
             });
             Modal.createDialog(ErrorDialog, {
                 title: errorTitle,
-                description: err && err.message ? err.message : _t("Operation failed"),
+                description: extractErrorMessageFromError(err, _t("invite|failed_generic")),
             });
         }
     }
 
-    private async changeBindingTangledAddBind({ bind, label, errorTitle }: Binding): Promise<void> {
-        const { medium, address } = this.props.msisdn;
-
-        const task = new AddThreepid();
-        this.setState({
-            verifying: true,
-            continueDisabled: true,
-            addTask: task,
-        });
-
-        try {
-            await MatrixClientPeg.get().deleteThreePid(medium, address);
-            // XXX: Sydent will accept a number without country code if you add
-            // a leading plus sign to a number in E.164 format (which the 3PID
-            // address is), but this goes against the spec.
-            // See https://github.com/matrix-org/matrix-doc/issues/2222
-            if (bind) {
-                // @ts-ignore
-                await task.bindMsisdn(null, `+${address}`);
-            } else {
-                // @ts-ignore
-                await task.addMsisdn(null, `+${address}`);
-            }
-            this.setState({
-                continueDisabled: false,
-                bound: bind,
-            });
-        } catch (err) {
-            logger.error(`Unable to ${label} phone number ${address} ${err}`);
-            this.setState({
-                verifying: false,
-                continueDisabled: false,
-                addTask: null,
-            });
-            Modal.createDialog(ErrorDialog, {
-                title: errorTitle,
-                description: err && err.message ? err.message : _t("Operation failed"),
-            });
-        }
-    }
-
-    private onRevokeClick = (e: React.MouseEvent): void => {
+    private onRevokeClick = (e: ButtonEvent): void => {
         e.stopPropagation();
         e.preventDefault();
         this.changeBinding({
@@ -163,7 +121,7 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
         });
     };
 
-    private onShareClick = (e: React.MouseEvent): void => {
+    private onShareClick = (e: ButtonEvent): void => {
         e.stopPropagation();
         e.preventDefault();
         this.changeBinding({
@@ -179,7 +137,7 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
         });
     };
 
-    private onContinueClick = async (e: React.MouseEvent | React.FormEvent): Promise<void> => {
+    private onContinueClick = async (e: ButtonEvent | React.FormEvent): Promise<void> => {
         e.stopPropagation();
         e.preventDefault();
 
@@ -195,12 +153,18 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
                 verificationCode: "",
             });
         } catch (err) {
+            logger.error("Unable to verify phone number:", err);
+
+            let underlyingError = err;
+            if (err instanceof UserFriendlyError) {
+                underlyingError = err.cause;
+            }
+
             this.setState({ continueDisabled: false });
-            if (err.errcode !== "M_THREEPID_AUTH_FAILED") {
-                logger.error("Unable to verify phone number: " + err);
+            if (underlyingError instanceof MatrixError && underlyingError.errcode !== "M_THREEPID_AUTH_FAILED") {
                 Modal.createDialog(ErrorDialog, {
                     title: _t("Unable to verify phone number."),
-                    description: err && err.message ? err.message : _t("Operation failed"),
+                    description: extractErrorMessageFromError(err, _t("invite|failed_generic")),
                 });
             } else {
                 this.setState({ verifyError: _t("Incorrect verification code") });
@@ -215,7 +179,7 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
         let status;
         if (verifying) {
             status = (
-                <span className="mx_ExistingPhoneNumber_verification">
+                <span className="mx_GeneralUserSettingsTab_section--discovery_existing_verification">
                     <span>
                         {_t("Please enter verification code sent via text.")}
                         <br />
@@ -236,28 +200,30 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
         } else if (bound) {
             status = (
                 <AccessibleButton
-                    className="mx_ExistingPhoneNumber_confirmBtn"
+                    className="mx_GeneralUserSettingsTab_section--discovery_existing_button"
                     kind="danger_sm"
                     onClick={this.onRevokeClick}
+                    disabled={this.props.disabled}
                 >
-                    {_t("Revoke")}
+                    {_t("action|revoke")}
                 </AccessibleButton>
             );
         } else {
             status = (
                 <AccessibleButton
-                    className="mx_ExistingPhoneNumber_confirmBtn"
+                    className="mx_GeneralUserSettingsTab_section--discovery_existing_button"
                     kind="primary_sm"
                     onClick={this.onShareClick}
+                    disabled={this.props.disabled}
                 >
-                    {_t("Share")}
+                    {_t("action|share")}
                 </AccessibleButton>
             );
         }
 
         return (
-            <div className="mx_ExistingPhoneNumber">
-                <span className="mx_ExistingPhoneNumber_address">+{address}</span>
+            <div className="mx_GeneralUserSettingsTab_section--discovery_existing">
+                <span className="mx_GeneralUserSettingsTab_section--discovery_existing_address">+{address}</span>
                 {status}
             </div>
         );
@@ -265,24 +231,34 @@ export class PhoneNumber extends React.Component<IPhoneNumberProps, IPhoneNumber
 }
 
 interface IProps {
-    msisdns: IThreepid[];
+    msisdns: ThirdPartyIdentifier[];
+    isLoading?: boolean;
+    disabled?: boolean;
 }
 
 export default class PhoneNumbers extends React.Component<IProps> {
     public render(): React.ReactNode {
         let content;
-        if (this.props.msisdns.length > 0) {
+        if (this.props.isLoading) {
+            content = <InlineSpinner />;
+        } else if (this.props.msisdns.length > 0) {
             content = this.props.msisdns.map((e) => {
-                return <PhoneNumber msisdn={e} key={e.address} />;
+                return <PhoneNumber msisdn={e} key={e.address} disabled={this.props.disabled} />;
             });
-        } else {
-            content = (
-                <span className="mx_SettingsTab_subsectionText">
-                    {_t("Discovery options will appear once you have added a phone number above.")}
-                </span>
-            );
         }
 
-        return <div className="mx_PhoneNumbers">{content}</div>;
+        const description =
+            (!content && _t("Discovery options will appear once you have added a phone number above.")) || undefined;
+
+        return (
+            <SettingsSubsection
+                data-testid="mx_DiscoveryPhoneNumbers"
+                heading={_t("Phone numbers")}
+                description={description}
+                stretchContent
+            >
+                {content}
+            </SettingsSubsection>
+        );
     }
 }

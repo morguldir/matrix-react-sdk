@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { JSXElementConstructor } from "react";
+import { JSXElementConstructor } from "react";
 
 // Based on https://stackoverflow.com/a/53229857/3532235
 export type Without<T, U> = { [P in Exclude<keyof T, keyof U>]?: never };
@@ -22,23 +22,41 @@ export type XOR<T, U> = T | U extends object ? (Without<T, U> & U) | (Without<U,
 export type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 export type ComponentClass = keyof JSX.IntrinsicElements | JSXElementConstructor<any>;
-export type ReactAnyComponent = React.Component | React.ExoticComponent;
 
-// Utility type for string dot notation for accessing nested object properties
-// Based on https://stackoverflow.com/a/58436959
-type Join<K, P> = K extends string | number
+/**
+ * Utility type for string dot notation for accessing nested object properties.
+ * Based on https://stackoverflow.com/a/58436959
+ * @example
+ *  {
+ *      "a": {
+ *          "b": {
+ *              "c": "value"
+ *          },
+ *          "d": "foobar"
+ *      }
+ *  }
+ *  will yield a type of `"a.b.c" | "a.d"` with Separator="."
+ * @typeParam Target the target type to generate leaf keys for
+ * @typeParam Separator the separator to use between key segments when accessing nested objects
+ * @typeParam LeafType the type which leaves of this object extend, used to determine when to stop recursion
+ * @typeParam MaxDepth the maximum depth to recurse to
+ * @returns a union type representing all dot (Separator) string notation keys which can access a Leaf (of LeafType)
+ */
+export type Leaves<Target, Separator extends string = ".", LeafType = string, MaxDepth extends number = 3> = [
+    MaxDepth,
+] extends [never]
+    ? never
+    : Target extends LeafType
+    ? ""
+    : {
+          [K in keyof Target]-?: Join<K, Leaves<Target[K], Separator, LeafType, Prev[MaxDepth]>, Separator>;
+      }[keyof Target];
+type Prev = [never, 0, 1, 2, 3, ...0[]];
+type Join<K, P, S extends string = "."> = K extends string | number
     ? P extends string | number
-        ? `${K}${"" extends P ? "" : "."}${P}`
+        ? `${K}${"" extends P ? "" : S}${P}`
         : never
     : never;
-
-type Prev = [never, 0, 1, 2, 3, ...0[]];
-
-export type Leaves<T, D extends number = 3> = [D] extends [never]
-    ? never
-    : T extends object
-    ? { [K in keyof T]-?: Join<K, Leaves<T[K], Prev[D]>> }[keyof T]
-    : "";
 
 export type RecursivePartial<T> = {
     [P in keyof T]?: T[P] extends (infer U)[]
@@ -54,3 +72,27 @@ export type KeysStartingWith<Input extends object, Str extends string> = {
 }[keyof Input];
 
 export type NonEmptyArray<T> = [T, ...T[]];
+
+export type Defaultize<P, D> = P extends any
+    ? string extends keyof P
+        ? P
+        : Pick<P, Exclude<keyof P, keyof D>> &
+              Partial<Pick<P, Extract<keyof P, keyof D>>> &
+              Partial<Pick<D, Exclude<keyof D, keyof P>>>
+    : never;
+
+export type DeepReadonly<T> = T extends (infer R)[]
+    ? DeepReadonlyArray<R>
+    : T extends Function
+    ? T
+    : T extends object
+    ? DeepReadonlyObject<T>
+    : T;
+
+interface DeepReadonlyArray<T> extends ReadonlyArray<DeepReadonly<T>> {}
+
+type DeepReadonlyObject<T> = {
+    readonly [P in keyof T]: DeepReadonly<T[P]>;
+};
+
+export type AtLeastOne<T, U = { [K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U];

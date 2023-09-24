@@ -16,8 +16,7 @@ limitations under the License.
 
 import React, { ComponentProps, createRef, ReactNode } from "react";
 import { decode } from "html-entities";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { IPreviewUrlResponse } from "matrix-js-sdk/src/client";
+import { MatrixEvent, IPreviewUrlResponse } from "matrix-js-sdk/src/matrix";
 
 import { Linkify } from "../../../HtmlUtils";
 import SettingsStore from "../../../settings/SettingsStore";
@@ -43,10 +42,12 @@ export default class LinkPreviewWidget extends React.Component<IProps> {
         if (ev.button != 0 || ev.metaKey) return;
         ev.preventDefault();
 
-        let src = p["og:image"];
+        let src: string | null | undefined = p["og:image"];
         if (src?.startsWith("mxc://")) {
             src = mediaFromMxc(src).srcHttp;
         }
+
+        if (!src) return;
 
         const params: Omit<ComponentProps<typeof ImageView>, "onFinished"> = {
             src: src,
@@ -73,9 +74,6 @@ export default class LinkPreviewWidget extends React.Component<IProps> {
 
     public render(): React.ReactNode {
         const p = this.props.preview;
-        if (!p || Object.keys(p).length === 0) {
-            return <div />;
-        }
 
         // FIXME: do we want to factor out all image displaying between this and MImageBody - especially for lightboxing?
         let image: string | null = p["og:image"] ?? null;
@@ -89,15 +87,9 @@ export default class LinkPreviewWidget extends React.Component<IProps> {
             image = mediaFromMxc(image).getThumbnailOfSourceHttp(imageMaxWidth, imageMaxHeight, "scale");
         }
 
-        let thumbHeight = imageMaxHeight;
-        if (p["og:image:width"] && p["og:image:height"]) {
-            thumbHeight = ImageUtils.thumbHeight(
-                p["og:image:width"],
-                p["og:image:height"],
-                imageMaxWidth,
-                imageMaxHeight,
-            );
-        }
+        const thumbHeight =
+            ImageUtils.thumbHeight(p["og:image:width"], p["og:image:height"], imageMaxWidth, imageMaxHeight) ??
+            imageMaxHeight;
 
         let img: JSX.Element | undefined;
         if (image) {

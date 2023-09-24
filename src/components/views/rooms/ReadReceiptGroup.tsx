@@ -272,8 +272,7 @@ function ReadReceiptPerson({
             <MemberAvatar
                 member={roomMember}
                 fallbackUserId={userId}
-                width={24}
-                height={24}
+                size="24px"
                 aria-hidden="true"
                 aria-live="off"
                 resizeMethod="crop"
@@ -293,7 +292,7 @@ interface ISectionHeaderProps {
 }
 
 function SectionHeader({ className, children }: PropsWithChildren<ISectionHeaderProps>): JSX.Element {
-    const ref = useRef<HTMLHeadingElement>();
+    const ref = useRef<HTMLHeadingElement>(null);
     const [onFocus] = useRovingTabIndex(ref);
 
     return (

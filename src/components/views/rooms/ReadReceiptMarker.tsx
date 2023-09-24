@@ -16,7 +16,7 @@ limitations under the License.
 */
 
 import React, { createRef, RefObject } from "react";
-import { RoomMember } from "matrix-js-sdk/src/models/room-member";
+import { RoomMember } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
 import NodeAnimator from "../../../NodeAnimator";
@@ -124,7 +124,7 @@ export default class ReadReceiptMarker extends React.PureComponent<IProps, IStat
     private buildReadReceiptInfo(target: IReadReceiptInfo = {}): IReadReceiptInfo {
         const element = this.avatar.current;
         // this is the mx_ReadReceiptsGroup_container
-        const horizontalContainer = element.offsetParent;
+        const horizontalContainer = element?.offsetParent;
         if (!horizontalContainer || !(horizontalContainer instanceof HTMLElement)) {
             // this seems to happen sometimes for reasons I don't understand
             // the docs for `offsetParent` say it may be null if `display` is
@@ -165,7 +165,7 @@ export default class ReadReceiptMarker extends React.PureComponent<IProps, IStat
             return 0;
         }
 
-        return info.top + info.parent.getBoundingClientRect().top;
+        return (info.top ?? 0) + info.parent.getBoundingClientRect().top;
     }
 
     private animateMarker(): void {
@@ -214,9 +214,7 @@ export default class ReadReceiptMarker extends React.PureComponent<IProps, IStat
                     fallbackUserId={this.props.fallbackUserId}
                     aria-hidden="true"
                     aria-live="off"
-                    width={14}
-                    height={14}
-                    resizeMethod="crop"
+                    size="14px"
                     style={style}
                     inputRef={this.avatar as RefObject<HTMLImageElement>}
                     hideTitle

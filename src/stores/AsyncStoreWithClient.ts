@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 
 import { AsyncStore } from "./AsyncStore";
 import { ActionPayload } from "../dispatcher/payloads";
@@ -30,7 +30,7 @@ export abstract class AsyncStoreWithClient<T extends Object> extends AsyncStore<
         // Create an anonymous class to avoid code duplication
         const asyncStore = this; // eslint-disable-line @typescript-eslint/no-this-alias
         this.readyStore = new (class extends ReadyWatchingStore {
-            public get mxClient(): MatrixClient {
+            public get mxClient(): MatrixClient | null {
                 return this.matrixClient;
             }
 
@@ -48,7 +48,7 @@ export abstract class AsyncStoreWithClient<T extends Object> extends AsyncStore<
         await this.readyStore.start();
     }
 
-    public get matrixClient(): MatrixClient {
+    public get matrixClient(): MatrixClient | null {
         return this.readyStore.mxClient;
     }
 

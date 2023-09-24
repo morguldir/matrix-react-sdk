@@ -21,13 +21,16 @@ import counterpart from "counterpart";
 import React from "react";
 import { logger } from "matrix-js-sdk/src/logger";
 import { Optional } from "matrix-events-sdk";
+import { MapWithDefault, safeSet } from "matrix-js-sdk/src/utils";
 
+import type Translations from "./i18n/strings/en_EN.json";
 import SettingsStore from "./settings/SettingsStore";
 import PlatformPeg from "./PlatformPeg";
 import { SettingLevel } from "./settings/SettingLevel";
 import { retry } from "./utils/promise";
 import SdkConfig from "./SdkConfig";
 import { ModuleRunner } from "./modules/ModuleRunner";
+import { Leaves } from "./@types/common";
 
 // @ts-ignore - $webapp is a webpack resolve alias pointing to the output directory, see webpack config
 import webpackLangJsonUrl from "$webapp/i18n/languages.json";
@@ -45,36 +48,73 @@ counterpart.setSeparator("|");
 const FALLBACK_LOCALE = "en";
 counterpart.setFallbackLocale(FALLBACK_LOCALE);
 
-export interface ITranslatableError extends Error {
-    translatedMessage: string;
+export interface ErrorOptions {
+    // Because we're mixing the subsitution variables and `cause` into the same object
+    // below, we want them to always explicitly say whether there is an underlying error
+    // or not to avoid typos of "cause" slipping through unnoticed.
+    cause: unknown | undefined;
 }
 
 /**
- * Helper function to create an error which has an English message
- * with a translatedMessage property for use by the consumer.
- * @param {string} message Message to translate.
- * @param {object} variables Variable substitutions, e.g { foo: 'bar' }
- * @returns {Error} The constructed error.
+ * Used to rethrow an error with a user-friendly translatable message while maintaining
+ * access to that original underlying error. Downstream consumers can display the
+ * `translatedMessage` property in the UI and inspect the underlying error with the
+ * `cause` property.
+ *
+ * The error message will display as English in the console and logs so Element
+ * developers can easily understand the error and find the source in the code. It also
+ * helps tools like Sentry deduplicate the error, or just generally searching in
+ * rageshakes to find all instances regardless of the users locale.
+ *
+ * @param message - The untranslated error message text, e.g "Something went wrong with %(foo)s".
+ * @param substitutionVariablesAndCause - Variable substitutions for the translation and
+ * original cause of the error. If there is no cause, just pass `undefined`, e.g { foo:
+ * 'bar', cause: err || undefined }
  */
-export function newTranslatableError(message: string, variables?: IVariables): ITranslatableError {
-    const error = new Error(message) as ITranslatableError;
-    error.translatedMessage = _t(message, variables);
-    return error;
+export class UserFriendlyError extends Error {
+    public readonly translatedMessage: string;
+
+    public constructor(message: TranslationKey, substitutionVariablesAndCause?: IVariables & ErrorOptions) {
+        const errorOptions = {
+            cause: substitutionVariablesAndCause?.cause,
+        };
+        // Prevent "Could not find /%\(cause\)s/g in x" logs to the console by removing it from the list
+        const substitutionVariables = { ...substitutionVariablesAndCause };
+        delete substitutionVariables["cause"];
+
+        // Create the error with the English version of the message that we want to show
+        // up in the logs
+        const englishTranslatedMessage = _t(message, { ...substitutionVariables, locale: "en" });
+        super(englishTranslatedMessage, errorOptions);
+
+        // Also provide a translated version of the error in the users locale to display
+        this.translatedMessage = _t(message, substitutionVariables);
+    }
 }
 
 export function getUserLanguage(): string {
     const language = SettingsStore.getValue("language", null, /*excludeDefault:*/ true);
-    if (language) {
+    if (typeof language === "string" && language !== "") {
         return language;
     } else {
         return normalizeLanguageKey(getLanguageFromBrowser());
     }
 }
 
+/**
+ * A type representing the union of possible keys into the translation file using `|` delimiter to access nested fields.
+ * @example `common|error` to access `error` within the `common` sub-object.
+ * {
+ *     "common": {
+ *         "error": "Error"
+ *     }
+ * }
+ */
+export type TranslationKey = Leaves<typeof Translations, "|", string | { other: string }>;
+
 // Function which only purpose is to mark that a string is translatable
 // Does not actually do anything. It's helpful for automatic extraction of translatable strings
-export function _td(s: string): string {
-    // eslint-disable-line @typescript-eslint/naming-convention
+export function _td(s: TranslationKey): TranslationKey {
     return s;
 }
 
@@ -147,6 +187,9 @@ function safeCounterpartTranslate(text: string, variables?: IVariables): { trans
     return translateWithFallback(text, options);
 }
 
+/**
+ * The value a variable or tag can take for a translation interpolation.
+ */
 type SubstitutionValue = number | string | React.ReactNode | ((sub: string) => React.ReactNode);
 
 export interface IVariables {
@@ -160,7 +203,7 @@ export type TranslatedString = string | React.ReactNode;
 
 // For development/testing purposes it is useful to also output the original string
 // Don't do that for release versions
-const annotateStrings = (result: TranslatedString, translationKey: string): TranslatedString => {
+const annotateStrings = (result: TranslatedString, translationKey: TranslationKey): TranslatedString => {
     if (!ANNOTATE_STRINGS) {
         return result;
     }
@@ -193,14 +236,22 @@ const annotateStrings = (result: TranslatedString, translationKey: string): Tran
  * @return a React <span> component if any non-strings were used in substitutions, otherwise a string
  */
 // eslint-next-line @typescript-eslint/naming-convention
-export function _t(text: string, variables?: IVariables): string;
-export function _t(text: string, variables: IVariables | undefined, tags: Tags): React.ReactNode;
-export function _t(text: string, variables?: IVariables, tags?: Tags): TranslatedString {
+export function _t(text: TranslationKey, variables?: IVariables): string;
+export function _t(text: TranslationKey, variables: IVariables | undefined, tags: Tags): React.ReactNode;
+export function _t(text: TranslationKey, variables?: IVariables, tags?: Tags): TranslatedString {
     // The translation returns text so there's no XSS vector here (no unsafe HTML, no code execution)
     const { translated } = safeCounterpartTranslate(text, variables);
     const substituted = substitute(translated, variables, tags);
 
     return annotateStrings(substituted, text);
+}
+
+/**
+ * Utility function to look up a string by its translation key without resolving variables & tags
+ * @param key - the translation key to return the value for
+ */
+export function lookupString(key: TranslationKey): string {
+    return safeCounterpartTranslate(key, {}).translated;
 }
 
 /*
@@ -214,9 +265,9 @@ export function _t(text: string, variables?: IVariables, tags?: Tags): Translate
  * or translation used a fallback locale, otherwise a string
  */
 // eslint-next-line @typescript-eslint/naming-convention
-export function _tDom(text: string, variables?: IVariables): TranslatedString;
-export function _tDom(text: string, variables: IVariables, tags: Tags): React.ReactNode;
-export function _tDom(text: string, variables?: IVariables, tags?: Tags): TranslatedString {
+export function _tDom(text: TranslationKey, variables?: IVariables): TranslatedString;
+export function _tDom(text: TranslationKey, variables: IVariables, tags: Tags): React.ReactNode;
+export function _tDom(text: TranslationKey, variables?: IVariables, tags?: Tags): TranslatedString {
     // The translation returns text so there's no XSS vector here (no unsafe HTML, no code execution)
     const { translated, isFallback } = safeCounterpartTranslate(text, variables);
     const substituted = substitute(translated, variables, tags);
@@ -274,10 +325,10 @@ export function substitute(text: string, variables?: IVariables, tags?: Tags): s
     return result;
 }
 
-/*
+/**
  * Replace parts of a text using regular expressions
- * @param {string} text The text on which to perform substitutions
- * @param {object} mapping A mapping from regular expressions in string form to replacement string or a
+ * @param text - The text on which to perform substitutions
+ * @param mapping - A mapping from regular expressions in string form to replacement string or a
  * function which will receive as the argument the capture groups defined in the regexp. E.g.
  * { 'Hello (.?) World': (sub) => sub.toUpperCase() }
  *
@@ -372,12 +423,18 @@ export function replaceByRegexes(text: string, mapping: IVariables | Tags): stri
             }
         }
         if (!matchFoundSomewhere) {
-            // The current regexp did not match anything in the input
-            // Missing matches is entirely possible because you might choose to show some variables only in the case
-            // of e.g. plurals. It's still a bit suspicious, and could be due to an error, so log it.
-            // However, not showing count is so common that it's not worth logging. And other commonly unused variables
-            // here, if there are any.
-            if (regexpString !== "%\\(count\\)s") {
+            if (
+                // The current regexp did not match anything in the input. Missing
+                // matches is entirely possible because you might choose to show some
+                // variables only in the case of e.g. plurals. It's still a bit
+                // suspicious, and could be due to an error, so log it. However, not
+                // showing count is so common that it's not worth logging. And other
+                // commonly unused variables here, if there are any.
+                regexpString !== "%\\(count\\)s" &&
+                // Ignore the `locale` option which can be used to override the locale
+                // in counterpart
+                regexpString !== "%\\(locale\\)s"
+            ) {
                 logger.log(`Could not find ${regexp} in ${text}`);
             }
         }
@@ -398,10 +455,7 @@ export function setMissingEntryGenerator(f: (value: string) => void): void {
 }
 
 type Languages = {
-    [lang: string]: {
-        fileName: string;
-        label: string;
-    };
+    [lang: string]: string;
 };
 
 export function setLanguage(preferredLangs: string | string[]): Promise<void> {
@@ -432,7 +486,7 @@ export function setLanguage(preferredLangs: string | string[]): Promise<void> {
                 logger.error("Unable to find an appropriate language");
             }
 
-            return getLanguageRetry(i18nFolder + availLangs[langToUse].fileName);
+            return getLanguageRetry(i18nFolder + availLangs[langToUse]);
         })
         .then(async (langData): Promise<ICounterpartTranslation | undefined> => {
             counterpart.registerTranslations(langToUse, langData);
@@ -446,7 +500,7 @@ export function setLanguage(preferredLangs: string | string[]): Promise<void> {
 
             // Set 'en' as fallback language:
             if (langToUse !== "en") {
-                return getLanguageRetry(i18nFolder + availLangs["en"].fileName);
+                return getLanguageRetry(i18nFolder + availLangs["en"]);
             }
         })
         .then(async (langData): Promise<void> => {
@@ -457,21 +511,23 @@ export function setLanguage(preferredLangs: string | string[]): Promise<void> {
 
 type Language = {
     value: string;
-    label: string;
+    label: string; // translated
+    labelInTargetLanguage: string; // translated
 };
 
-export function getAllLanguagesFromJson(): Promise<Language[]> {
-    return getLangsJson().then((langsObject) => {
-        const langs: Language[] = [];
-        for (const langKey in langsObject) {
-            if (langsObject.hasOwnProperty(langKey)) {
-                langs.push({
-                    value: langKey,
-                    label: langsObject[langKey].label,
-                });
-            }
-        }
-        return langs;
+export async function getAllLanguagesFromJson(): Promise<string[]> {
+    return Object.keys(await getLangsJson());
+}
+
+export async function getAllLanguagesWithLabels(): Promise<Language[]> {
+    const languageNames = new Intl.DisplayNames([getUserLanguage()], { type: "language", style: "short" });
+    const languages = await getAllLanguagesFromJson();
+    return languages.map<Language>((langKey) => {
+        return {
+            value: langKey,
+            label: languageNames.of(langKey)!,
+            labelInTargetLanguage: new Intl.DisplayNames([langKey], { type: "language", style: "short" }).of(langKey)!,
+        };
     });
 }
 
@@ -629,21 +685,16 @@ export class CustomTranslationOptions {
 function doRegisterTranslations(customTranslations: ICustomTranslations): void {
     // We convert the operator-friendly version into something counterpart can
     // consume.
-    const langs: {
-        // same structure, just flipped key order
-        [lang: string]: {
-            [str: string]: string;
-        };
-    } = {};
+    // Map: lang → Record: string → translation
+    const langs: MapWithDefault<string, Record<string, string>> = new MapWithDefault(() => ({}));
     for (const [str, translations] of Object.entries(customTranslations)) {
         for (const [lang, newStr] of Object.entries(translations)) {
-            if (!langs[lang]) langs[lang] = {};
-            langs[lang][str] = newStr;
+            safeSet(langs.getOrCreate(lang), str, newStr);
         }
     }
 
     // Finally, tell counterpart about our translations
-    for (const [lang, translations] of Object.entries(langs)) {
+    for (const [lang, translations] of langs) {
         counterpart.registerTranslations(lang, translations);
     }
 }
@@ -656,7 +707,11 @@ function doRegisterTranslations(customTranslations: ICustomTranslations): void {
  * This function should be called *after* registering other translations data to
  * ensure it overrides strings properly.
  */
-export async function registerCustomTranslations(): Promise<void> {
+export async function registerCustomTranslations({
+    testOnlyIgnoreCustomTranslationsCache = false,
+}: {
+    testOnlyIgnoreCustomTranslationsCache?: boolean;
+} = {}): Promise<void> {
     const moduleTranslations = ModuleRunner.instance.allTranslations;
     doRegisterTranslations(moduleTranslations);
 
@@ -665,7 +720,7 @@ export async function registerCustomTranslations(): Promise<void> {
 
     try {
         let json: Optional<ICustomTranslations>;
-        if (Date.now() >= cachedCustomTranslationsExpire) {
+        if (testOnlyIgnoreCustomTranslationsCache || Date.now() >= cachedCustomTranslationsExpire) {
             json = CustomTranslationOptions.lookupFn
                 ? CustomTranslationOptions.lookupFn(lookupUrl)
                 : ((await (await fetch(lookupUrl)).json()) as ICustomTranslations);

@@ -15,9 +15,15 @@ limitations under the License.
 */
 
 import React from "react";
-import { MatrixEvent, EventType } from "matrix-js-sdk/src/matrix";
-import { LocationAssetType, M_ASSET, M_LOCATION, M_TIMESTAMP } from "matrix-js-sdk/src/@types/location";
-import { M_TEXT } from "matrix-js-sdk/src/@types/extensible_events";
+import {
+    MatrixEvent,
+    EventType,
+    LocationAssetType,
+    M_ASSET,
+    M_LOCATION,
+    M_TIMESTAMP,
+    M_TEXT,
+} from "matrix-js-sdk/src/matrix";
 import { act, fireEvent, getByTestId, render, RenderResult, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -54,6 +60,7 @@ describe("ForwardDialog", () => {
     });
     const mockClient = getMockClientWithEventEmitter({
         getUserId: jest.fn().mockReturnValue(aliceId),
+        getSafeUserId: jest.fn().mockReturnValue(aliceId),
         isGuest: jest.fn().mockReturnValue(false),
         getVisibleRooms: jest.fn().mockReturnValue([]),
         getRoom: jest.fn(),
@@ -89,9 +96,10 @@ describe("ForwardDialog", () => {
     };
 
     beforeEach(() => {
-        DMRoomMap.makeShared();
+        DMRoomMap.makeShared(mockClient);
         jest.clearAllMocks();
         mockClient.getUserId.mockReturnValue("@bob:example.org");
+        mockClient.getSafeUserId.mockReturnValue("@bob:example.org");
         mockClient.sendEvent.mockReset();
     });
 
@@ -105,7 +113,7 @@ describe("ForwardDialog", () => {
         expect(screen.queryByText("Hello world!")).toBeInTheDocument();
 
         // We would just test SenderProfile for the user ID, but it's stubbed
-        const previewAvatar = container.querySelector(".mx_EventTile_avatar .mx_BaseAvatar_image");
+        const previewAvatar = container.querySelector(".mx_EventTile_avatar .mx_BaseAvatar");
         expect(previewAvatar?.getAttribute("title")).toBe("@bob:example.org");
     });
 

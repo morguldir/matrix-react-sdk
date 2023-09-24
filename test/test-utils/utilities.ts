@@ -19,6 +19,7 @@ import EventEmitter from "events";
 import { ActionPayload } from "../../src/dispatcher/payloads";
 import defaultDispatcher from "../../src/dispatcher/dispatcher";
 import { DispatcherAction } from "../../src/dispatcher/actions";
+import Modal from "../../src/Modal";
 
 export const emitPromise = (e: EventEmitter, k: string | symbol) => new Promise((r) => e.once(k, r));
 
@@ -126,7 +127,7 @@ export function untilEmission(
     });
 }
 
-export const flushPromises = async () => await new Promise((resolve) => window.setTimeout(resolve));
+export const flushPromises = async () => await new Promise<void>((resolve) => window.setTimeout(resolve));
 
 // with jest's modern fake timers process.nextTick is also mocked,
 // flushing promises in the normal way then waits for some advancement
@@ -174,3 +175,122 @@ export const advanceDateAndTime = (ms: number) => {
     jest.spyOn(global.Date, "now").mockReturnValue(Date.now() + ms);
     jest.advanceTimersByTime(ms);
 };
+
+/**
+ * A horrible hack necessary to wait enough time to ensure any modal is shown after a
+ * `Modal.createDialog(...)` call. We have to contend with the Modal code which renders
+ * things asyncronhously and has weird sleeps which we should strive to remove.
+ */
+export const waitEnoughCyclesForModal = async ({
+    useFakeTimers = false,
+}: {
+    useFakeTimers?: boolean;
+} = {}): Promise<void> => {
+    // XXX: Maybe in the future with Jest 29.5.0+, we could use `runAllTimersAsync` instead.
+    const flushFunc = useFakeTimers ? flushPromisesWithFakeTimers : flushPromises;
+
+    await flushFunc();
+    await flushFunc();
+    await flushFunc();
+};
+
+/**
+ * A horrible hack necessary to make sure modals don't leak and pollute tests.
+ * `@testing-library/react` automatic cleanup function does not pick up the async modal
+ * rendering and the modals don't unmount when the component unmounts. We should strive
+ * to fix this.
+ */
+export const clearAllModals = async (): Promise<void> => {
+    // Prevent modals from leaking and polluting other tests
+    let keepClosingModals = true;
+    while (keepClosingModals) {
+        keepClosingModals = Modal.closeCurrentModal("End of test (clean-up)");
+
+        // Then wait for the screen to update (probably React rerender and async/await).
+        // Important for tests using Jest fake timers to not get into an infinite loop
+        // of removing the same modal because the promises don't flush otherwise.
+        //
+        // XXX: Maybe in the future with Jest 29.5.0+, we could use `runAllTimersAsync` instead.
+
+        // this is called in some places where timers are not faked
+        // which causes a lot of noise in the console
+        // to make a hack even hackier check if timers are faked using a weird trick from github
+        // then call the appropriate promise flusher
+        // https://github.com/facebook/jest/issues/10555#issuecomment-1136466942
+        const jestTimersFaked = setTimeout.name === "setTimeout";
+        if (jestTimersFaked) {
+            await flushPromisesWithFakeTimers();
+        } else {
+            await flushPromises();
+        }
+    }
+};
+
+/** Install a stub object at `navigator.mediaDevices` */
+export function useMockMediaDevices(): void {
+    // @ts-ignore assignment of a thing that isn't a `MediaDevices` to read-only property
+    navigator["mediaDevices"] = {
+        enumerateDevices: jest.fn().mockResolvedValue([]),
+        getUserMedia: jest.fn(),
+    };
+}
+
+/**
+ * Clean up the JSDOM after each test.
+ *
+ * Registers `beforeEach` and `afterEach` functions which will deregister any event listeners and timers from the
+ * `window` and `document` objects.
+ *
+ * Also clears out `localStorage` and `sessionStorage`.
+ */
+export function resetJsDomAfterEach(): void {
+    // list of calls to run in afterEach
+    const resetCalls: (() => void)[] = [];
+
+    beforeEach(() => {
+        // intercept `window.addEventListener` and `document.addEventListener`, and register 'removeEventListener' calls
+        // for `afterEach`.
+        for (const obj of [window, document]) {
+            const originalFn = obj.addEventListener;
+            obj.addEventListener = (...args: Parameters<Window["addEventListener"]>) => {
+                originalFn.apply(obj, args);
+                resetCalls.push(() => obj.removeEventListener(...args));
+            };
+
+            // also reset the intercept after the test
+            resetCalls.push(() => {
+                obj.addEventListener = originalFn;
+            });
+        }
+
+        // intercept setTimeout and setInterval, and clear them at the end.
+        //
+        // *Don't* use jest.spyOn for this because it makes the DOM testing library think we are using fake timers.
+        //
+        ["setTimeout", "setInterval"].forEach((name) => {
+            const originalFn = window[name as keyof Window];
+            // @ts-ignore assignment to read-only property
+            window[name] = (...args) => {
+                const result = originalFn.apply(window, args);
+                resetCalls.push(() => window.clearTimeout(result));
+                return result;
+            };
+            resetCalls.push(() => {
+                // @ts-ignore assignment to read-only property
+                window[name] = originalFn;
+            });
+        });
+    });
+
+    afterEach(() => {
+        // clean up event listeners, timers, etc.
+        for (const call of resetCalls) {
+            call();
+        }
+        resetCalls.splice(0);
+
+        // other cleanup
+        localStorage.clear();
+        sessionStorage.clear();
+    });
+}

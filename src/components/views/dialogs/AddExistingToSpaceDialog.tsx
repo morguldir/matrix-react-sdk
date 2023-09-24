@@ -14,14 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { ReactNode, useContext, useMemo, useRef, useState } from "react";
+import React, { ReactElement, ReactNode, RefObject, useContext, useMemo, useRef, useState } from "react";
 import classNames from "classnames";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { Room, EventType } from "matrix-js-sdk/src/matrix";
 import { sleep } from "matrix-js-sdk/src/utils";
-import { EventType } from "matrix-js-sdk/src/@types/event";
 import { logger } from "matrix-js-sdk/src/logger";
 
-import { _t, _td } from "../../../languageHandler";
+import { _t, _td, TranslationKey } from "../../../languageHandler";
 import BaseDialog from "./BaseDialog";
 import Dropdown from "../elements/Dropdown";
 import SearchBox from "../../structures/SearchBox";
@@ -41,6 +40,7 @@ import QueryMatcher from "../../../autocomplete/QueryMatcher";
 import LazyRenderList from "../elements/LazyRenderList";
 import { useSettingValue } from "../../../hooks/useSettings";
 import { filterBoolean } from "../../../utils/arrays";
+import { NonEmptyArray } from "../../../@types/common";
 
 // These values match CSS
 const ROW_HEIGHT = 32 + 12;
@@ -62,9 +62,9 @@ export const Entry: React.FC<{
     return (
         <label className="mx_AddExistingToSpace_entry">
             {room?.isSpaceRoom() ? (
-                <RoomAvatar room={room} height={32} width={32} />
+                <RoomAvatar room={room} size="32px" />
             ) : (
-                <DecoratedRoomAvatar room={room} avatarSize={32} />
+                <DecoratedRoomAvatar room={room} size="32px" />
             )}
             <span className="mx_AddExistingToSpace_entry_name">{room.name}</span>
             <StyledCheckbox
@@ -139,11 +139,12 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
     const cli = useContext(MatrixClientContext);
     const msc3946ProcessDynamicPredecessor = useSettingValue<boolean>("feature_dynamic_room_predecessors");
     const visibleRooms = useMemo(
-        () => cli.getVisibleRooms(msc3946ProcessDynamicPredecessor).filter((r) => r.getMyMembership() === "join"),
+        () =>
+            cli?.getVisibleRooms(msc3946ProcessDynamicPredecessor).filter((r) => r.getMyMembership() === "join") ?? [],
         [cli, msc3946ProcessDynamicPredecessor],
     );
 
-    const scrollRef = useRef<AutoHideScrollbar<"div">>();
+    const scrollRef = useRef() as RefObject<AutoHideScrollbar<"div">>;
     const [scrollState, setScrollState] = useState<IScrollState>({
         // these are estimates which update as soon as it mounts
         scrollTop: 0,
@@ -152,7 +153,7 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
 
     const [selectedToAdd, setSelectedToAdd] = useState(new Set<Room>());
     const [progress, setProgress] = useState<number | null>(null);
-    const [error, setError] = useState<Error | null>(null);
+    const [error, setError] = useState(false);
     const [query, setQuery] = useState("");
     const lcQuery = query.toLowerCase().trim();
 
@@ -194,10 +195,10 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
     }, [visibleRooms, space, lcQuery, existingRoomsSet, existingSubspacesSet]);
 
     const addRooms = async (): Promise<void> => {
-        setError(null);
+        setError(false);
         setProgress(0);
 
-        let error: Error | undefined;
+        let error = false;
 
         for (const room of selectedToAdd) {
             const via = calculateRoomVia(room);
@@ -211,10 +212,10 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
 
                     throw e;
                 });
-                setProgress((i) => i + 1);
+                setProgress((i) => (i ?? 0) + 1);
             } catch (e) {
                 logger.error("Failed to add rooms to space", e);
-                error = e;
+                error = true;
                 break;
             }
         }
@@ -241,11 +242,11 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
 
                 <span className="mx_AddExistingToSpaceDialog_error">
                     <div className="mx_AddExistingToSpaceDialog_errorHeading">{_t("Not all selected were added")}</div>
-                    <div className="mx_AddExistingToSpaceDialog_errorCaption">{_t("Try again")}</div>
+                    <div className="mx_AddExistingToSpaceDialog_errorCaption">{_t("action|try_again")}</div>
                 </span>
 
                 <AccessibleButton className="mx_AddExistingToSpaceDialog_retryButton" onClick={addRooms}>
-                    {_t("Retry")}
+                    {_t("action|retry")}
                 </AccessibleButton>
             </>
         );
@@ -266,7 +267,7 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
         if (!button || selectedToAdd.size > 0) {
             button = (
                 <AccessibleButton kind="primary" disabled={selectedToAdd.size < 1} onClick={addRooms}>
-                    {_t("Add")}
+                    {_t("action|add")}
                 </AccessibleButton>
             );
         }
@@ -304,13 +305,15 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
 
     const onScroll = (): void => {
         const body = scrollRef.current?.containerRef.current;
+        if (!body) return;
         setScrollState({
             scrollTop: body.scrollTop,
             height: body.clientHeight,
         });
     };
 
-    const wrappedRef = (body: HTMLDivElement): void => {
+    const wrappedRef = (body: HTMLDivElement | null): void => {
+        if (!body) return;
         setScrollState({
             scrollTop: body.scrollTop,
             height: body.clientHeight,
@@ -345,7 +348,9 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
 
                 {dms.length > 0 && dmsRenderer ? dmsRenderer(dms, selectedToAdd, dmsScrollState, onChange) : null}
 
-                {noResults ? <span className="mx_AddExistingToSpace_noResults">{_t("No results")}</span> : undefined}
+                {noResults ? (
+                    <span className="mx_AddExistingToSpace_noResults">{_t("common|no_results")}</span>
+                ) : undefined}
             </AutoHideScrollbar>
 
             <div className="mx_AddExistingToSpace_footer">{footer}</div>
@@ -354,7 +359,7 @@ export const AddExistingToSpace: React.FC<IAddExistingToSpaceProps> = ({
 };
 
 const defaultRendererFactory =
-    (title: string): Renderer =>
+    (title: TranslationKey): Renderer =>
     (rooms, selectedToAdd, { scrollTop, height }, onChange) =>
         (
             <div className="mx_AddExistingToSpace_section">
@@ -415,17 +420,19 @@ export const SubspaceSelector: React.FC<ISubspaceSelectorProps> = ({ title, spac
                 value={value.roomId}
                 label={_t("Space selection")}
             >
-                {options.map((space) => {
-                    const classes = classNames({
-                        mx_SubspaceSelector_dropdownOptionActive: space === value,
-                    });
-                    return (
-                        <div key={space.roomId} className={classes}>
-                            <RoomAvatar room={space} width={24} height={24} />
-                            {space.name || getDisplayAliasForRoom(space) || space.roomId}
-                        </div>
-                    );
-                })}
+                {
+                    options.map((space) => {
+                        const classes = classNames({
+                            mx_SubspaceSelector_dropdownOptionActive: space === value,
+                        });
+                        return (
+                            <div key={space.roomId} className={classes}>
+                                <RoomAvatar room={space} size="24px" />
+                                {space.name || getDisplayAliasForRoom(space) || space.roomId}
+                            </div>
+                        );
+                    }) as NonEmptyArray<ReactElement & { key: string }>
+                }
             </Dropdown>
         );
     } else {
@@ -438,7 +445,7 @@ export const SubspaceSelector: React.FC<ISubspaceSelectorProps> = ({ title, spac
 
     return (
         <div className="mx_SubspaceSelector">
-            <RoomAvatar room={value} height={40} width={40} />
+            <RoomAvatar room={value} size="40px" />
             <div>
                 <h1>{title}</h1>
                 {body}

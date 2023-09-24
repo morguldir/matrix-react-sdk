@@ -15,14 +15,18 @@ limitations under the License.
 */
 
 import { ListIteratee, Many, sortBy } from "lodash";
-import { EventType, RoomType } from "matrix-js-sdk/src/@types/event";
-import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import { ClientEvent } from "matrix-js-sdk/src/client";
+import {
+    EventType,
+    RoomType,
+    Room,
+    RoomEvent,
+    RoomMember,
+    RoomStateEvent,
+    MatrixEvent,
+    ClientEvent,
+    ISendEventResponse,
+} from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
-import { RoomMember } from "matrix-js-sdk/src/models/room-member";
-import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
-import { ISendEventResponse } from "matrix-js-sdk/src/@types/requests";
 
 import { AsyncStoreWithClient } from "../AsyncStoreWithClient";
 import defaultDispatcher from "../../dispatcher/dispatcher";
@@ -87,7 +91,7 @@ const partitionSpacesAndRooms = (arr: Room[]): [Room[], Room[]] => {
     );
 };
 
-const validOrder = (order: string): string | undefined => {
+const validOrder = (order?: string): string | undefined => {
     if (
         typeof order === "string" &&
         order.length <= 50 &&
@@ -101,7 +105,11 @@ const validOrder = (order: string): string | undefined => {
 };
 
 // For sorting space children using a validated `order`, `origin_server_ts`, `room_id`
-export const getChildOrder = (order: string, ts: number, roomId: string): Array<Many<ListIteratee<unknown>>> => {
+export const getChildOrder = (
+    order: string | undefined,
+    ts: number,
+    roomId: string,
+): Array<Many<ListIteratee<unknown>>> => {
     return [validOrder(order) ?? NaN, ts, roomId]; // NaN has lodash sort it at the end in asc
 };
 
@@ -140,7 +148,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     private _activeSpace: SpaceKey = MetaSpace.Home; // set properly by onReady
     private _suggestedRooms: ISuggestedRoom[] = [];
     private _invitedSpaces = new Set<Room>();
-    private spaceOrderLocalEchoMap = new Map<string, string>();
+    private spaceOrderLocalEchoMap = new Map<string, string | undefined>();
     // The following properties are set by onReady as they live in account_data
     private _allRoomsInHome = false;
     private _enabledMetaSpaces: MetaSpace[] = [];
@@ -168,13 +176,13 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         return this.rootSpaces;
     }
 
-    public get activeSpace(): SpaceKey | undefined {
+    public get activeSpace(): SpaceKey {
         return this._activeSpace;
     }
 
     public get activeSpaceRoom(): Room | null {
         if (isMetaSpace(this._activeSpace)) return null;
-        return this.matrixClient?.getRoom(this._activeSpace);
+        return this.matrixClient?.getRoom(this._activeSpace) ?? null;
     }
 
     public get suggestedRooms(): ISuggestedRoom[] {
@@ -189,35 +197,32 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         if (!isMetaSpace(space) && !this.matrixClient?.getRoom(space)?.isSpaceRoom()) return;
         if (space !== this.activeSpace) this.setActiveSpace(space, false);
 
-        if (space) {
-            const roomId = this.getNotificationState(space).getFirstRoomWithNotifications();
+        let roomId: string | undefined;
+        if (space === MetaSpace.Home && this.allRoomsInHome) {
+            const hasMentions = RoomNotificationStateStore.instance.globalState.hasMentions;
+            const lists = RoomListStore.instance.orderedLists;
+            tagLoop: for (let i = 0; i < TAG_ORDER.length; i++) {
+                const t = TAG_ORDER[i];
+                if (!lists[t]) continue;
+                for (const room of lists[t]) {
+                    const state = RoomNotificationStateStore.instance.getRoomState(room);
+                    if (hasMentions ? state.hasMentions : state.isUnread) {
+                        roomId = room.roomId;
+                        break tagLoop;
+                    }
+                }
+            }
+        } else {
+            roomId = this.getNotificationState(space).getFirstRoomWithNotifications();
+        }
+
+        if (!!roomId) {
             defaultDispatcher.dispatch<ViewRoomPayload>({
                 action: Action.ViewRoom,
                 room_id: roomId,
                 context_switch: true,
                 metricsTrigger: "WebSpacePanelNotificationBadge",
             });
-        } else {
-            const lists = RoomListStore.instance.orderedLists;
-            for (let i = 0; i < TAG_ORDER.length; i++) {
-                const t = TAG_ORDER[i];
-                const listRooms = lists[t];
-                const unreadRoom = listRooms.find((r: Room) => {
-                    if (this.showInHomeSpace(r)) {
-                        const state = RoomNotificationStateStore.instance.getRoomState(r);
-                        return state.isUnread;
-                    }
-                });
-                if (unreadRoom) {
-                    defaultDispatcher.dispatch<ViewRoomPayload>({
-                        action: Action.ViewRoom,
-                        room_id: unreadRoom.roomId,
-                        context_switch: true,
-                        metricsTrigger: "WebSpacePanelNotificationBadge",
-                    });
-                    break;
-                }
-            }
         }
     }
 
@@ -286,7 +291,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
             SpaceStore.instance.traverseSpace(
                 space,
                 (roomId) => {
-                    this.matrixClient.getRoom(roomId)?.loadMembersIfNeeded();
+                    this.matrixClient?.getRoom(roomId)?.loadMembersIfNeeded();
                 },
                 false,
             );
@@ -303,7 +308,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
     public fetchSuggestedRooms = async (space: Room, limit = MAX_SUGGESTED_ROOMS): Promise<ISuggestedRoom[]> => {
         try {
-            const { rooms } = await this.matrixClient.getRoomHierarchy(space.roomId, limit, 1, true);
+            const { rooms } = await this.matrixClient!.getRoomHierarchy(space.roomId, limit, 1, true);
 
             const viaMap = new EnhancedMap<string, Set<string>>();
             rooms.forEach((room) => {
@@ -320,7 +325,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 .filter((roomInfo) => {
                     return (
                         roomInfo.room_type !== RoomType.Space &&
-                        this.matrixClient.getRoom(roomInfo.room_id)?.getMyMembership() !== "join"
+                        this.matrixClient?.getRoom(roomInfo.room_id)?.getMyMembership() !== "join"
                     );
                 })
                 .map((roomInfo) => ({
@@ -334,7 +339,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     public addRoomToSpace(space: Room, roomId: string, via: string[], suggested = false): Promise<ISendEventResponse> {
-        return this.matrixClient.sendStateEvent(
+        return this.matrixClient!.sendStateEvent(
             space.roomId,
             EventType.SpaceChild,
             {
@@ -355,7 +360,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 return getChildOrder(ev.getContent().order, ev.getTs(), ev.getStateKey()!);
             })
                 .map((ev) => {
-                    const history = this.matrixClient.getRoomUpgradeHistory(
+                    const history = this.matrixClient!.getRoomUpgradeHistory(
                         ev.getStateKey()!,
                         true,
                         this._msc3946ProcessDynamicPredecessor,
@@ -378,8 +383,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     }
 
     public getParents(roomId: string, canonicalOnly = false): Room[] {
-        const userId = this.matrixClient?.getUserId();
-        const room = this.matrixClient?.getRoom(roomId);
+        if (!this.matrixClient) return [];
+        const userId = this.matrixClient.getSafeUserId();
+        const room = this.matrixClient.getRoom(roomId);
         const events = room?.currentState.getStateEvents(EventType.SpaceParent) ?? [];
         return filterBoolean(
             events.map((ev) => {
@@ -391,7 +397,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 // only respect the relationship if the sender has sufficient permissions in the parent to set
                 // child relations, as per MSC1772.
                 // https://github.com/matrix-org/matrix-doc/blob/main/proposals/1772-groups-as-rooms.md#relationship-between-rooms-and-spaces
-                const parent = this.matrixClient.getRoom(ev.getStateKey());
+                const parent = this.matrixClient?.getRoom(ev.getStateKey());
                 const relation = parent?.currentState.getStateEvents(EventType.SpaceChild, roomId);
                 if (
                     !parent?.currentState.maySendStateEvent(EventType.SpaceChild, userId) ||
@@ -458,7 +464,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     ): Set<string> => {
         if (space === MetaSpace.Home && this.allRoomsInHome) {
             return new Set(
-                this.matrixClient.getVisibleRooms(this._msc3946ProcessDynamicPredecessor).map((r) => r.roomId),
+                this.matrixClient!.getVisibleRooms(this._msc3946ProcessDynamicPredecessor).map((r) => r.roomId),
             );
         }
 
@@ -548,6 +554,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     private rebuildSpaceHierarchy = (): void => {
+        if (!this.matrixClient) return;
         const visibleSpaces = this.matrixClient
             .getVisibleRooms(this._msc3946ProcessDynamicPredecessor)
             .filter((r) => r.isSpaceRoom());
@@ -584,6 +591,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     private rebuildParentMap = (): void => {
+        if (!this.matrixClient) return;
         const joinedSpaces = this.matrixClient.getVisibleRooms(this._msc3946ProcessDynamicPredecessor).filter((r) => {
             return r.isSpaceRoom() && r.getMyMembership() === "join";
         });
@@ -605,8 +613,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
             this.roomIdsBySpace.delete(MetaSpace.Home);
         } else {
             const rooms = new Set(
-                this.matrixClient
-                    .getVisibleRooms(this._msc3946ProcessDynamicPredecessor)
+                this.matrixClient!.getVisibleRooms(this._msc3946ProcessDynamicPredecessor)
                     .filter(this.showInHomeSpace)
                     .map((r) => r.roomId),
             );
@@ -619,6 +626,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     private rebuildMetaSpaces = (): void => {
+        if (!this.matrixClient) return;
         const enabledMetaSpaces = new Set(this.enabledMetaSpaces);
         const visibleRooms = this.matrixClient.getVisibleRooms(this._msc3946ProcessDynamicPredecessor);
 
@@ -653,6 +661,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     private updateNotificationStates = (spaces?: SpaceKey[]): void => {
+        if (!this.matrixClient) return;
         const enabledMetaSpaces = new Set(this.enabledMetaSpaces);
         const visibleRooms = this.matrixClient.getVisibleRooms(this._msc3946ProcessDynamicPredecessor);
 
@@ -740,6 +749,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     };
 
     private onRoomsUpdate = (): void => {
+        if (!this.matrixClient) return;
         const visibleRooms = this.matrixClient.getVisibleRooms(this._msc3946ProcessDynamicPredecessor);
 
         const prevRoomsBySpace = this.roomIdsBySpace;
@@ -756,7 +766,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
         const hiddenChildren = new EnhancedMap<string, Set<string>>();
         visibleRooms.forEach((room) => {
-            if (room.getMyMembership() !== "join") return;
+            if (!["join", "invite"].includes(room.getMyMembership())) return;
             this.getParents(room.roomId).forEach((parent) => {
                 hiddenChildren.getOrCreate(parent.roomId, new Set()).add(room.roomId);
             });
@@ -803,9 +813,11 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 // Expand room IDs to all known versions of the given rooms
                 const expandedRoomIds = new Set(
                     Array.from(roomIds).flatMap((roomId) => {
-                        return this.matrixClient
-                            .getRoomUpgradeHistory(roomId, true, this._msc3946ProcessDynamicPredecessor)
-                            .map((r) => r.roomId);
+                        return this.matrixClient!.getRoomUpgradeHistory(
+                            roomId,
+                            true,
+                            this._msc3946ProcessDynamicPredecessor,
+                        ).map((r) => r.roomId);
                     }),
                 );
 
@@ -861,17 +873,17 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         }
 
         const notificationStatesToUpdate = [...changeSet];
-        if (
-            this.enabledMetaSpaces.includes(MetaSpace.People) &&
-            userDiff.added.length + userDiff.removed.length + usersChanged.length > 0
-        ) {
+        // We update the People metaspace even if we didn't detect any changes
+        // as roomIdsBySpace does not pre-calculate it so we have to assume it could have changed
+        if (this.enabledMetaSpaces.includes(MetaSpace.People)) {
             notificationStatesToUpdate.push(MetaSpace.People);
         }
         this.updateNotificationStates(notificationStatesToUpdate);
     };
 
     private switchSpaceIfNeeded = (roomId = SdkContextClass.instance.roomViewStore.getRoomId()): void => {
-        if (!this.isRoomInSpace(this.activeSpace, roomId) && !this.matrixClient.getRoom(roomId)?.isSpaceRoom()) {
+        if (!roomId) return;
+        if (!this.isRoomInSpace(this.activeSpace, roomId) && !this.matrixClient?.getRoom(roomId)?.isSpaceRoom()) {
             this.switchToRelatedSpace(roomId);
         }
     };
@@ -918,6 +930,8 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 this._suggestedRooms = this._suggestedRooms.filter((r) => r.room_id !== room.roomId);
                 if (numSuggestedRooms !== this._suggestedRooms.length) {
                     this.emit(UPDATE_SUGGESTED_ROOMS, this._suggestedRooms);
+                    // If the suggested room was present in the list then we know we don't need to switch space
+                    return;
                 }
 
                 // if the room currently being viewed was just joined then switch to its related space
@@ -966,9 +980,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     }
 
     private onRoomState = (ev: MatrixEvent): void => {
-        const room = this.matrixClient.getRoom(ev.getRoomId());
+        const room = this.matrixClient?.getRoom(ev.getRoomId());
 
-        if (!room) return;
+        if (!this.matrixClient || !room) return;
 
         switch (ev.getType()) {
             case EventType.SpaceChild: {
@@ -1016,9 +1030,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
 
     // listening for m.room.member events in onRoomState above doesn't work as the Member object isn't updated by then
     private onRoomStateMembers = (ev: MatrixEvent): void => {
-        const room = this.matrixClient.getRoom(ev.getRoomId());
+        const room = this.matrixClient?.getRoom(ev.getRoomId());
 
-        const userId = ev.getStateKey();
+        const userId = ev.getStateKey()!;
         if (
             room?.isSpaceRoom() && // only consider space rooms
             DMRoomMap.shared().getDMRoomsForUserId(userId).length > 0 && // only consider members we have a DM with
@@ -1049,9 +1063,9 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     private onRoomFavouriteChange(room: Room): void {
         if (this.enabledMetaSpaces.includes(MetaSpace.Favourites)) {
             if (room.tags[DefaultTagID.Favourite]) {
-                this.roomIdsBySpace.get(MetaSpace.Favourites).add(room.roomId);
+                this.roomIdsBySpace.get(MetaSpace.Favourites)?.add(room.roomId);
             } else {
-                this.roomIdsBySpace.get(MetaSpace.Favourites).delete(room.roomId);
+                this.roomIdsBySpace.get(MetaSpace.Favourites)?.delete(room.roomId);
             }
             this.emit(MetaSpace.Favourites);
         }
@@ -1064,7 +1078,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
             const homeRooms = this.roomIdsBySpace.get(MetaSpace.Home);
             if (this.showInHomeSpace(room)) {
                 homeRooms?.add(room.roomId);
-            } else if (!this.roomIdsBySpace.get(MetaSpace.Orphans).has(room.roomId)) {
+            } else if (!this.roomIdsBySpace.get(MetaSpace.Orphans)?.has(room.roomId)) {
                 this.roomIdsBySpace.get(MetaSpace.Home)?.delete(room.roomId);
             }
 
@@ -1076,7 +1090,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         }
 
         if (enabledMetaSpaces.has(MetaSpace.Orphans) || enabledMetaSpaces.has(MetaSpace.Home)) {
-            if (isDm && this.roomIdsBySpace.get(MetaSpace.Orphans).delete(room.roomId)) {
+            if (isDm && this.roomIdsBySpace.get(MetaSpace.Orphans)?.delete(room.roomId)) {
                 this.emit(MetaSpace.Orphans);
                 this.emit(MetaSpace.Home);
             }
@@ -1129,6 +1143,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
     }
 
     protected async onReady(): Promise<void> {
+        if (!this.matrixClient) return;
         this.matrixClient.on(ClientEvent.Room, this.onRoom);
         this.matrixClient.on(RoomEvent.MyMembership, this.onRoom);
         this.matrixClient.on(RoomEvent.AccountData, this.onRoomAccountData);
@@ -1205,7 +1220,7 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                 // Persist last viewed room from a space
                 // we don't await setActiveSpace above as we only care about this.activeSpace being up to date
                 // synchronously for the below code - everything else can and should be async.
-                window.localStorage.setItem(getSpaceContextKey(this.activeSpace), payload.room_id);
+                window.localStorage.setItem(getSpaceContextKey(this.activeSpace), payload.room_id ?? "");
                 break;
             }
 
@@ -1282,10 +1297,12 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
                     }
 
                     case "Spaces.showPeopleInSpace":
-                        // getSpaceFilteredUserIds will return the appropriate value
-                        this.emit(payload.roomId);
-                        if (!this.enabledMetaSpaces.some((s) => s === MetaSpace.Home || s === MetaSpace.People)) {
-                            this.updateNotificationStates([payload.roomId]);
+                        if (payload.roomId) {
+                            // getSpaceFilteredUserIds will return the appropriate value
+                            this.emit(payload.roomId);
+                            if (!this.enabledMetaSpaces.some((s) => s === MetaSpace.Home || s === MetaSpace.People)) {
+                                this.updateNotificationStates([payload.roomId]);
+                            }
                         }
                         break;
 
@@ -1341,10 +1358,10 @@ export class SpaceStoreClass extends AsyncStoreWithClient<IState> {
         return sortBy(spaces, [this.getSpaceTagOrdering, "roomId"]);
     }
 
-    private async setRootSpaceOrder(space: Room, order: string): Promise<void> {
+    private async setRootSpaceOrder(space: Room, order?: string): Promise<void> {
         this.spaceOrderLocalEchoMap.set(space.roomId, order);
         try {
-            await this.matrixClient.setRoomAccountData(space.roomId, EventType.SpaceOrder, { order });
+            await this.matrixClient?.setRoomAccountData(space.roomId, EventType.SpaceOrder, { order });
         } catch (e) {
             logger.warn("Failed to set root space order", e);
             if (this.spaceOrderLocalEchoMap.get(space.roomId) === order) {

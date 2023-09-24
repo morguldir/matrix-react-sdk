@@ -17,16 +17,18 @@ limitations under the License.
 
 import React from "react";
 import { logger } from "matrix-js-sdk/src/logger";
+import { MatrixError } from "matrix-js-sdk/src/matrix";
 
 import * as Email from "../../../email";
 import AddThreepid from "../../../AddThreepid";
-import { _t } from "../../../languageHandler";
+import { _t, UserFriendlyError } from "../../../languageHandler";
 import Modal from "../../../Modal";
 import Spinner from "../elements/Spinner";
-import ErrorDialog from "./ErrorDialog";
+import ErrorDialog, { extractErrorMessageFromError } from "./ErrorDialog";
 import QuestionDialog from "./QuestionDialog";
 import BaseDialog from "./BaseDialog";
 import EditableText from "../elements/EditableText";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
 
 interface IProps {
     title: string;
@@ -44,7 +46,7 @@ interface IState {
  * On success, `onFinished(true)` is called.
  */
 export default class SetEmailDialog extends React.Component<IProps, IState> {
-    private addThreepid: AddThreepid;
+    private addThreepid?: AddThreepid;
 
     public constructor(props: IProps) {
         super(props);
@@ -70,16 +72,15 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
             });
             return;
         }
-        this.addThreepid = new AddThreepid();
+        this.addThreepid = new AddThreepid(MatrixClientPeg.safeGet());
         this.addThreepid.addEmailAddress(emailAddress).then(
             () => {
                 Modal.createDialog(QuestionDialog, {
                     title: _t("Verification Pending"),
                     description: _t(
-                        "Please check your email and click on the link it contains. Once this " +
-                            "is done, click continue.",
+                        "Please check your email and click on the link it contains. Once this is done, click continue.",
                     ),
-                    button: _t("Continue"),
+                    button: _t("action|continue"),
                     onFinished: this.onEmailDialogFinished,
                 });
             },
@@ -88,7 +89,7 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
                 logger.error("Unable to add email address " + emailAddress + " " + err);
                 Modal.createDialog(ErrorDialog, {
                     title: _t("Unable to add email address"),
-                    description: err && err.message ? err.message : _t("Operation failed"),
+                    description: extractErrorMessageFromError(err, _t("invite|failed_generic")),
                 });
             },
         );
@@ -108,13 +109,19 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
     };
 
     private verifyEmailAddress(): void {
-        this.addThreepid.checkEmailLinkClicked().then(
+        this.addThreepid?.checkEmailLinkClicked().then(
             () => {
                 this.props.onFinished(true);
             },
             (err) => {
                 this.setState({ emailBusy: false });
-                if (err.errcode == "M_THREEPID_AUTH_FAILED") {
+
+                let underlyingError = err;
+                if (err instanceof UserFriendlyError) {
+                    underlyingError = err.cause;
+                }
+
+                if (underlyingError instanceof MatrixError && underlyingError.errcode === "M_THREEPID_AUTH_FAILED") {
                     const message =
                         _t("Unable to verify email address.") +
                         " " +
@@ -124,14 +131,14 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
                     Modal.createDialog(QuestionDialog, {
                         title: _t("Verification Pending"),
                         description: message,
-                        button: _t("Continue"),
+                        button: _t("action|continue"),
                         onFinished: this.onEmailDialogFinished,
                     });
                 } else {
                     logger.error("Unable to verify email address: " + err);
                     Modal.createDialog(ErrorDialog, {
                         title: _t("Unable to verify email address."),
-                        description: err && err.message ? err.message : _t("Operation failed"),
+                        description: extractErrorMessageFromError(err, _t("invite|failed_generic")),
                     });
                 }
             },
@@ -166,8 +173,13 @@ export default class SetEmailDialog extends React.Component<IProps, IState> {
                     {emailInput}
                 </div>
                 <div className="mx_Dialog_buttons">
-                    <input className="mx_Dialog_primary" type="submit" value={_t("Continue")} onClick={this.onSubmit} />
-                    <input type="submit" value={_t("Skip")} onClick={this.onCancelled} />
+                    <input
+                        className="mx_Dialog_primary"
+                        type="submit"
+                        value={_t("action|continue")}
+                        onClick={this.onSubmit}
+                    />
+                    <input type="submit" value={_t("action|skip")} onClick={this.onCancelled} />
                 </div>
             </BaseDialog>
         );
