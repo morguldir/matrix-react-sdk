@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { completeAuthorizationCodeGrant } from "matrix-js-sdk/src/oidc/authorize";
+import { completeAuthorizationCodeGrant, generateOidcAuthorizationUrl } from "matrix-js-sdk/src/oidc/authorize";
 import { QueryDict } from "matrix-js-sdk/src/utils";
-import { OidcClientConfig } from "matrix-js-sdk/src/autodiscovery";
-import { generateOidcAuthorizationUrl } from "matrix-js-sdk/src/oidc/authorize";
+import { OidcClientConfig } from "matrix-js-sdk/src/matrix";
 import { randomString } from "matrix-js-sdk/src/randomstring";
+import { IdTokenClaims } from "oidc-client-ts";
+
+import { OidcClientError } from "./error";
 
 /**
  * Start OIDC authorization code flow
@@ -35,10 +37,13 @@ export const startOidcLogin = async (
     clientId: string,
     homeserverUrl: string,
     identityServerUrl?: string,
+    isRegistration?: boolean,
 ): Promise<void> => {
     const redirectUri = window.location.origin;
 
     const nonce = randomString(10);
+
+    const prompt = isRegistration ? "create" : undefined;
 
     const authorizationUrl = await generateOidcAuthorizationUrl({
         metadata: delegatedAuthConfig.metadata,
@@ -47,6 +52,7 @@ export const startOidcLogin = async (
         homeserverUrl,
         identityServerUrl,
         nonce,
+        prompt,
     });
 
     window.location.href = authorizationUrl;
@@ -64,37 +70,45 @@ const getCodeAndStateFromQueryParams = (queryParams: QueryDict): { code: string;
     const state = queryParams["state"];
 
     if (!code || typeof code !== "string" || !state || typeof state !== "string") {
-        throw new Error("Invalid query parameters for OIDC native login. `code` and `state` are required.");
+        throw new Error(OidcClientError.InvalidQueryParameters);
     }
     return { code, state };
 };
 
+type CompleteOidcLoginResponse = {
+    // url of the homeserver selected during login
+    homeserverUrl: string;
+    // identity server url as discovered during login
+    identityServerUrl?: string;
+    // accessToken gained from OIDC token issuer
+    accessToken: string;
+    // refreshToken gained from OIDC token issuer, when falsy token cannot be refreshed
+    refreshToken?: string;
+    // this client's id as registered with the OIDC issuer
+    clientId: string;
+    // issuer used during authentication
+    issuer: string;
+    // claims of the given access token; used during token refresh to validate new tokens
+    idTokenClaims: IdTokenClaims;
+};
 /**
  * Attempt to complete authorization code flow to get an access token
  * @param queryParams the query-parameters extracted from the real query-string of the starting URI.
- * @returns Promise that resolves with accessToken, identityServerUrl, and homeserverUrl when login was successful
+ * @returns Promise that resolves with a CompleteOidcLoginResponse when login was successful
  * @throws When we failed to get a valid access token
  */
-export const completeOidcLogin = async (
-    queryParams: QueryDict,
-): Promise<{
-    homeserverUrl: string;
-    identityServerUrl?: string;
-    accessToken: string;
-    clientId: string;
-    issuer: string;
-}> => {
+export const completeOidcLogin = async (queryParams: QueryDict): Promise<CompleteOidcLoginResponse> => {
     const { code, state } = getCodeAndStateFromQueryParams(queryParams);
-    const { homeserverUrl, tokenResponse, identityServerUrl, oidcClientSettings } =
+    const { homeserverUrl, tokenResponse, idTokenClaims, identityServerUrl, oidcClientSettings } =
         await completeAuthorizationCodeGrant(code, state);
 
-    // @TODO(kerrya) do something with the refresh token https://github.com/vector-im/element-web/issues/25444
-
     return {
-        homeserverUrl: homeserverUrl,
-        identityServerUrl: identityServerUrl,
+        homeserverUrl,
+        identityServerUrl,
         accessToken: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token,
         clientId: oidcClientSettings.clientId,
         issuer: oidcClientSettings.issuer,
+        idTokenClaims,
     };
 };

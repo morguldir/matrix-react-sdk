@@ -24,7 +24,7 @@ import React, {
     RefObject,
 } from "react";
 import classNames from "classnames";
-import { Room, RoomEvent } from "matrix-js-sdk/src/models/room";
+import { Room, RoomEvent } from "matrix-js-sdk/src/matrix";
 import { DraggableProvidedDragHandleProps } from "react-beautiful-dnd";
 
 import RoomAvatar from "../avatars/RoomAvatar";
@@ -48,7 +48,10 @@ import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import { useRovingTabIndex } from "../../../accessibility/RovingTabIndex";
 import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
 
-interface IButtonProps extends Omit<ComponentProps<typeof AccessibleTooltipButton>, "title" | "onClick"> {
+type ButtonProps<T extends keyof JSX.IntrinsicElements> = Omit<
+    ComponentProps<typeof AccessibleTooltipButton<T>>,
+    "title" | "onClick" | "size"
+> & {
     space?: Room;
     spaceKey?: SpaceKey;
     className?: string;
@@ -57,13 +60,13 @@ interface IButtonProps extends Omit<ComponentProps<typeof AccessibleTooltipButto
     contextMenuTooltip?: string;
     notificationState?: NotificationState;
     isNarrow?: boolean;
-    avatarSize?: number;
+    size: string;
     innerRef?: RefObject<HTMLElement>;
     ContextMenuComponent?: ComponentType<ComponentProps<typeof SpaceContextMenu>>;
     onClick?(ev?: ButtonEvent): void;
-}
+};
 
-export const SpaceButton: React.FC<IButtonProps> = ({
+export const SpaceButton = <T extends keyof JSX.IntrinsicElements>({
     space,
     spaceKey: _spaceKey,
     className,
@@ -71,13 +74,13 @@ export const SpaceButton: React.FC<IButtonProps> = ({
     label,
     contextMenuTooltip,
     notificationState,
-    avatarSize,
+    size,
     isNarrow,
     children,
     innerRef,
     ContextMenuComponent,
     ...props
-}) => {
+}: ButtonProps<T>): JSX.Element => {
     const [menuDisplayed, handle, openMenu, closeMenu] = useContextMenu<HTMLElement>(innerRef);
     const [onFocus, isActive] = useRovingTabIndex(handle);
     const tabIndex = isActive ? 0 : -1;
@@ -90,14 +93,14 @@ export const SpaceButton: React.FC<IButtonProps> = ({
         </div>
     );
     if (space) {
-        avatar = <RoomAvatar width={avatarSize} height={avatarSize} room={space} />;
+        avatar = <RoomAvatar size={size} room={space} type="square" />;
     }
 
     let notifBadge;
     if (spaceKey && notificationState) {
-        let ariaLabel = _t("Jump to first unread room.");
+        let ariaLabel = _t("a11y_jump_first_unread_room");
         if (space?.getMyMembership() === "invite") {
-            ariaLabel = _t("Jump to first invite.");
+            ariaLabel = _t("a11y|jump_first_invite");
         }
 
         const jumpToNotification = (ev: MouseEvent): void => {
@@ -151,7 +154,7 @@ export const SpaceButton: React.FC<IButtonProps> = ({
             onClick={onClick}
             onContextMenu={openMenu}
             forceHide={!isNarrow || menuDisplayed}
-            inputRef={handle}
+            ref={handle}
             tabIndex={tabIndex}
             onFocus={onFocus}
         >
@@ -348,7 +351,7 @@ export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
                 className="mx_SpaceButton_toggleCollapse"
                 onClick={this.toggleCollapse}
                 tabIndex={-1}
-                aria-label={collapsed ? _t("Expand") : _t("Collapse")}
+                aria-label={collapsed ? _t("action|expand") : _t("action|collapse")}
             />
         ) : null;
 
@@ -371,10 +374,10 @@ export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
                     className={isInvite ? "mx_SpaceButton_invite" : undefined}
                     selected={selected}
                     label={this.state.name}
-                    contextMenuTooltip={_t("Space options")}
+                    contextMenuTooltip={_t("space|context_menu|options")}
                     notificationState={notificationState}
                     isNarrow={isPanelCollapsed}
-                    avatarSize={isNested ? 24 : 32}
+                    size={isNested ? "24px" : "32px"}
                     onKeyDown={this.onKeyDown}
                     ContextMenuComponent={this.props.space.getMyMembership() === "join" ? SpaceContextMenu : undefined}
                 >

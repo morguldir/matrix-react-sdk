@@ -23,28 +23,14 @@ export type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 export type ComponentClass = keyof JSX.IntrinsicElements | JSXElementConstructor<any>;
 
-// Utility type for string dot notation for accessing nested object properties
-// Based on https://stackoverflow.com/a/58436959
-type Join<K, P> = K extends string | number
-    ? P extends string | number
-        ? `${K}${"" extends P ? "" : "."}${P}`
-        : never
-    : never;
-
-type Prev = [never, 0, 1, 2, 3, ...0[]];
-
-export type Leaves<T, D extends number = 3> = [D] extends [never]
-    ? never
-    : T extends object
-    ? { [K in keyof T]-?: Join<K, Leaves<T[K], Prev[D]>> }[keyof T]
-    : "";
+export type { Leaves } from "matrix-web-i18n";
 
 export type RecursivePartial<T> = {
     [P in keyof T]?: T[P] extends (infer U)[]
         ? RecursivePartial<U>[]
         : T[P] extends object
-        ? RecursivePartial<T[P]>
-        : T[P];
+          ? RecursivePartial<T[P]>
+          : T[P];
 };
 
 export type KeysStartingWith<Input extends object, Str extends string> = {
@@ -65,10 +51,10 @@ export type Defaultize<P, D> = P extends any
 export type DeepReadonly<T> = T extends (infer R)[]
     ? DeepReadonlyArray<R>
     : T extends Function
-    ? T
-    : T extends object
-    ? DeepReadonlyObject<T>
-    : T;
+      ? T
+      : T extends object
+        ? DeepReadonlyObject<T>
+        : T;
 
 interface DeepReadonlyArray<T> extends ReadonlyArray<DeepReadonly<T>> {}
 

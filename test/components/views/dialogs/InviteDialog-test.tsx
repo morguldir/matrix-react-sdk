@@ -17,8 +17,7 @@ limitations under the License.
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RoomType } from "matrix-js-sdk/src/@types/event";
-import { MatrixClient, MatrixError, Room } from "matrix-js-sdk/src/matrix";
+import { RoomType, MatrixClient, MatrixError, Room } from "matrix-js-sdk/src/matrix";
 import { sleep } from "matrix-js-sdk/src/utils";
 import { mocked, Mocked } from "jest-mock";
 
@@ -86,6 +85,7 @@ const aliceEmail = "foobar@email.com";
 const bobId = "@bob:example.org";
 const bobEmail = "bobbob@example.com"; // bob@example.com is already used as an example in the invite dialog
 const carolId = "@carol:example.com";
+const bobbob = "bobbob";
 
 const aliceProfileInfo: IProfileInfo = {
     user_id: aliceId,
@@ -290,6 +290,19 @@ describe("InviteDialog", () => {
         await screen.findByText(aliceEmail);
         expect(input).toHaveValue("");
     });
+    it("should support pasting one username that is not a mx id or email", async () => {
+        mockClient.getIdentityServerUrl.mockReturnValue("https://identity-server");
+        mockClient.lookupThreePid.mockResolvedValue({});
+
+        render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
+
+        const input = screen.getByTestId("invite-dialog-input");
+        input.focus();
+        await userEvent.paste(`${bobbob}`);
+
+        await screen.findAllByText(bobId);
+        expect(input).toHaveValue(`${bobbob}`);
+    });
 
     it("should allow to invite multiple emails to a room", async () => {
         render(<InviteDialog kind={InviteKind.Invite} roomId={roomId} onFinished={jest.fn()} />);
@@ -463,5 +476,21 @@ describe("InviteDialog", () => {
                 }),
             ]);
         });
+    });
+
+    it("should not suggest users from other server when room has m.federate=false", async () => {
+        SdkConfig.add({ welcome_user_id: "@bot:example.org" });
+        room.currentState.setStateEvents([mkRoomCreateEvent(bobId, roomId, { "m.federate": false })]);
+
+        render(
+            <InviteDialog
+                kind={InviteKind.Invite}
+                roomId={roomId}
+                onFinished={jest.fn()}
+                initialText="@localpart:server.tld"
+            />,
+        );
+        await flushPromises();
+        expect(screen.queryByText("@localpart:server.tld")).not.toBeInTheDocument();
     });
 });

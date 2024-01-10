@@ -16,9 +16,9 @@ limitations under the License.
 
 import React, { SyntheticEvent } from "react";
 import classNames from "classnames";
-import { MatrixEvent, MatrixEventEvent } from "matrix-js-sdk/src/models/event";
-import { Relations, RelationsEvent } from "matrix-js-sdk/src/models/relations";
+import { MatrixEvent, MatrixEventEvent, Relations, RelationsEvent } from "matrix-js-sdk/src/matrix";
 import { uniqBy } from "lodash";
+import { UnstableValue } from "matrix-js-sdk/src/NamespacedValue";
 
 import { _t } from "../../../languageHandler";
 import { isContentActionable } from "../../../utils/EventUtils";
@@ -28,9 +28,12 @@ import ReactionPicker from "../emojipicker/ReactionPicker";
 import ReactionsRowButton from "./ReactionsRowButton";
 import RoomContext from "../../../contexts/RoomContext";
 import AccessibleButton from "../elements/AccessibleButton";
+import SettingsStore from "../../../settings/SettingsStore";
 
 // The maximum number of reactions to initially show on a message.
 const MAX_ITEMS_WHEN_LIMITED = 8;
+
+export const REACTION_SHORTCODE_KEY = new UnstableValue("shortcode", "com.beeper.reaction.shortcode");
 
 const ReactButton: React.FC<IProps> = ({ mxEvent, reactions }) => {
     const [menuDisplayed, button, openMenu, closeMenu] = useContextMenu();
@@ -51,14 +54,14 @@ const ReactButton: React.FC<IProps> = ({ mxEvent, reactions }) => {
                 className={classNames("mx_ReactionsRow_addReactionButton", {
                     mx_ReactionsRow_addReactionButton_active: menuDisplayed,
                 })}
-                title={_t("Add reaction")}
+                title={_t("timeline|reactions|add_reaction_prompt")}
                 onClick={openMenu}
                 onContextMenu={(e: SyntheticEvent): void => {
                     e.preventDefault();
                     openMenu();
                 }}
                 isExpanded={menuDisplayed}
-                inputRef={button}
+                ref={button}
             />
 
             {contextMenu}
@@ -170,6 +173,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         if (!reactions || !isContentActionable(mxEvent)) {
             return null;
         }
+        const customReactionImagesEnabled = SettingsStore.getValue("feature_render_reaction_images");
 
         let items = reactions
             .getSortedAnnotationsByKey()
@@ -196,6 +200,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
                         mxEvent={mxEvent}
                         reactionEvents={deduplicatedEvents}
                         myReactionEvent={myReactionEvent}
+                        customReactionImagesEnabled={customReactionImagesEnabled}
                         disabled={
                             !this.context.canReact ||
                             (myReactionEvent && !myReactionEvent.isRedacted() && !this.context.canSelfRedact)
@@ -215,7 +220,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
             items = items.slice(0, MAX_ITEMS_WHEN_LIMITED);
             showAllButton = (
                 <AccessibleButton kind="link_inline" className="mx_ReactionsRow_showAll" onClick={this.onShowAllClick}>
-                    {_t("Show all")}
+                    {_t("action|show_all")}
                 </AccessibleButton>
             );
         }
@@ -226,7 +231,7 @@ export default class ReactionsRow extends React.PureComponent<IProps, IState> {
         }
 
         return (
-            <div className="mx_ReactionsRow" role="toolbar" aria-label={_t("Reactions")}>
+            <div className="mx_ReactionsRow" role="toolbar" aria-label={_t("common|reactions")}>
                 {items}
                 {showAllButton}
                 {addReactionButton}

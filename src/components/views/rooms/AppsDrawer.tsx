@@ -15,10 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { AriaRole } from "react";
 import classNames from "classnames";
 import { Resizable, Size } from "re-resizable";
-import { Room } from "matrix-js-sdk/src/models/room";
+import { Room } from "matrix-js-sdk/src/matrix";
 import { IWidget } from "matrix-widget-api";
 
 import AppTile from "../elements/AppTile";
@@ -42,6 +42,7 @@ interface IProps {
     resizeNotifier: ResizeNotifier;
     showApps?: boolean; // Should apps be rendered
     maxHeight: number;
+    role?: AriaRole;
 }
 
 interface IState {
@@ -294,7 +295,7 @@ export default class AppsDrawer extends React.Component<IProps, IState> {
         }
 
         return (
-            <div className={classes}>
+            <div role={this.props.role} className={classes}>
                 {drawer}
                 {spinner}
             </div>

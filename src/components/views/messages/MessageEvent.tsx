@@ -15,11 +15,15 @@ limitations under the License.
 */
 
 import React, { createRef } from "react";
-import { EventType, MsgType } from "matrix-js-sdk/src/@types/event";
-import { M_BEACON_INFO } from "matrix-js-sdk/src/@types/beacon";
-import { M_LOCATION } from "matrix-js-sdk/src/@types/location";
-import { M_POLL_END, M_POLL_START } from "matrix-js-sdk/src/@types/polls";
-import { MatrixEventEvent } from "matrix-js-sdk/src/models/event";
+import {
+    EventType,
+    MsgType,
+    MatrixEventEvent,
+    M_BEACON_INFO,
+    M_LOCATION,
+    M_POLL_END,
+    M_POLL_START,
+} from "matrix-js-sdk/src/matrix";
 
 import SettingsStore from "../../../settings/SettingsStore";
 import { Mjolnir } from "../../../mjolnir/Mjolnir";
@@ -152,7 +156,7 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
         const content = this.props.mxEvent.getContent();
         const type = this.props.mxEvent.getType();
         const msgtype = content.msgtype;
-        let BodyType: React.ComponentType<IBodyProps> = RedactedBody;
+        let BodyType: React.ComponentType<IBodyProps> | React.ComponentType<IBodyProps & { OrigBodyType: React.ComponentType<Partial<IBodyProps>> }> = RedactedBody;
         if (!this.props.mxEvent.isRedacted()) {
             // only resolve BodyType if event is not redacted
             if (this.props.mxEvent.isDecryptionFailure()) {
@@ -186,7 +190,7 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
             content.filename !== content.body;
         let OrigBodyType;
         if (hasCaption) {
-            OrigBodyType = BodyType;
+            OrigBodyType = BodyType as React.ComponentType<Partial<IBodyProps>>;
             BodyType = CaptionBody;
         }
 
@@ -223,7 +227,7 @@ export default class MessageEvent extends React.Component<IProps> implements IMe
                 getRelationsForEvent={this.props.getRelationsForEvent}
                 isSeeingThroughMessageHiddenForModeration={this.props.isSeeingThroughMessageHiddenForModeration}
                 inhibitInteraction={this.props.inhibitInteraction}
-                OrigBodyType={OrigBodyType}
+                OrigBodyType={OrigBodyType!}
             />
         ) : null;
     }

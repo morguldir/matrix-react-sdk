@@ -23,10 +23,13 @@ import {
     InteractiveAuth,
     IStageStatus,
 } from "matrix-js-sdk/src/interactive-auth";
-import { MatrixClient } from "matrix-js-sdk/src/client";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 
-import getEntryComponentForLoginType, { IStageComponent } from "../views/auth/InteractiveAuthEntryComponents";
+import getEntryComponentForLoginType, {
+    ContinueKind,
+    IStageComponent,
+} from "../views/auth/InteractiveAuthEntryComponents";
 import Spinner from "../views/elements/Spinner";
 
 export const ERROR_USER_CANCELLED = new Error("User cancelled auth session");
@@ -35,8 +38,8 @@ type InteractiveAuthCallbackSuccess<T> = (
     success: true,
     response: T,
     extra?: { emailSid?: string; clientSecret?: string },
-) => void;
-type InteractiveAuthCallbackFailure = (success: false, response: IAuthData | Error) => void;
+) => Promise<void>;
+type InteractiveAuthCallbackFailure = (success: false, response: IAuthData | Error) => Promise<void>;
 export type InteractiveAuthCallback<T> = InteractiveAuthCallbackSuccess<T> & InteractiveAuthCallbackFailure;
 
 export interface InteractiveAuthProps<T> {
@@ -59,7 +62,7 @@ export interface InteractiveAuthProps<T> {
     continueIsManaged?: boolean;
     // continueText and continueKind are passed straight through to the AuthEntryComponent.
     continueText?: string;
-    continueKind?: string;
+    continueKind?: ContinueKind;
     // callback
     makeRequest(auth: IAuthDict | null): Promise<T>;
     // callback called when the auth process has finished,
@@ -141,15 +144,15 @@ export default class InteractiveAuthComponent<T> extends React.Component<Interac
     public componentDidMount(): void {
         this.authLogic
             .attemptAuth()
-            .then((result) => {
+            .then(async (result) => {
                 const extra = {
                     emailSid: this.authLogic.getEmailSid(),
                     clientSecret: this.authLogic.getClientSecret(),
                 };
-                this.props.onAuthFinished(true, result, extra);
+                await this.props.onAuthFinished(true, result, extra);
             })
-            .catch((error) => {
-                this.props.onAuthFinished(false, error);
+            .catch(async (error) => {
+                await this.props.onAuthFinished(false, error);
                 logger.error("Error during user-interactive auth:", error);
                 if (this.unmounted) {
                     return;
@@ -251,12 +254,12 @@ export default class InteractiveAuthComponent<T> extends React.Component<Interac
         this.props.onStagePhaseChange?.(this.state.authStage ?? null, newPhase || 0);
     };
 
-    private onStageCancel = (): void => {
-        this.props.onAuthFinished(false, ERROR_USER_CANCELLED);
+    private onStageCancel = async (): Promise<void> => {
+        await this.props.onAuthFinished(false, ERROR_USER_CANCELLED);
     };
 
-    private onAuthStageFailed = (e: Error): void => {
-        this.props.onAuthFinished(false, e);
+    private onAuthStageFailed = async (e: Error): Promise<void> => {
+        await this.props.onAuthFinished(false, e);
     };
 
     private setEmailSid = (sid: string): void => {

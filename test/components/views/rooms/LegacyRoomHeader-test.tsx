@@ -17,18 +17,21 @@ limitations under the License.
 import React from "react";
 import { render, screen, act, fireEvent, waitFor, getByRole, RenderResult } from "@testing-library/react";
 import { mocked, Mocked } from "jest-mock";
-import { EventType, RoomType } from "matrix-js-sdk/src/@types/event";
-import { Room } from "matrix-js-sdk/src/models/room";
-import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
-import { PendingEventOrdering } from "matrix-js-sdk/src/client";
+import {
+    EventType,
+    RoomType,
+    Room,
+    RoomStateEvent,
+    PendingEventOrdering,
+    ISearchResults,
+} from "matrix-js-sdk/src/matrix";
 import { CallType } from "matrix-js-sdk/src/webrtc/call";
 import { ClientWidgetApi, Widget } from "matrix-widget-api";
 import EventEmitter from "events";
-import { ISearchResults } from "matrix-js-sdk/src/@types/search";
+import { setupJestCanvasMock } from "jest-canvas-mock";
+import { ViewRoomOpts } from "@matrix-org/react-sdk-module-api/lib/lifecycles/RoomViewLifecycle";
 
-import type { MatrixClient } from "matrix-js-sdk/src/client";
-import type { MatrixEvent } from "matrix-js-sdk/src/models/event";
-import type { RoomMember } from "matrix-js-sdk/src/models/room-member";
+import type { MatrixClient, MatrixEvent, RoomMember } from "matrix-js-sdk/src/matrix";
 import type { MatrixCall } from "matrix-js-sdk/src/webrtc/call";
 import {
     stubClient,
@@ -36,13 +39,14 @@ import {
     setupAsyncStoreWithClient,
     resetAsyncStoreWithClient,
     mockPlatformPeg,
+    mkEvent,
+    filterConsole,
 } from "../../../test-utils";
 import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
 import RoomHeader, { IProps as RoomHeaderProps } from "../../../../src/components/views/rooms/LegacyRoomHeader";
 import { SearchScope } from "../../../../src/components/views/rooms/SearchBar";
 import { E2EStatus } from "../../../../src/utils/ShieldUtils";
-import { mkEvent } from "../../../test-utils";
 import { IRoomState } from "../../../../src/components/structures/RoomView";
 import RoomContext from "../../../../src/contexts/RoomContext";
 import SdkConfig from "../../../../src/SdkConfig";
@@ -71,7 +75,15 @@ describe("LegacyRoomHeader", () => {
     let bob: RoomMember;
     let carol: RoomMember;
 
+    filterConsole(
+        "Age for event was not available, using `now - origin_server_ts` as a fallback. If the device clock is not correct issues might occur.",
+    );
+
     beforeEach(async () => {
+        // some of our tests rely on the jest canvas mock, and `afterEach` will have reset the mock, so we need to
+        // restore it.
+        setupJestCanvasMock();
+
         mockPlatformPeg({ supportsJitsiScreensharing: () => true });
 
         stubClient();
@@ -334,6 +346,8 @@ describe("LegacyRoomHeader", () => {
 
             placeCallSpy.mockClear();
             fireEvent.click(screen.getByRole("button", { name: "Video call" }));
+            await act(() => Promise.resolve()); // Allow effects to settle
+            fireEvent.click(screen.getByRole("menuitem", { name: "Legacy video call" }));
             await act(() => Promise.resolve()); // Allow effects to settle
             expect(placeCallSpy).toHaveBeenCalledWith(room.roomId, CallType.Video);
         },
@@ -609,12 +623,8 @@ describe("LegacyRoomHeader", () => {
         const rendered = mountHeader(room);
 
         // Then the room's avatar is the initial of its name
-        const initial = rendered.container.querySelector(".mx_BaseAvatar_initial");
+        const initial = rendered.container.querySelector(".mx_BaseAvatar");
         expect(initial).toHaveTextContent("X");
-
-        // And there is no image avatar (because it's not set on this room)
-        const image = rendered.container.querySelector(".mx_BaseAvatar_image");
-        expect(image).toHaveAttribute("src", "data:image/png;base64,00");
     });
 
     it("shows the room avatar in a room with 2 people", () => {
@@ -623,12 +633,8 @@ describe("LegacyRoomHeader", () => {
         const rendered = mountHeader(room);
 
         // Then the room's avatar is the initial of its name
-        const initial = rendered.container.querySelector(".mx_BaseAvatar_initial");
+        const initial = rendered.container.querySelector(".mx_BaseAvatar");
         expect(initial).toHaveTextContent("Y");
-
-        // And there is no image avatar (because it's not set on this room)
-        const image = rendered.container.querySelector(".mx_BaseAvatar_image");
-        expect(image).toHaveAttribute("src", "data:image/png;base64,00");
     });
 
     it("shows the room avatar in a room with >2 people", () => {
@@ -637,12 +643,8 @@ describe("LegacyRoomHeader", () => {
         const rendered = mountHeader(room);
 
         // Then the room's avatar is the initial of its name
-        const initial = rendered.container.querySelector(".mx_BaseAvatar_initial");
+        const initial = rendered.container.querySelector(".mx_BaseAvatar");
         expect(initial).toHaveTextContent("Z");
-
-        // And there is no image avatar (because it's not set on this room)
-        const image = rendered.container.querySelector(".mx_BaseAvatar_image");
-        expect(image).toHaveAttribute("src", "data:image/png;base64,00");
     });
 
     it("shows the room avatar in a DM with only ourselves", () => {
@@ -651,12 +653,8 @@ describe("LegacyRoomHeader", () => {
         const rendered = mountHeader(room);
 
         // Then the room's avatar is the initial of its name
-        const initial = rendered.container.querySelector(".mx_BaseAvatar_initial");
+        const initial = rendered.container.querySelector(".mx_BaseAvatar");
         expect(initial).toHaveTextContent("Z");
-
-        // And there is no image avatar (because it's not set on this room)
-        const image = rendered.container.querySelector(".mx_BaseAvatar_image");
-        expect(image).toHaveAttribute("src", "data:image/png;base64,00");
     });
 
     it("shows the user avatar in a DM with 2 people", () => {
@@ -668,11 +666,8 @@ describe("LegacyRoomHeader", () => {
         const rendered = mountHeader(room);
 
         // Then we use the other user's avatar as our room's image avatar
-        const image = rendered.container.querySelector(".mx_BaseAvatar_image");
+        const image = rendered.container.querySelector(".mx_BaseAvatar img");
         expect(image).toHaveAttribute("src", "http://this.is.a.url/example.org/other");
-
-        // And there is no initial avatar
-        expect(rendered.container.querySelector(".mx_BaseAvatar_initial")).toBeFalsy();
     });
 
     it("shows the room avatar in a DM with >2 people", () => {
@@ -685,12 +680,8 @@ describe("LegacyRoomHeader", () => {
         const rendered = mountHeader(room);
 
         // Then the room's avatar is the initial of its name
-        const initial = rendered.container.querySelector(".mx_BaseAvatar_initial");
+        const initial = rendered.container.querySelector(".mx_BaseAvatar");
         expect(initial).toHaveTextContent("Z");
-
-        // And there is no image avatar (because it's not set on this room)
-        const image = rendered.container.querySelector(".mx_BaseAvatar_image");
-        expect(image).toHaveAttribute("src", "data:image/png;base64,00");
     });
 
     it("renders call buttons normally", () => {
@@ -755,6 +746,34 @@ describe("LegacyRoomHeader", () => {
             expect(wrapper.container.querySelector(".mx_LegacyRoomHeader_name.mx_AccessibleButton")).toBeFalsy();
         },
     );
+
+    it("renders additionalButtons", async () => {
+        const additionalButtons: ViewRoomOpts["buttons"] = [
+            {
+                icon: () => <>test-icon</>,
+                id: "test-id",
+                label: () => "test-label",
+                onClick: () => {},
+            },
+        ];
+        renderHeader({ additionalButtons });
+        expect(screen.getByRole("button", { name: "test-icon" })).toBeInTheDocument();
+    });
+
+    it("calls onClick-callback on additionalButtons", () => {
+        const callback = jest.fn();
+        const additionalButtons: ViewRoomOpts["buttons"] = [
+            {
+                icon: () => <>test-icon</>,
+                id: "test-id",
+                label: () => "test-label",
+                onClick: callback,
+            },
+        ];
+        renderHeader({ additionalButtons });
+        fireEvent.click(screen.getByRole("button", { name: "test-icon" }));
+        expect(callback).toHaveBeenCalled();
+    });
 });
 
 interface IRoomCreationInfo {
