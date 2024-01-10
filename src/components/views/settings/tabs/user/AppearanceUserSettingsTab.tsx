@@ -19,7 +19,6 @@ import React, { ChangeEvent, ReactNode } from "react";
 
 import { _t } from "../../../../../languageHandler";
 import SdkConfig from "../../../../../SdkConfig";
-import { MatrixClientPeg } from "../../../../../MatrixClientPeg";
 import SettingsStore from "../../../../../settings/SettingsStore";
 import SettingsFlag from "../../../elements/SettingsFlag";
 import Field from "../../../elements/Field";
@@ -34,10 +33,12 @@ import ImageSizePanel from "../../ImageSizePanel";
 import SettingsTab from "../SettingsTab";
 import { SettingsSection } from "../../shared/SettingsSection";
 import SettingsSubsection, { SettingsSubsectionText } from "../../shared/SettingsSubsection";
+import MatrixClientContext from "../../../../../contexts/MatrixClientContext";
 
 interface IProps {}
 
 interface IState {
+    useBundledEmojiFont: boolean;
     useSystemFont: boolean;
     systemFont: string;
     showAdvanced: boolean;
@@ -49,7 +50,10 @@ interface IState {
 }
 
 export default class AppearanceUserSettingsTab extends React.Component<IProps, IState> {
-    private readonly MESSAGE_PREVIEW_TEXT = _t("Hey you. You're the best!");
+    public static contextType = MatrixClientContext;
+    public context!: React.ContextType<typeof MatrixClientContext>;
+
+    private readonly MESSAGE_PREVIEW_TEXT = _t("common|preview_message");
 
     private unmounted = false;
 
@@ -57,6 +61,7 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
         super(props);
 
         this.state = {
+            useBundledEmojiFont: SettingsStore.getValue("useBundledEmojiFont"),
             useSystemFont: SettingsStore.getValue("useSystemFont"),
             systemFont: SettingsStore.getValue("systemFont"),
             showAdvanced: false,
@@ -66,7 +71,7 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
 
     public async componentDidMount(): Promise<void> {
         // Fetch the current user profile for the message preview
-        const client = MatrixClientPeg.get();
+        const client = this.context;
         const userId = client.getUserId()!;
         const profileInfo = await client.getProfileInfo(userId);
         if (this.unmounted) return;
@@ -96,21 +101,24 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
                 onClick={() => this.setState({ showAdvanced: !this.state.showAdvanced })}
                 aria-expanded={this.state.showAdvanced}
             >
-                {this.state.showAdvanced ? _t("Hide advanced") : _t("Show advanced")}
+                {this.state.showAdvanced ? _t("action|hide_advanced") : _t("action|show_advanced")}
             </AccessibleButton>
         );
 
         let advanced: React.ReactNode;
 
         if (this.state.showAdvanced) {
-            const tooltipContent = _t(
-                "Set the name of a font installed on your system & %(brand)s will attempt to use it.",
-                { brand },
-            );
+            const tooltipContent = _t("settings|appearance|custom_font_description", { brand });
             advanced = (
                 <>
                     <SettingsFlag name="useCompactLayout" level={SettingLevel.DEVICE} useCheckbox={true} />
 
+                    <SettingsFlag
+                        name="useBundledEmojiFont"
+                        level={SettingLevel.DEVICE}
+                        useCheckbox={true}
+                        onChange={(checked) => this.setState({ useBundledEmojiFont: checked })}
+                    />
                     <SettingsFlag
                         name="useSystemFont"
                         level={SettingLevel.DEVICE}
@@ -148,10 +156,8 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
 
         return (
             <SettingsTab data-testid="mx_AppearanceUserSettingsTab">
-                <SettingsSection heading={_t("Customise your appearance")}>
-                    <SettingsSubsectionText>
-                        {_t("Appearance Settings only affect this %(brand)s session.", { brand })}
-                    </SettingsSubsectionText>
+                <SettingsSection heading={_t("settings|appearance|heading")}>
+                    <SettingsSubsectionText>{_t("settings|appearance|subheading", { brand })}</SettingsSubsectionText>
                     <ThemeChoicePanel />
                     <LayoutSwitcher
                         userId={this.state.userId}
