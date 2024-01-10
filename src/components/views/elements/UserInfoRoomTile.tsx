@@ -20,7 +20,7 @@ limitations under the License.
 import React from "react";
 import { Room } from "matrix-js-sdk/src/models/room";
 import classNames from "classnames";
-import AccessibleButton from "../../views/elements/AccessibleButton";
+import AccessibleButton, { ButtonEvent } from "../../views/elements/AccessibleButton";
 import { SdkContextClass } from "../../../contexts/SDKContext";
 import DecoratedRoomAvatar from "../avatars/DecoratedRoomAvatar";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
@@ -35,8 +35,8 @@ type PartialDOMRect = Pick<DOMRect, "left" | "bottom">;
 
 interface IState {
     selected: boolean;
-    notificationsMenuPosition: PartialDOMRect;
-    generalMenuPosition: PartialDOMRect;
+    notificationsMenuPosition: PartialDOMRect | null;
+    generalMenuPosition: PartialDOMRect | null;
     messagePreview?: string;
 }
 
@@ -51,14 +51,15 @@ export default class UserInfoRoomTile extends React.PureComponent<IProps, IState
         };
     }
 
-    private onTileClick = (ev: React.KeyboardEvent) => {
+    private onTileClick = (ev: ButtonEvent | React.KeyboardEvent) => {
         ev.preventDefault();
         ev.stopPropagation();
         dis.dispatch({
             action: "view_room",
             show_room_tile: true, // make sure the room is visible in the list
             room_id: this.props.room.roomId,
-            clear_search: ev && (ev.key === Key.ENTER || ev.key === Key.SPACE),
+            // @ts-ignore
+            clear_search: ev?.key && (ev.key === Key.ENTER || ev.key === Key.SPACE),
         });
     };
 
@@ -85,7 +86,7 @@ export default class UserInfoRoomTile extends React.PureComponent<IProps, IState
         );
 
         const ariaLabel = name;
-        let ariaDescribedBy: string;
+        let ariaDescribedBy: string | undefined;
 
         const props: Partial<React.ComponentProps<typeof AccessibleTooltipButton>> = {};
         const Button: React.ComponentType<React.ComponentProps<typeof AccessibleButton>> = AccessibleButton;

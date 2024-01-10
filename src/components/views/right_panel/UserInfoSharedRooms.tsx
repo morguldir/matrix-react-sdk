@@ -70,12 +70,12 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
         });
 
         try {
-            const peg = MatrixClientPeg.get();
+            const peg = MatrixClientPeg.get()!;
 
-            const roomIds = await MatrixClientPeg.get()._unstable_getSharedRooms(this.props.userId);
-            const rooms = roomIds.map((roomId) => peg.getRoom(roomId)).filter((room) => room !== null);
+            const roomIds = await peg._unstable_getSharedRooms(this.props.userId);
+            const rooms = roomIds.map((roomId) => peg.getRoom(roomId)).filter((room) => room !== null).map(room => room!);
             this.setState({
-                rooms: await this.algorithm.sortRooms(rooms, DefaultTagID.Untagged),
+                rooms: this.algorithm.sortRooms(rooms, DefaultTagID.Untagged),
             });
         } catch (ex) {
             console.log(`Failed to get shared rooms for ${this.props.userId}`, ex);
@@ -127,11 +127,11 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
 
     private renderRoomTiles() {
         // We must remove the null values in order for the slice to work in render()
-        return this.state.rooms.map((room) => this.renderRoomTile(room)).filter((tile) => tile !== null);
+        return this.state.rooms.map((room) => this.renderRoomTile(room)).filter((tile) => tile !== null) as JSX.Element[];
     }
 
     render(): React.ReactNode {
-        let content;
+        let content: JSX.Element[] | undefined;
         let realCount = 0;
 
         if (this.state.rooms && this.state.rooms.length > 0) {
@@ -141,12 +141,12 @@ export default class UserInfoSharedRooms extends React.PureComponent<IProps, ISt
                 content = content.slice(0, LIMITED_VIEW_SHOW_COUNT);
             }
         } else if (this.state.rooms) {
-            content = <p> {_t("You share no rooms in common with this user.")} </p>;
+            content = [<p> {_t("You share no rooms in common with this user.")} </p>];
         } else if (this.state.error) {
-            content = <p> {_t("There was an error fetching shared rooms with this user.")} </p>;
+            content = [<p> {_t("There was an error fetching shared rooms with this user.")} </p>];
         } else {
             // We're still loading
-            content = <Spinner />;
+            content = [<Spinner />];
         }
 
         // Compact view: Show as a single line.

@@ -560,7 +560,8 @@ export default class RoomPreviewBar extends React.Component<IProps, IState> {
                 secondaryActionLabel = _t("action|reject");
                 secondaryActionHandler = this.props.onRejectClick;
 
-                if (SettingsStore.getValue("feature_show_shared_rooms")) {
+                if (SettingsStore.getValue("feature_show_shared_rooms") && inviteMember?.userId) {
+                    // @ts-ignore
                     extraContext = <UserInfoSharedRooms userId={inviteMember.userId} compact={true} />;
                 }
 
