@@ -28,7 +28,6 @@ import PushToMatrixClientController from "./controllers/PushToMatrixClientContro
 import ReloadOnChangeController from "./controllers/ReloadOnChangeController";
 import FontSizeController from "./controllers/FontSizeController";
 import SystemFontController from "./controllers/SystemFontController";
-import UseSystemFontController from "./controllers/UseSystemFontController";
 import { SettingLevel } from "./SettingLevel";
 import SettingController from "./controllers/SettingController";
 import { IS_MAC } from "../Keyboard";
@@ -286,13 +285,6 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_FEATURE,
         default: false,
     },
-    "feature_state_counters": {
-        isFeature: true,
-        labsGroup: LabGroup.Rooms,
-        displayName: _td("labs|state_counters"),
-        supportedLevels: LEVELS_FEATURE,
-        default: false,
-    },
     "feature_mjolnir": {
         isFeature: true,
         labsGroup: LabGroup.Moderation,
@@ -404,6 +396,13 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         controller: new ReloadOnChangeController(),
         default: false,
     },
+    "feature_disable_call_per_sender_encryption": {
+        isFeature: true,
+        supportedLevels: LEVELS_FEATURE,
+        labsGroup: LabGroup.VoiceAndVideo,
+        displayName: _td("labs|feature_disable_call_per_sender_encryption"),
+        default: false,
+    },
     "feature_allow_screen_share_only_mode": {
         isFeature: true,
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
@@ -444,8 +443,11 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         default: false,
     },
     [Features.OidcNativeFlow]: {
+        isFeature: true,
+        labsGroup: LabGroup.Developer,
         supportedLevels: LEVELS_FEATURE,
         displayName: _td("labs|oidc_native_flow"),
+        description: _td("labs|oidc_native_flow_description"),
         default: false,
     },
     "feature_rust_crypto": {
@@ -702,11 +704,17 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         default: true,
         displayName: _td("settings|appearance|match_system_theme"),
     },
+    "useBundledEmojiFont": {
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
+        default: true,
+        displayName: _td("settings|appearance|bundled_emoji_font"),
+        controller: new SystemFontController(),
+    },
     "useSystemFont": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
         default: false,
         displayName: _td("settings|appearance|custom_font"),
-        controller: new UseSystemFontController(),
+        controller: new SystemFontController(),
     },
     "systemFont": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,

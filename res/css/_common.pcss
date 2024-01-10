@@ -52,6 +52,18 @@ limitations under the License.
     --dialog-zIndex-standard: calc(var(--dialog-zIndex-standard-background) + 1); /* 4012 */
 }
 
+#matrixchat {
+    /* This is required to ensure Compound tooltips correctly draw where they should with z-index: auto */
+    contain: strict;
+}
+#mx_ContextualMenu_Container,
+#mx_PersistedElement_container,
+#mx_Dialog_Container,
+#mx_Dialog_StaticContainer {
+    /* This is required to ensure Compound tooltips correctly draw where they should with z-index: auto */
+    isolation: isolate;
+}
+
 /**
  * We need to increase the specificity of the selector to override the
  * custom property set by the design tokens package
@@ -64,14 +76,6 @@ limitations under the License.
      * system ones
      */
     --cpd-font-family-sans: $font-family;
-}
-
-@media only percy {
-    :root {
-        --percy-color-avatar: $username-variant2-color;
-        --percy-color-displayName: $username-variant1-color;
-        --percy-color-replyChain-border: $username-variant1-color;
-    }
 }
 
 @media (prefers-reduced-motion) {
@@ -100,7 +104,10 @@ body {
      * `font-feature-settings` allows us to override this behaviour and have the
      * correct ligatures and the proper dynamic metric spacing.
      */
-    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    font-feature-settings:
+        "kern" 1,
+        "liga" 1,
+        "calt" 1;
 
     background-color: $background;
     color: $primary-content;
@@ -230,7 +237,7 @@ textarea:focus {
 /* accessible (focusable) components. Not intended for buttons, but */
 /* should be used on things like focusable containers where the outline */
 /* is usually not helping anyone. */
-*:focus:not(.focus-visible) {
+*:focus:not(:focus-visible) {
     outline: none;
 }
 
@@ -289,29 +296,6 @@ legend {
     :not(.mx_textinput):not(.mx_Field):not(.mx_no_textinput) > input[type="search"]::placeholder,
     .mx_textinput input::placeholder {
         color: $input-placeholder;
-    }
-}
-
-/*** panels ***/
-.dark-panel {
-    background-color: $dark-panel-bg-color;
-
-    :not(.mx_textinput):not(.mx_Field):not(.mx_no_textinput) > input[type="text"],
-    :not(.mx_textinput):not(.mx_Field):not(.mx_no_textinput) > input[type="search"],
-    .mx_textinput {
-        color: $input-darker-fg-color;
-        background-color: $background;
-        border: none;
-    }
-}
-
-.light-panel {
-    :not(.mx_textinput):not(.mx_Field):not(.mx_no_textinput) > input[type="text"],
-    :not(.mx_textinput):not(.mx_Field):not(.mx_no_textinput) > input[type="search"],
-    .mx_textinput {
-        color: $input-darker-fg-color;
-        background-color: $input-lighter-bg-color;
-        border: none;
     }
 }
 
@@ -585,7 +569,7 @@ legend {
     cursor: pointer;
     display: inline-block;
 
-    &:not(.focus-visible) {
+    &:not(:focus-visible) {
         outline: none;
     }
 }
@@ -890,4 +874,11 @@ legend {
             background-color: $hover-color;
         }
     }
+}
+
+.mx_lineClamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--mx-line-clamp, 1);
+    overflow: hidden;
 }

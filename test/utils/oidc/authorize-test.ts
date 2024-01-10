@@ -22,6 +22,7 @@ import { mocked } from "jest-mock";
 
 import { completeOidcLogin, startOidcLogin } from "../../../src/utils/oidc/authorize";
 import { makeDelegatedAuthConfig } from "../../test-utils/oidc";
+import { OidcClientError } from "../../../src/utils/oidc/error";
 
 jest.unmock("matrix-js-sdk/src/randomstring");
 
@@ -104,20 +105,29 @@ describe("OIDC authorization", () => {
         };
 
         beforeEach(() => {
-            mocked(completeAuthorizationCodeGrant).mockClear().mockResolvedValue({
-                oidcClientSettings: {
-                    clientId,
-                    issuer,
-                },
-                tokenResponse,
-                homeserverUrl,
-                identityServerUrl,
-            });
+            mocked(completeAuthorizationCodeGrant)
+                .mockClear()
+                .mockResolvedValue({
+                    oidcClientSettings: {
+                        clientId,
+                        issuer,
+                    },
+                    tokenResponse,
+                    homeserverUrl,
+                    identityServerUrl,
+                    idTokenClaims: {
+                        aud: "123",
+                        iss: issuer,
+                        sub: "123",
+                        exp: 123,
+                        iat: 456,
+                    },
+                });
         });
 
         it("should throw when query params do not include state and code", async () => {
-            await expect(completeOidcLogin({})).rejects.toThrow(
-                "Invalid query parameters for OIDC native login. `code` and `state` are required.",
+            await expect(async () => await completeOidcLogin({})).rejects.toThrow(
+                OidcClientError.InvalidQueryParameters,
             );
         });
 
@@ -137,6 +147,7 @@ describe("OIDC authorization", () => {
                 identityServerUrl,
                 issuer,
                 clientId,
+                idTokenClaims: result.idTokenClaims,
             });
         });
     });

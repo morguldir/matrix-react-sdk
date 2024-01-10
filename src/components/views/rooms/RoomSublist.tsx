@@ -559,7 +559,7 @@ export default class RoomSublist extends React.Component<IProps, IState> {
     }
 
     private renderMenu(): ReactNode {
-        if (this.props.tagId === DefaultTagID.Suggested || this.props.tagId === DefaultTagID.SavedItems) return null; // not sortable
+        if (this.props.tagId === DefaultTagID.Suggested) return null; // not sortable
 
         let contextMenu: JSX.Element | undefined;
         if (this.state.contextMenuPosition) {
@@ -650,9 +650,9 @@ export default class RoomSublist extends React.Component<IProps, IState> {
                 {({ onFocus, isActive, ref }) => {
                     const tabIndex = isActive ? 0 : -1;
 
-                    let ariaLabel = _t("Jump to first unread room.");
+                    let ariaLabel = _t("a11y_jump_first_unread_room");
                     if (this.props.tagId === DefaultTagID.Invite) {
-                        ariaLabel = _t("Jump to first invite.");
+                        ariaLabel = _t("a11y|jump_first_invite");
                     }
 
                     const badge = (
@@ -709,7 +709,7 @@ export default class RoomSublist extends React.Component<IProps, IState> {
                                 <div className="mx_RoomSublist_stickable">
                                     <Button
                                         onFocus={onFocus}
-                                        inputRef={ref}
+                                        ref={ref}
                                         tabIndex={tabIndex}
                                         className="mx_RoomSublist_headerText"
                                         aria-expanded={this.state.isExpanded}

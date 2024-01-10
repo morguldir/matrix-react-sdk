@@ -101,7 +101,7 @@ export const HomeButtonContextMenu: React.FC<ComponentProps<typeof SpaceContextM
             <IconizedContextMenuOptionList first>
                 <IconizedContextMenuCheckbox
                     iconClassName="mx_SpacePanel_noIcon"
-                    label={_t("Show all rooms")}
+                    label={_t("settings|sidebar|metaspaces_home_all_rooms")}
                     active={allRoomsInHome}
                     onClick={() => {
                         onFinished();
@@ -245,7 +245,7 @@ const CreateSpaceButton: React.FC<Pick<IInnerSpacePanelProps, "isPanelCollapsed"
                 className={classNames("mx_SpaceButton_new", {
                     mx_SpaceButton_newCancel: menuDisplayed,
                 })}
-                label={menuDisplayed ? _t("action|cancel") : _t("Create a space")}
+                label={menuDisplayed ? _t("action|cancel") : _t("create_space|label")}
                 onClick={onNewClick}
                 isNarrow={isPanelCollapsed}
                 innerRef={handle}
@@ -297,7 +297,7 @@ const InnerSpacePanel = React.memo<IInnerSpacePanelProps>(
                 }
                 element="ul"
                 role="tree"
-                aria-label={_t("Spaces")}
+                aria-label={_t("common|spaces")}
             >
                 {metaSpacesSection}
                 {invites.map((s) => (
@@ -364,10 +364,11 @@ const SpacePanel: React.FC = () => {
                         onDragEndHandler();
                     }}
                 >
-                    <div
+                    <nav
                         className={classNames("mx_SpacePanel", { collapsed: isPanelCollapsed })}
                         onKeyDown={onKeyDownHandler}
                         ref={ref}
+                        aria-label={_t("common|spaces")}
                     >
                         <UserMenu isPanelCollapsed={isPanelCollapsed}>
                             <AccessibleTooltipButton
@@ -406,7 +407,7 @@ const SpacePanel: React.FC = () => {
                         </Droppable>
 
                         <QuickSettingsButton isPanelCollapsed={isPanelCollapsed} />
-                    </div>
+                    </nav>
                 </DragDropContext>
             )}
         </RovingTabIndexProvider>

@@ -48,7 +48,10 @@ import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import { useRovingTabIndex } from "../../../accessibility/RovingTabIndex";
 import { KeyBindingAction } from "../../../accessibility/KeyboardShortcuts";
 
-interface IButtonProps extends Omit<ComponentProps<typeof AccessibleTooltipButton>, "title" | "onClick" | "size"> {
+type ButtonProps<T extends keyof JSX.IntrinsicElements> = Omit<
+    ComponentProps<typeof AccessibleTooltipButton<T>>,
+    "title" | "onClick" | "size"
+> & {
     space?: Room;
     spaceKey?: SpaceKey;
     className?: string;
@@ -61,9 +64,9 @@ interface IButtonProps extends Omit<ComponentProps<typeof AccessibleTooltipButto
     innerRef?: RefObject<HTMLElement>;
     ContextMenuComponent?: ComponentType<ComponentProps<typeof SpaceContextMenu>>;
     onClick?(ev?: ButtonEvent): void;
-}
+};
 
-export const SpaceButton: React.FC<IButtonProps> = ({
+export const SpaceButton = <T extends keyof JSX.IntrinsicElements>({
     space,
     spaceKey: _spaceKey,
     className,
@@ -77,7 +80,7 @@ export const SpaceButton: React.FC<IButtonProps> = ({
     innerRef,
     ContextMenuComponent,
     ...props
-}) => {
+}: ButtonProps<T>): JSX.Element => {
     const [menuDisplayed, handle, openMenu, closeMenu] = useContextMenu<HTMLElement>(innerRef);
     const [onFocus, isActive] = useRovingTabIndex(handle);
     const tabIndex = isActive ? 0 : -1;
@@ -95,9 +98,9 @@ export const SpaceButton: React.FC<IButtonProps> = ({
 
     let notifBadge;
     if (spaceKey && notificationState) {
-        let ariaLabel = _t("Jump to first unread room.");
+        let ariaLabel = _t("a11y_jump_first_unread_room");
         if (space?.getMyMembership() === "invite") {
-            ariaLabel = _t("Jump to first invite.");
+            ariaLabel = _t("a11y|jump_first_invite");
         }
 
         const jumpToNotification = (ev: MouseEvent): void => {
@@ -151,7 +154,7 @@ export const SpaceButton: React.FC<IButtonProps> = ({
             onClick={onClick}
             onContextMenu={openMenu}
             forceHide={!isNarrow || menuDisplayed}
-            inputRef={handle}
+            ref={handle}
             tabIndex={tabIndex}
             onFocus={onFocus}
         >
@@ -371,7 +374,7 @@ export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
                     className={isInvite ? "mx_SpaceButton_invite" : undefined}
                     selected={selected}
                     label={this.state.name}
-                    contextMenuTooltip={_t("Space options")}
+                    contextMenuTooltip={_t("space|context_menu|options")}
                     notificationState={notificationState}
                     isNarrow={isPanelCollapsed}
                     size={isNested ? "24px" : "32px"}

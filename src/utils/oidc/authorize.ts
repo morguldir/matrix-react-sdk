@@ -18,6 +18,9 @@ import { completeAuthorizationCodeGrant, generateOidcAuthorizationUrl } from "ma
 import { QueryDict } from "matrix-js-sdk/src/utils";
 import { OidcClientConfig } from "matrix-js-sdk/src/matrix";
 import { randomString } from "matrix-js-sdk/src/randomstring";
+import { IdTokenClaims } from "oidc-client-ts";
+
+import { OidcClientError } from "./error";
 
 /**
  * Start OIDC authorization code flow
@@ -34,10 +37,13 @@ export const startOidcLogin = async (
     clientId: string,
     homeserverUrl: string,
     identityServerUrl?: string,
+    isRegistration?: boolean,
 ): Promise<void> => {
     const redirectUri = window.location.origin;
 
     const nonce = randomString(10);
+
+    const prompt = isRegistration ? "create" : undefined;
 
     const authorizationUrl = await generateOidcAuthorizationUrl({
         metadata: delegatedAuthConfig.metadata,
@@ -46,6 +52,7 @@ export const startOidcLogin = async (
         homeserverUrl,
         identityServerUrl,
         nonce,
+        prompt,
     });
 
     window.location.href = authorizationUrl;
@@ -63,7 +70,7 @@ const getCodeAndStateFromQueryParams = (queryParams: QueryDict): { code: string;
     const state = queryParams["state"];
 
     if (!code || typeof code !== "string" || !state || typeof state !== "string") {
-        throw new Error("Invalid query parameters for OIDC native login. `code` and `state` are required.");
+        throw new Error(OidcClientError.InvalidQueryParameters);
     }
     return { code, state };
 };
@@ -81,6 +88,8 @@ type CompleteOidcLoginResponse = {
     clientId: string;
     // issuer used during authentication
     issuer: string;
+    // claims of the given access token; used during token refresh to validate new tokens
+    idTokenClaims: IdTokenClaims;
 };
 /**
  * Attempt to complete authorization code flow to get an access token
@@ -90,7 +99,7 @@ type CompleteOidcLoginResponse = {
  */
 export const completeOidcLogin = async (queryParams: QueryDict): Promise<CompleteOidcLoginResponse> => {
     const { code, state } = getCodeAndStateFromQueryParams(queryParams);
-    const { homeserverUrl, tokenResponse, identityServerUrl, oidcClientSettings } =
+    const { homeserverUrl, tokenResponse, idTokenClaims, identityServerUrl, oidcClientSettings } =
         await completeAuthorizationCodeGrant(code, state);
 
     return {
@@ -100,5 +109,6 @@ export const completeOidcLogin = async (queryParams: QueryDict): Promise<Complet
         refreshToken: tokenResponse.refresh_token,
         clientId: oidcClientSettings.clientId,
         issuer: oidcClientSettings.issuer,
+        idTokenClaims,
     };
 };
