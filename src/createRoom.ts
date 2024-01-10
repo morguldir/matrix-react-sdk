@@ -119,7 +119,10 @@ export default async function createRoom(client: MatrixClient, opts: IOpts): Pro
     const createOpts: ICreateRoomOpts = opts.createOpts || {};
     createOpts.preset = createOpts.preset || defaultPreset;
     createOpts.visibility = createOpts.visibility || Visibility.Private;
-    if (opts.dmUserId && createOpts.invite === undefined) {
+
+    // We allow UX of DMing ourselves as a form of creating a personal room but the server throws
+    // an error when a user tries to invite themselves so we filter it out
+    if (opts.dmUserId && opts.dmUserId !== client.getUserId() && createOpts.invite === undefined) {
         switch (getAddressType(opts.dmUserId)) {
             case "mx-user-id":
                 createOpts.invite = [opts.dmUserId];
@@ -184,9 +187,9 @@ export default async function createRoom(client: MatrixClient, opts: IOpts): Pro
         createOpts.power_level_content_override = {
             events: {
                 ...DEFAULT_EVENT_POWER_LEVELS,
-                // Element Call should be disabled by default
-                [ElementCall.MEMBER_EVENT_TYPE.name]: 100,
-                // Make sure only admins can enable it
+                // It should always (including non video rooms) be possible to join a group call.
+                [ElementCall.MEMBER_EVENT_TYPE.name]: 0,
+                // Make sure only admins can enable it (DEPRECATED)
                 [ElementCall.CALL_EVENT_TYPE.name]: 100,
             },
         };

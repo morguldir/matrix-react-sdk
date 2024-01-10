@@ -71,7 +71,7 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="7"
               data-testid="avatar-img"
               data-type="round"
@@ -141,7 +141,7 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="8"
               data-testid="avatar-img"
               data-type="round"
@@ -212,7 +212,7 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="8"
               data-testid="avatar-img"
               data-type="round"
@@ -289,7 +289,7 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="2"
               data-testid="avatar-img"
               data-type="round"
@@ -320,9 +320,9 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
           >
             Join
           </div>
-          <div
-            aria-describedby="mx_TooltipTarget_EetmBG4y"
-            class="mx_TextWithTooltip_target"
+          <span
+            class=""
+            data-state="closed"
             tabindex="0"
           >
             <span
@@ -330,12 +330,12 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             >
               <input
                 disabled=""
-                id="checkbox_VCeEefiPqp"
+                id="checkbox_EetmBG4yVC"
                 tabindex="-1"
                 type="checkbox"
               />
               <label
-                for="checkbox_VCeEefiPqp"
+                for="checkbox_EetmBG4yVC"
               >
                 <div
                   class="mx_Checkbox_background"
@@ -346,7 +346,7 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
                 </div>
               </label>
             </span>
-          </div>
+          </span>
         </div>
       </div>
     </li>

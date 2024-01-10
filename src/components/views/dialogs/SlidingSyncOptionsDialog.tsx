@@ -77,7 +77,7 @@ export const SlidingSyncOptionsDialog: React.FC<{ onFinished(enabled: boolean): 
 
     let nativeSupport: string;
     if (hasNativeSupport === null) {
-        nativeSupport = _t("Checking…");
+        nativeSupport = _t("labs|sliding_sync_checking");
     } else {
         nativeSupport = hasNativeSupport
             ? _t("labs|sliding_sync_server_support")
@@ -86,8 +86,9 @@ export const SlidingSyncOptionsDialog: React.FC<{ onFinished(enabled: boolean): 
 
     const validProxy = withValidation<undefined, { error?: unknown }>({
         async deriveData({ value }): Promise<{ error?: unknown }> {
+            if (!value) return {};
             try {
-                await proxyHealthCheck(value!, MatrixClientPeg.safeGet().baseUrl);
+                await proxyHealthCheck(value, MatrixClientPeg.safeGet().baseUrl);
                 return {};
             } catch (error) {
                 return { error };
@@ -103,7 +104,7 @@ export const SlidingSyncOptionsDialog: React.FC<{ onFinished(enabled: boolean): 
                 key: "working",
                 final: true,
                 test: async (_, { error }) => !error,
-                valid: () => _t("Looks good"),
+                valid: () => _t("spotlight|public_rooms|network_dropdown_available_valid"),
                 invalid: ({ error }) => (error instanceof Error ? error.message : null),
             },
         ],

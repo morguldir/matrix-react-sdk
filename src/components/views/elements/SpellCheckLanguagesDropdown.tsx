@@ -61,7 +61,8 @@ export default class SpellCheckLanguagesDropdown extends React.Component<
         const plaf = PlatformPeg.get();
         if (plaf) {
             const languageNames = new Intl.DisplayNames([getUserLanguage()], { type: "language", style: "short" });
-            plaf.getAvailableSpellCheckLanguages()
+            plaf
+                .getAvailableSpellCheckLanguages()
                 ?.then((languages) => {
                     languages.sort(function (a, b) {
                         if (a < b) return -1;
@@ -131,8 +132,8 @@ export default class SpellCheckLanguagesDropdown extends React.Component<
                 onSearchChange={this.onSearchChange}
                 searchEnabled={true}
                 value={value}
-                label={_t("Language Dropdown")}
-                placeholder={_t("Choose a locale")}
+                label={_t("language_dropdown_label")}
+                placeholder={_t("settings|general|spell_check_locale_placeholder")}
             >
                 {options}
             </Dropdown>

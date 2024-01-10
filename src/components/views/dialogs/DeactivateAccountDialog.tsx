@@ -23,7 +23,7 @@ import { MatrixClient } from "matrix-js-sdk/src/matrix";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { _t } from "../../../languageHandler";
 import InteractiveAuth, { ERROR_USER_CANCELLED, InteractiveAuthCallback } from "../../structures/InteractiveAuth";
-import { DEFAULT_PHASE, PasswordAuthEntry, SSOAuthEntry } from "../auth/InteractiveAuthEntryComponents";
+import { ContinueKind, DEFAULT_PHASE, PasswordAuthEntry, SSOAuthEntry } from "../auth/InteractiveAuthEntryComponents";
 import StyledCheckbox from "../elements/StyledCheckbox";
 import BaseDialog from "./BaseDialog";
 import defaultDispatcher from "../../../dispatcher/dispatcher";
@@ -34,7 +34,7 @@ type DialogAesthetics = Partial<{
         [x: number]: {
             body: string;
             continueText?: string;
-            continueKind?: string;
+            continueKind?: ContinueKind;
         };
     };
 }>;
@@ -53,7 +53,7 @@ interface IState {
     // next to the InteractiveAuth component.
     bodyText?: string;
     continueText?: string;
-    continueKind?: string;
+    continueKind?: ContinueKind;
 }
 
 export default class DeactivateAccountDialog extends React.Component<IProps, IState> {
@@ -73,13 +73,13 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
     private onStagePhaseChange = (stage: AuthType, phase: number): void => {
         const dialogAesthetics = {
             [SSOAuthEntry.PHASE_PREAUTH]: {
-                body: _t("Confirm your account deactivation by using Single Sign On to prove your identity."),
+                body: _t("settings|general|deactivate_confirm_body_sso"),
                 continueText: _t("auth|sso"),
                 continueKind: "danger",
             },
             [SSOAuthEntry.PHASE_POSTAUTH]: {
-                body: _t("Are you sure you want to deactivate your account? This is irreversible."),
-                continueText: _t("Confirm account deactivation"),
+                body: _t("settings|general|deactivate_confirm_body"),
+                continueText: _t("settings|general|deactivate_confirm_continue"),
                 continueKind: "danger",
             },
         };
@@ -90,7 +90,7 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
             [SSOAuthEntry.UNSTABLE_LOGIN_TYPE]: dialogAesthetics,
             [PasswordAuthEntry.LOGIN_TYPE]: {
                 [DEFAULT_PHASE]: {
-                    body: _t("To continue, please enter your account password:"),
+                    body: _t("settings|general|deactivate_confirm_body_password"),
                 },
             },
         };
@@ -98,7 +98,7 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
         const aesthetics = DEACTIVATE_AESTHETICS[stage];
         let bodyText: string | undefined;
         let continueText: string | undefined;
-        let continueKind: string | undefined;
+        let continueKind: ContinueKind | undefined;
         if (aesthetics) {
             const phaseAesthetics = aesthetics[phase];
             if (phaseAesthetics) {
@@ -122,7 +122,7 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
         }
 
         logger.error("Error during UI Auth:", { result });
-        this.setState({ errStr: _t("There was a problem communicating with the server. Please try again.") });
+        this.setState({ errStr: _t("settings|general|error_deactivate_communication") });
     };
 
     private onUIAuthComplete = (auth: IAuthData | null): void => {
@@ -138,7 +138,7 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
             })
             .catch((e) => {
                 logger.error(e);
-                this.setState({ errStr: _t("There was a problem communicating with the server. Please try again.") });
+                this.setState({ errStr: _t("settings|general|error_deactivate_communication") });
             });
     };
 
@@ -170,14 +170,14 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
                 // We'll try to log something in an vain attempt to record what happened (storage
                 // is also obliterated on logout).
                 logger.warn("User's account got deactivated without confirmation: Server had no auth");
-                this.setState({ errStr: _t("Server did not require any authentication") });
+                this.setState({ errStr: _t("settings|general|error_deactivate_no_auth") });
             })
             .catch((e) => {
                 if (e && e.httpStatus === 401 && e.data) {
                     // Valid UIA response
                     this.setState({ authData: e.data, authEnabled: true });
                 } else {
-                    this.setState({ errStr: _t("Server did not return valid authentication information.") });
+                    this.setState({ errStr: _t("settings|general|error_deactivate_invalid_auth") });
                 }
             });
     }
@@ -214,36 +214,24 @@ export default class DeactivateAccountDialog extends React.Component<IProps, ISt
                 className="mx_DeactivateAccountDialog"
                 onFinished={this.props.onFinished}
                 titleClass="danger"
-                title={_t("Deactivate Account")}
+                title={_t("settings|general|deactivate_section")}
                 screenName="DeactivateAccount"
             >
                 <div className="mx_Dialog_content">
-                    <p>{_t("Confirm that you would like to deactivate your account. If you proceed:")}</p>
+                    <p>{_t("settings|general|deactivate_confirm_content")}</p>
                     <ul>
-                        <li>{_t("You will not be able to reactivate your account")}</li>
-                        <li>{_t("You will no longer be able to log in")}</li>
-                        <li>
-                            {_t(
-                                "No one will be able to reuse your username (MXID), including you: this username will remain unavailable",
-                            )}
-                        </li>
-                        <li>{_t("You will leave all rooms and DMs that you are in")}</li>
-                        <li>
-                            {_t(
-                                "You will be removed from the identity server: your friends will no longer be able to find you with your email or phone number",
-                            )}
-                        </li>
+                        <li>{_t("settings|general|deactivate_confirm_content_1")}</li>
+                        <li>{_t("settings|general|deactivate_confirm_content_2")}</li>
+                        <li>{_t("settings|general|deactivate_confirm_content_3")}</li>
+                        <li>{_t("settings|general|deactivate_confirm_content_4")}</li>
+                        <li>{_t("settings|general|deactivate_confirm_content_5")}</li>
                     </ul>
-                    <p>
-                        {_t(
-                            "Your old messages will still be visible to people who received them, just like emails you sent in the past. Would you like to hide your sent messages from people who join rooms in the future?",
-                        )}
-                    </p>
+                    <p>{_t("settings|general|deactivate_confirm_content_6")}</p>
 
                     <div className="mx_DeactivateAccountDialog_input_section">
                         <p>
                             <StyledCheckbox checked={this.state.shouldErase} onChange={this.onEraseFieldChange}>
-                                {_t("Hide my messages from new joiners")}
+                                {_t("settings|general|deactivate_confirm_erase_label")}
                             </StyledCheckbox>
                         </p>
                         {error}

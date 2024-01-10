@@ -33,7 +33,7 @@ import {
 
 import BaseDialog from "./BaseDialog";
 import { _t, getUserLanguage } from "../../../languageHandler";
-import AccessibleButton from "../elements/AccessibleButton";
+import AccessibleButton, { AccessibleButtonKind } from "../elements/AccessibleButton";
 import { StopGapWidgetDriver } from "../../../stores/widgets/StopGapWidgetDriver";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { OwnProfileStore } from "../../../stores/OwnProfileStore";
@@ -158,7 +158,7 @@ export default class ModalWidgetDialog extends React.PureComponent<IProps, IStat
                 .slice(0, MAX_BUTTONS)
                 .reverse()
                 .map((def) => {
-                    let kind = "secondary";
+                    let kind: AccessibleButtonKind = "secondary";
                     switch (def.kind) {
                         case ModalButtonKind.Primary:
                             kind = "primary";
@@ -187,7 +187,7 @@ export default class ModalWidgetDialog extends React.PureComponent<IProps, IStat
 
         return (
             <BaseDialog
-                title={this.props.widgetDefinition.name || _t("Modal Widget")}
+                title={this.props.widgetDefinition.name || _t("widget|modal_title_default")}
                 className="mx_ModalWidgetDialog"
                 contentId="mx_Dialog_content"
                 onFinished={this.props.onFinished}
@@ -199,7 +199,7 @@ export default class ModalWidgetDialog extends React.PureComponent<IProps, IStat
                         width="16"
                         alt=""
                     />
-                    {_t("Data on this screen is shared with %(widgetDomain)s", {
+                    {_t("widget|modal_data_warning", {
                         widgetDomain: parsed.hostname,
                     })}
                 </div>

@@ -27,6 +27,7 @@ import {
     IStartClientOpts,
     MatrixClient,
     MemoryStore,
+    TokenRefreshFunction,
 } from "matrix-js-sdk/src/matrix";
 import * as utils from "matrix-js-sdk/src/utils";
 import { verificationMethods } from "matrix-js-sdk/src/crypto";
@@ -49,6 +50,8 @@ import { SettingLevel } from "./settings/SettingLevel";
 import MatrixClientBackedController from "./settings/controllers/MatrixClientBackedController";
 import ErrorDialog from "./components/views/dialogs/ErrorDialog";
 import PlatformPeg from "./PlatformPeg";
+import { formatList } from "./utils/FormattingUtils";
+import SdkConfig from "./SdkConfig";
 
 export interface IMatrixClientCreds {
     homeserverUrl: string;
@@ -121,8 +124,10 @@ export interface IMatrixClientPeg {
      * homeserver / identity server URLs and active credentials
      *
      * @param {IMatrixClientCreds} creds The new credentials to use.
+     * @param {TokenRefreshFunction} tokenRefreshFunction OPTIONAL function used by MatrixClient to attempt token refresh
+     *          see {@link ICreateClientOpts.tokenRefreshFunction}
      */
-    replaceUsingCreds(creds: IMatrixClientCreds): void;
+    replaceUsingCreds(creds: IMatrixClientCreds, tokenRefreshFunction?: TokenRefreshFunction): void;
 }
 
 /**
@@ -195,8 +200,8 @@ class MatrixClientPegClass implements IMatrixClientPeg {
         }
     }
 
-    public replaceUsingCreds(creds: IMatrixClientCreds): void {
-        this.createClient(creds);
+    public replaceUsingCreds(creds: IMatrixClientCreds, tokenRefreshFunction?: TokenRefreshFunction): void {
+        this.createClient(creds, tokenRefreshFunction);
     }
 
     private onUnexpectedStoreClose = async (): Promise<void> => {
@@ -208,12 +213,21 @@ class MatrixClientPegClass implements IMatrixClientPeg {
             // If the user is not a guest then prompt them to reload rather than doing it for them
             // For guests this is likely to happen during e-mail verification as part of registration
 
-            const { finished } = Modal.createDialog(ErrorDialog, {
-                title: _t("error_database_closed_title"),
-                description: _t("error_database_closed_description"),
+            const brand = SdkConfig.get().brand;
+            const platform = PlatformPeg.get()?.getHumanReadableName();
+
+            // Determine the description based on the platform
+            const description =
+                platform === "Web Platform"
+                    ? _t("error_database_closed_description|for_web", { brand })
+                    : _t("error_database_closed_description|for_desktop");
+
+            const [reload] = await Modal.createDialog(ErrorDialog, {
+                title: _t("error_database_closed_title", { brand }),
+                description,
                 button: _t("action|reload"),
-            });
-            const [reload] = await finished;
+            }).finished;
+
             if (!reload) return;
         }
 
@@ -356,15 +370,9 @@ class MatrixClientPegClass implements IMatrixClientPeg {
         if (name) return name;
 
         if (names.length === 2 && count === 2) {
-            return _t("user1_and_user2", {
-                user1: names[0],
-                user2: names[1],
-            });
+            return formatList(names);
         }
-        return _t("user_and_n_others", {
-            user: names[0],
-            count: count - 1,
-        });
+        return formatList(names, 1);
     }
 
     private inviteeNamesToRoomName(names: string[], count: number): string {
@@ -383,11 +391,13 @@ class MatrixClientPegClass implements IMatrixClientPeg {
         });
     }
 
-    private createClient(creds: IMatrixClientCreds): void {
+    private createClient(creds: IMatrixClientCreds, tokenRefreshFunction?: TokenRefreshFunction): void {
         const opts: ICreateClientOpts = {
             baseUrl: creds.homeserverUrl,
             idBaseUrl: creds.identityServerUrl,
             accessToken: creds.accessToken,
+            refreshToken: creds.refreshToken,
+            tokenRefreshFunction,
             userId: creds.userId,
             deviceId: creds.deviceId,
             pickleKey: creds.pickleKey,
@@ -435,11 +445,6 @@ class MatrixClientPegClass implements IMatrixClientPeg {
         }
 
         this.matrixClient = createMatrixClient(opts);
-
-        // we're going to add eventlisteners for each matrix event tile, so the
-        // potential number of event listeners is quite high.
-        this.matrixClient.setMaxListeners(500);
-
         this.matrixClient.setGuest(Boolean(creds.guest));
 
         const notifTimelineSet = new EventTimelineSet(undefined, {

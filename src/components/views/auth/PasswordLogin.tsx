@@ -59,7 +59,7 @@ const enum LoginField {
     Email = "login_field_email",
     MatrixId = "login_field_mxid",
     Phone = "login_field_phone",
-    Password = "login_field_phone",
+    Password = "login_field_password",
 }
 
 /*
@@ -70,6 +70,7 @@ export default class PasswordLogin extends React.PureComponent<IProps, IState> {
     private [LoginField.Email]: Field | null = null;
     private [LoginField.Phone]: Field | null = null;
     private [LoginField.MatrixId]: Field | null = null;
+    private [LoginField.Password]: Field | null = null;
 
     public static defaultProps = {
         onUsernameChanged: function () {},
@@ -149,7 +150,7 @@ export default class PasswordLogin extends React.PureComponent<IProps, IState> {
             activeElement.blur();
         }
 
-        const fieldIDsInDisplayOrder: LoginField[] = [this.state.loginType, LoginField.Password];
+        const fieldIDsInDisplayOrder = [this.state.loginType, LoginField.Password];
 
         // Run all fields with stricter validation that no longer allows empty
         // values for required fields.
@@ -407,7 +408,7 @@ export default class PasswordLogin extends React.PureComponent<IProps, IState> {
                             {_t("common|username")}
                         </option>
                         <option key={LoginField.Email} value={LoginField.Email}>
-                            {_t("Email address")}
+                            {_t("common|email_address")}
                         </option>
                         <option key={LoginField.Password} value={LoginField.Password}>
                             {_t("auth|msisdn_field_label")}

@@ -28,12 +28,12 @@ import {
 import defaultDispatcher from "../../../dispatcher/dispatcher";
 import type { ViewRoomPayload } from "../../../dispatcher/payloads/ViewRoomPayload";
 import { Action } from "../../../dispatcher/actions";
-import type { ButtonEvent } from "../elements/AccessibleButton";
+import type { AccessibleButtonKind, ButtonEvent } from "../elements/AccessibleButton";
 import MemberAvatar from "../avatars/MemberAvatar";
 import { LiveContentSummary, LiveContentType } from "../rooms/LiveContentSummary";
 import FacePile from "../elements/FacePile";
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
-import { CallDuration, GroupCallDuration } from "../voip/CallDuration";
+import { CallDuration, SessionDuration } from "../voip/CallDuration";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 
 const MAX_FACES = 8;
@@ -43,7 +43,7 @@ interface ActiveCallEventProps {
     call: ElementCall | null;
     participatingMembers: RoomMember[];
     buttonText: string;
-    buttonKind: string;
+    buttonKind: AccessibleButtonKind;
     buttonDisabledTooltip?: string;
     onButtonClick: ((ev: ButtonEvent) => void) | null;
 }
@@ -67,7 +67,7 @@ const ActiveCallEvent = forwardRef<any, ActiveCallEventProps>(
                     <div className="mx_CallEvent_columns">
                         <div className="mx_CallEvent_details">
                             <span className="mx_CallEvent_title">
-                                {_t("%(name)s started a video call", { name: senderName })}
+                                {_t("timeline|m.call|video_call_started_text", { name: senderName })}
                             </span>
                             <LiveContentSummary
                                 type={LiveContentType.Video}
@@ -77,7 +77,7 @@ const ActiveCallEvent = forwardRef<any, ActiveCallEventProps>(
                             />
                             <FacePile members={facePileMembers} size="24px" overflow={facePileOverflow} />
                         </div>
-                        {call && <GroupCallDuration groupCall={call.groupCall} />}
+                        {call && <SessionDuration session={call.session} />}
                         <AccessibleTooltipButton
                             className="mx_CallEvent_button"
                             kind={buttonKind}
@@ -125,7 +125,9 @@ const ActiveLoadedCallEvent = forwardRef<any, ActiveLoadedCallEventProps>(({ mxE
         [call],
     );
 
-    const [buttonText, buttonKind, onButtonClick] = useMemo(() => {
+    const [buttonText, buttonKind, onButtonClick] = useMemo<
+        [string, AccessibleButtonKind, null | ((ev: ButtonEvent) => void)]
+    >(() => {
         switch (connectionState) {
             case ConnectionState.Disconnected:
                 return [_t("action|join"), "primary", connect];
@@ -172,7 +174,7 @@ export const CallEvent = forwardRef<any, CallEventProps>(({ mxEvent }, ref) => {
             <div className="mx_CallEvent_wrapper" ref={ref}>
                 <div className="mx_CallEvent mx_CallEvent_inactive">
                     <div className="mx_CallEvent_columns">
-                        <span className="mx_CallEvent_title">{_t("Video call ended")}</span>
+                        <span className="mx_CallEvent_title">{_t("timeline|m.call|video_call_ended")}</span>
                         <CallDuration delta={latestEvent.getTs() - mxEvent.getTs()} />
                     </div>
                 </div>

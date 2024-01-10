@@ -118,7 +118,7 @@ export const ThreadPanelHeader: React.FC<{
                 <>
                     <ContextMenuButton
                         className="mx_ThreadPanel_dropdown"
-                        inputRef={button}
+                        ref={button}
                         isExpanded={menuDisplayed}
                         onClick={(ev: ButtonEvent) => {
                             openMenu();
@@ -147,7 +147,7 @@ const EmptyThread: React.FC<EmptyThreadIProps> = ({ hasThreads, filterOption, sh
             <>
                 <p>
                     {_t("threads|empty_has_threads_tip", {
-                        replyInThread: _t("Reply in thread"),
+                        replyInThread: _t("action|reply_in_thread"),
                     })}
                 </p>
                 <p>
@@ -168,7 +168,7 @@ const EmptyThread: React.FC<EmptyThreadIProps> = ({ hasThreads, filterOption, sh
                     {_t(
                         "threads|empty_tip",
                         {
-                            replyInThread: _t("Reply in thread"),
+                            replyInThread: _t("action|reply_in_thread"),
                         },
                         {
                             b: (sub) => <b>{sub}</b>,
@@ -180,11 +180,11 @@ const EmptyThread: React.FC<EmptyThreadIProps> = ({ hasThreads, filterOption, sh
     }
 
     return (
-        <aside className="mx_ThreadPanel_empty">
+        <div className="mx_ThreadPanel_empty">
             <div className="mx_ThreadPanel_largeIcon" />
             <h2>{_t("threads|empty_heading")}</h2>
             {body}
-        </aside>
+        </div>
     );
 };
 
@@ -204,7 +204,8 @@ const ThreadPanel: React.FC<IProps> = ({ roomId, onClose, permalinkCreator }) =>
 
     useEffect(() => {
         const room = mxClient.getRoom(roomId);
-        room?.createThreadsTimelineSets()
+        room
+            ?.createThreadsTimelineSets()
             .then(() => room.fetchRoomThreads())
             .then(() => {
                 setFilterOption(ThreadFilterType.All);

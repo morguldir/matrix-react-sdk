@@ -48,8 +48,6 @@ const filterConditions: Record<TagID, MSC3575Filter> = {
     [DefaultTagID.Favourite]: {
         tags: ["m.favourite"],
     },
-    // TODO https://github.com/vector-im/element-web/issues/23207
-    // DefaultTagID.SavedItems,
     [DefaultTagID.DM]: {
         is_dm: true,
         is_invite: false,
@@ -82,7 +80,10 @@ export class SlidingRoomListStoreClass extends AsyncStoreWithClient<IState> impl
     private counts: Record<TagID, number> = {};
     private stickyRoomId: Optional<string>;
 
-    public constructor(dis: MatrixDispatcher, private readonly context: SdkContextClass) {
+    public constructor(
+        dis: MatrixDispatcher,
+        private readonly context: SdkContextClass,
+    ) {
         super(dis);
         this.setMaxListeners(20); // RoomList + LeftPanel + 8xRoomSubList + spares
     }

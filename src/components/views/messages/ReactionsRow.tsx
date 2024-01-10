@@ -54,14 +54,14 @@ const ReactButton: React.FC<IProps> = ({ mxEvent, reactions }) => {
                 className={classNames("mx_ReactionsRow_addReactionButton", {
                     mx_ReactionsRow_addReactionButton_active: menuDisplayed,
                 })}
-                title={_t("Add reaction")}
+                title={_t("timeline|reactions|add_reaction_prompt")}
                 onClick={openMenu}
                 onContextMenu={(e: SyntheticEvent): void => {
                     e.preventDefault();
                     openMenu();
                 }}
                 isExpanded={menuDisplayed}
-                inputRef={button}
+                ref={button}
             />
 
             {contextMenu}

@@ -16,7 +16,7 @@ limitations under the License.
 
 import { EventType, RoomType, JoinRule, Preset, Room, RoomEvent } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
-import React, { RefObject, useCallback, useContext, useRef, useState } from "react";
+import React, { useCallback, useContext, useRef, useState } from "react";
 
 import MatrixClientContext from "../../contexts/MatrixClientContext";
 import createRoom, { IOpts } from "../../createRoom";
@@ -124,7 +124,7 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
                     {canCreateRoom && (
                         <>
                             <IconizedContextMenuOption
-                                label={_t("New room")}
+                                label={_t("action|new_room")}
                                 iconClassName="mx_RoomList_iconNewRoom"
                                 onClick={async (e): Promise<void> => {
                                     e.preventDefault();
@@ -139,7 +139,7 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
                             />
                             {videoRoomsEnabled && (
                                 <IconizedContextMenuOption
-                                    label={_t("New video room")}
+                                    label={_t("action|new_video_room")}
                                     iconClassName="mx_RoomList_iconNewVideoRoom"
                                     onClick={async (e): Promise<void> => {
                                         e.preventDefault();
@@ -164,7 +164,7 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
                         </>
                     )}
                     <IconizedContextMenuOption
-                        label={_t("Add existing room")}
+                        label={_t("action|add_existing_room")}
                         iconClassName="mx_RoomList_iconAddExistingRoom"
                         onClick={(e) => {
                             e.preventDefault();
@@ -175,7 +175,7 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
                     />
                     {canCreateSpace && (
                         <IconizedContextMenuOption
-                            label={_t("Add space")}
+                            label={_t("room_list|add_space_label")}
                             iconClassName="mx_RoomList_iconPlus"
                             onClick={(e) => {
                                 e.preventDefault();
@@ -196,7 +196,7 @@ const SpaceLandingAddButton: React.FC<{ space: Room }> = ({ space }) => {
         <>
             <ContextMenuButton
                 kind="primary"
-                inputRef={handle}
+                ref={handle}
                 onClick={openMenu}
                 isExpanded={menuDisplayed}
                 label={_t("action|add")}
@@ -303,8 +303,8 @@ const SpaceSetupFirstRooms: React.FC<{
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const numFields = 3;
-    const placeholders = [_t("General"), _t("common|random"), _t("common|support")];
-    const [roomNames, setRoomName] = useStateArray(numFields, [_t("General"), _t("common|random"), ""]);
+    const placeholders = [_t("common|general"), _t("common|random"), _t("common|support")];
+    const [roomNames, setRoomName] = useStateArray(numFields, [_t("common|general"), _t("common|random"), ""]);
     const fields = new Array(numFields).fill(0).map((x, i) => {
         const name = "roomName" + i;
         return (
@@ -407,7 +407,7 @@ const SpaceAddExistingRooms: React.FC<{
                         {_t("create_space|skip_action")}
                     </AccessibleButton>
                 }
-                filterPlaceholder={_t("Search for rooms")}
+                filterPlaceholder={_t("space|room_filter_placeholder")}
                 onFinished={onFinished}
                 roomsRenderer={defaultRoomsRenderer}
                 dmsRenderer={defaultDmsRenderer}
@@ -499,7 +499,7 @@ const SpaceSetupPrivateInvite: React.FC<{
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const numFields = 3;
-    const fieldRefs = [useRef(), useRef(), useRef()] as RefObject<Field>[];
+    const fieldRefs = [useRef<Field>(null), useRef<Field>(null), useRef<Field>(null)];
     const [emailAddresses, setEmailAddress] = useStateArray(numFields, "");
     const fields = new Array(numFields).fill(0).map((x, i) => {
         const name = "emailAddress" + i;
@@ -508,7 +508,7 @@ const SpaceSetupPrivateInvite: React.FC<{
                 key={name}
                 name={name}
                 type="text"
-                label={_t("Email address")}
+                label={_t("common|email_address")}
                 placeholder={_t("auth|email_field_label")}
                 value={emailAddresses[i]}
                 onChange={(ev: React.ChangeEvent<HTMLInputElement>) => setEmailAddress(i, ev.target.value)}
@@ -553,7 +553,7 @@ const SpaceSetupPrivateInvite: React.FC<{
             }
         } catch (err) {
             logger.error("Failed to invite users to space: ", err);
-            setError(_t("We couldn't invite those users. Please check the users you want to invite and try again."));
+            setError(_t("invite|error_invite"));
         }
         setBusy(false);
     };

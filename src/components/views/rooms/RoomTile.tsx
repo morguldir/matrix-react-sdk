@@ -342,7 +342,7 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
                 <ContextMenuTooltipButton
                     className="mx_RoomTile_menuButton"
                     onClick={this.onGeneralMenuOpenClick}
-                    title={_t("Room options")}
+                    title={_t("room|context_menu|title")}
                     isExpanded={!!this.state.generalMenuPosition}
                 />
                 {this.state.generalMenuPosition && (
@@ -478,7 +478,7 @@ export class RoomTile extends React.PureComponent<ClassProps, State> {
                             {...props}
                             onFocus={onFocus}
                             tabIndex={isActive ? 0 : -1}
-                            inputRef={ref}
+                            ref={ref}
                             className={classes}
                             onClick={this.onTileClick}
                             onContextMenu={this.onContextMenu}
