@@ -26,6 +26,7 @@ import ErrorDialog from "./ErrorDialog";
 import TextInputDialog from "./TextInputDialog";
 
 interface IProps {
+    event: MatrixEvent;
     onFinished(success?: false, reason?: void): void;
     onFinished(success: true, reason?: string): void;
 }
@@ -35,17 +36,19 @@ interface IProps {
  */
 export default class ConfirmRedactDialog extends React.Component<IProps> {
     public render(): React.ReactNode {
+        let description = _t("redact|confirm_description");
+        if (this.props.event.isState()) {
+            description += " " + _t("redact|confirm_description_state");
+        }
+
         return (
             <TextInputDialog
                 onFinished={this.props.onFinished}
-                title={_t("Confirm Removal")}
-                description={_t(
-                    "Are you sure you wish to remove (delete) this event? " +
-                        "Note that if you delete a room name or topic change, it could undo the change.",
-                )}
-                placeholder={_t("Reason (optional)")}
+                title={_t("redact|confirm_button")}
+                description={description}
+                placeholder={_t("redact|reason_label")}
                 focus
-                button={_t("Remove")}
+                button={_t("action|remove")}
             />
         );
     }
@@ -68,10 +71,11 @@ export function createRedactEventDialog({
     Modal.createDialog(
         ConfirmRedactDialog,
         {
+            event: mxEvent,
             onFinished: async (proceed, reason): Promise<void> => {
                 if (!proceed) return;
 
-                const cli = MatrixClientPeg.get();
+                const cli = MatrixClientPeg.safeGet();
                 const withRelTypes: Pick<IRedactOpts, "with_rel_types"> = {};
 
                 // redact related events if this is a voice broadcast started event and
@@ -100,8 +104,8 @@ export function createRedactEventDialog({
                     if (typeof code !== "undefined") {
                         // display error message stating you couldn't delete this.
                         Modal.createDialog(ErrorDialog, {
-                            title: _t("Error"),
-                            description: _t("You cannot delete this message. (%(code)s)", { code }),
+                            title: _t("common|error"),
+                            description: _t("redact|error", { code }),
                         });
                     }
                 }

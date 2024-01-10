@@ -48,7 +48,7 @@ const constructMockProvider = (data: ICompletion[]) =>
         getCompletions: jest.fn().mockImplementation(async () => data),
         getName: jest.fn().mockReturnValue("test provider"),
         renderCompletions: jest.fn().mockImplementation((components) => components),
-    } as unknown as AutocompleteProvider);
+    }) as unknown as AutocompleteProvider;
 
 describe("WysiwygAutocomplete", () => {
     beforeAll(() => {
@@ -70,6 +70,7 @@ describe("WysiwygAutocomplete", () => {
     ]);
     const mockHandleMention = jest.fn();
     const mockHandleCommand = jest.fn();
+    const mockHandleAtRoomMention = jest.fn();
 
     const renderComponent = (props: Partial<React.ComponentProps<typeof WysiwygAutocomplete>> = {}) => {
         const mockClient = stubClient();
@@ -84,6 +85,7 @@ describe("WysiwygAutocomplete", () => {
                         suggestion={null}
                         handleMention={mockHandleMention}
                         handleCommand={mockHandleCommand}
+                        handleAtRoomMention={mockHandleAtRoomMention}
                         {...props}
                     />
                 </RoomContext.Provider>
@@ -98,6 +100,7 @@ describe("WysiwygAutocomplete", () => {
                 suggestion={null}
                 handleMention={mockHandleMention}
                 handleCommand={mockHandleCommand}
+                handleAtRoomMention={mockHandleAtRoomMention}
             />,
         );
         expect(screen.queryByTestId("autocomplete-wrapper")).not.toBeInTheDocument();
