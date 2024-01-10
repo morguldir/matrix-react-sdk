@@ -27,7 +27,7 @@ import type { IPushRule, Room, MatrixClient } from "matrix-js-sdk/src/matrix";
 import { NotificationColor } from "./stores/notifications/NotificationColor";
 import { getUnsentMessages } from "./components/structures/RoomStatusBar";
 import { doesRoomHaveUnreadMessages, doesRoomOrThreadHaveUnreadMessages } from "./Unread";
-import { EffectiveMembership, getEffectiveMembership } from "./utils/membership";
+import { EffectiveMembership, getEffectiveMembership, isKnockDenied } from "./utils/membership";
 import SettingsStore from "./settings/SettingsStore";
 
 export enum RoomNotifState {
@@ -240,6 +240,10 @@ export function determineUnreadState(
         return { symbol: "!", count: 1, color: NotificationColor.Red };
     }
 
+    if (SettingsStore.getValue("feature_ask_to_join") && isKnockDenied(room)) {
+        return { symbol: "!", count: 1, color: NotificationColor.Red };
+    }
+
     if (getRoomNotifsState(room.client, room.roomId) === RoomNotifState.Mute) {
         return { symbol: null, count: 0, color: NotificationColor.None };
     }
@@ -257,9 +261,16 @@ export function determineUnreadState(
     }
 
     // We don't have any notified messages, but we might have unread messages. Let's find out.
-    let hasUnread: boolean;
-    if (threadId) hasUnread = doesRoomOrThreadHaveUnreadMessages(room.getThread(threadId)!);
-    else hasUnread = doesRoomHaveUnreadMessages(room);
+    let hasUnread = false;
+    if (threadId) {
+        const thread = room.getThread(threadId);
+        if (thread) {
+            hasUnread = doesRoomOrThreadHaveUnreadMessages(thread);
+        }
+        // If the thread does not exist, assume it contains no unreads
+    } else {
+        hasUnread = doesRoomHaveUnreadMessages(room);
+    }
 
     return {
         symbol: null,

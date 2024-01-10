@@ -243,7 +243,7 @@ function textForTopicEvent(ev: MatrixEvent): (() => string) | null {
 
 function textForRoomAvatarEvent(ev: MatrixEvent): (() => string) | null {
     const senderDisplayName = ev?.sender?.name || ev.getSender();
-    return () => _t("timeline|m.room.avatar", { senderDisplayName });
+    return () => _t("timeline|m.room.avatar|changed", { senderDisplayName });
 }
 
 function textForRoomNameEvent(ev: MatrixEvent): (() => string) | null {
@@ -387,7 +387,7 @@ function textForMessageEvent(ev: MatrixEvent, client: MatrixClient): (() => stri
         if (ev.getContent().msgtype === MsgType.Emote) {
             message = "* " + senderDisplayName + " " + message;
         } else if (ev.getContent().msgtype === MsgType.Image) {
-            message = _t("timeline|m.image", { senderDisplayName });
+            message = _t("timeline|m.image|sent", { senderDisplayName });
         } else if (ev.getType() == EventType.Sticker) {
             message = _t("timeline|m.sticker", { senderDisplayName });
         } else {
@@ -821,7 +821,7 @@ function textForMjolnirEvent(event: MatrixEvent): (() => string) | null {
 
 export function textForLocationEvent(event: MatrixEvent): () => string {
     return () =>
-        _t("timeline|m.location", {
+        _t("timeline|m.location|full", {
             senderName: getSenderName(event),
         });
 }
@@ -862,7 +862,7 @@ function textForPollStartEvent(event: MatrixEvent, client: MatrixClient): (() =>
 
 function textForPollEndEvent(event: MatrixEvent): (() => string) | null {
     return () =>
-        _t("timeline|m.poll.end", {
+        _t("timeline|m.poll.end|sender_ended", {
             senderName: getSenderName(event),
         });
 }

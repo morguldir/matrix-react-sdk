@@ -1,5 +1,9 @@
 # Cypress in Element Web
 
+# 🚨 We are moving away from Cypress in favour of Playwright.
+
+Please do not write any new tests in Cypress and check out [the Playwright docs](playwright.md).
+
 ## Contents
 
 -   How to run the tests
@@ -237,6 +241,10 @@ This is a small selection - the Cypress best practices guide, linked above, has 
 should generally try to adhere to them.
 
 ## Screenshot testing with Percy
+
+**⚠️ Percy is disabled while we're figuring out https://github.com/vector-im/wat-internal/issues/36**
+**and https://github.com/vector-im/wat-internal/issues/56. We're hoping to turn it back on or switch**
+**to an alternative in the future.**
 
 We also support visual testing via [Percy](https://percy.io). Within many of our
 Cypress tests you can see lines calling `cy.percySnapshot()`. This creates a

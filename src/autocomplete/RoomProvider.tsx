@@ -57,7 +57,10 @@ function matcherObject(
 export default class RoomProvider extends AutocompleteProvider {
     protected matcher: QueryMatcher<ReturnType<typeof matcherObject>>;
 
-    public constructor(private readonly room: Room, renderingType?: TimelineRenderingType) {
+    public constructor(
+        private readonly room: Room,
+        renderingType?: TimelineRenderingType,
+    ) {
         super({ commandRegex: ROOM_REGEX, renderingType });
         this.matcher = new QueryMatcher<ReturnType<typeof matcherObject>>([], {
             keys: ["displayedAlias", "matchName"],
@@ -134,7 +137,7 @@ export default class RoomProvider extends AutocompleteProvider {
     }
 
     public getName(): string {
-        return _t("Rooms");
+        return _t("common|rooms");
     }
 
     public renderCompletions(completions: React.ReactNode[]): React.ReactNode {
@@ -142,7 +145,7 @@ export default class RoomProvider extends AutocompleteProvider {
             <div
                 className="mx_Autocomplete_Completion_container_pill mx_Autocomplete_Completion_container_truncate"
                 role="presentation"
-                aria-label={_t("Room Autocomplete")}
+                aria-label={_t("composer|autocomplete|room_a11y")}
             >
                 {completions}
             </div>

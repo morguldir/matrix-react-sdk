@@ -38,6 +38,7 @@ import MatrixClientContext from "../../../../../contexts/MatrixClientContext";
 interface IProps {}
 
 interface IState {
+    useBundledEmojiFont: boolean;
     useSystemFont: boolean;
     systemFont: string;
     showAdvanced: boolean;
@@ -52,7 +53,7 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
     public static contextType = MatrixClientContext;
     public context!: React.ContextType<typeof MatrixClientContext>;
 
-    private readonly MESSAGE_PREVIEW_TEXT = _t("Hey you. You're the best!");
+    private readonly MESSAGE_PREVIEW_TEXT = _t("common|preview_message");
 
     private unmounted = false;
 
@@ -60,6 +61,7 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
         super(props);
 
         this.state = {
+            useBundledEmojiFont: SettingsStore.getValue("useBundledEmojiFont"),
             useSystemFont: SettingsStore.getValue("useSystemFont"),
             systemFont: SettingsStore.getValue("systemFont"),
             showAdvanced: false,
@@ -99,7 +101,7 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
                 onClick={() => this.setState({ showAdvanced: !this.state.showAdvanced })}
                 aria-expanded={this.state.showAdvanced}
             >
-                {this.state.showAdvanced ? _t("Hide advanced") : _t("Show advanced")}
+                {this.state.showAdvanced ? _t("action|hide_advanced") : _t("action|show_advanced")}
             </AccessibleButton>
         );
 
@@ -111,6 +113,12 @@ export default class AppearanceUserSettingsTab extends React.Component<IProps, I
                 <>
                     <SettingsFlag name="useCompactLayout" level={SettingLevel.DEVICE} useCheckbox={true} />
 
+                    <SettingsFlag
+                        name="useBundledEmojiFont"
+                        level={SettingLevel.DEVICE}
+                        useCheckbox={true}
+                        onChange={(checked) => this.setState({ useBundledEmojiFont: checked })}
+                    />
                     <SettingsFlag
                         name="useSystemFont"
                         level={SettingLevel.DEVICE}

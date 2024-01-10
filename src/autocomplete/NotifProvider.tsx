@@ -28,7 +28,10 @@ import { TimelineRenderingType } from "../contexts/RoomContext";
 const AT_ROOM_REGEX = /@\S*/g;
 
 export default class NotifProvider extends AutocompleteProvider {
-    public constructor(public room: Room, renderingType?: TimelineRenderingType) {
+    public constructor(
+        public room: Room,
+        renderingType?: TimelineRenderingType,
+    ) {
         super({ commandRegex: AT_ROOM_REGEX, renderingType });
     }
 
@@ -55,7 +58,7 @@ export default class NotifProvider extends AutocompleteProvider {
                     type: "at-room",
                     suffix: " ",
                     component: (
-                        <PillCompletion title="@room" description={_t("Notify the whole room")}>
+                        <PillCompletion title="@room" description={_t("composer|autocomplete|@room_description")}>
                             <RoomAvatar size="24px" room={this.room} />
                         </PillCompletion>
                     ),
@@ -67,7 +70,7 @@ export default class NotifProvider extends AutocompleteProvider {
     }
 
     public getName(): string {
-        return "❗️ " + _t("Room Notification");
+        return "❗️ " + _t("composer|autocomplete|notification_description");
     }
 
     public renderCompletions(completions: React.ReactNode[]): React.ReactNode {
@@ -75,7 +78,7 @@ export default class NotifProvider extends AutocompleteProvider {
             <div
                 className="mx_Autocomplete_Completion_container_pill mx_Autocomplete_Completion_container_truncate"
                 role="presentation"
-                aria-label={_t("Notification Autocomplete")}
+                aria-label={_t("composer|autocomplete|notification_a11y")}
             >
                 {completions}
             </div>

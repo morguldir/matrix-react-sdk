@@ -213,7 +213,9 @@ export default class RightPanel extends React.Component<Props, IState> {
             case RightPanelPhases.Room3pidMemberInfo:
             case RightPanelPhases.Space3pidMemberInfo:
                 if (!!cardState?.memberInfoEvent) {
-                    card = <ThirdPartyMemberInfo event={cardState.memberInfoEvent} key={roomId} />;
+                    card = (
+                        <ThirdPartyMemberInfo event={cardState.memberInfoEvent} key={roomId} onClose={this.onClose} />
+                    );
                 }
                 break;
 
@@ -308,7 +310,7 @@ export default class RightPanel extends React.Component<Props, IState> {
         }
 
         return (
-            <aside className="mx_RightPanel dark-panel" id="mx_RightPanel">
+            <aside className="mx_RightPanel" id="mx_RightPanel">
                 {card}
             </aside>
         );

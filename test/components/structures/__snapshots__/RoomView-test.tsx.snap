@@ -18,7 +18,7 @@ exports[`RoomView for a local room in state CREATING should match the snapshot 1
             class="mx_DecoratedRoomAvatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="3"
               data-testid="avatar-img"
               data-type="round"
@@ -100,7 +100,7 @@ exports[`RoomView for a local room in state ERROR should match the snapshot 1`] 
             class="mx_DecoratedRoomAvatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="3"
               data-testid="avatar-img"
               data-type="round"
@@ -179,7 +179,7 @@ exports[`RoomView for a local room in state ERROR should match the snapshot 1`] 
                 <button
                   aria-label="Avatar"
                   aria-live="off"
-                  class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+                  class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
                   data-color="3"
                   data-testid="avatar-img"
                   data-type="round"
@@ -267,7 +267,7 @@ exports[`RoomView for a local room in state NEW should match the snapshot 1`] = 
             class="mx_DecoratedRoomAvatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="3"
               data-testid="avatar-img"
               data-type="round"
@@ -346,7 +346,7 @@ exports[`RoomView for a local room in state NEW should match the snapshot 1`] = 
                 <button
                   aria-label="Avatar"
                   aria-live="off"
-                  class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+                  class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
                   data-color="3"
                   data-testid="avatar-img"
                   data-type="round"
@@ -373,7 +373,9 @@ exports[`RoomView for a local room in state NEW should match the snapshot 1`] = 
         </div>
       </div>
       <div
+        aria-label="Message composer"
         class="mx_MessageComposer"
+        role="region"
       >
         <div
           class="mx_MessageComposer_wrapper"
@@ -446,7 +448,7 @@ exports[`RoomView for a local room in state NEW should match the snapshot 1`] = 
                   data-testid="basicmessagecomposer"
                   dir="auto"
                   role="textbox"
-                  style="--placeholder: 'Send a message…';"
+                  style="--placeholder: 'Send\\ a\\ message…';"
                   tabindex="0"
                   translate="no"
                 >
@@ -509,7 +511,7 @@ exports[`RoomView for a local room in state NEW that is encrypted should match t
             class="mx_DecoratedRoomAvatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="3"
               data-testid="avatar-img"
               data-type="round"
@@ -520,10 +522,14 @@ exports[`RoomView for a local room in state NEW that is encrypted should match t
             </span>
           </div>
         </div>
-        <div
-          aria-label="This room is end-to-end encrypted"
-          class="mx_E2EIcon mx_E2EIcon_normal mx_LegacyRoomHeader_icon"
-        />
+        <span
+          data-state="closed"
+          tabindex="0"
+        >
+          <div
+            class="mx_E2EIcon mx_E2EIcon_normal mx_LegacyRoomHeader_icon"
+          />
+        </span>
         <div
           class="mx_LegacyRoomHeader_name mx_LegacyRoomHeader_name--textonly"
         >
@@ -587,7 +593,7 @@ exports[`RoomView for a local room in state NEW that is encrypted should match t
                 <button
                   aria-label="Avatar"
                   aria-live="off"
-                  class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+                  class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
                   data-color="3"
                   data-testid="avatar-img"
                   data-type="round"
@@ -614,7 +620,9 @@ exports[`RoomView for a local room in state NEW that is encrypted should match t
         </div>
       </div>
       <div
+        aria-label="Message composer"
         class="mx_MessageComposer"
+        role="region"
       >
         <div
           class="mx_MessageComposer_wrapper"
@@ -687,7 +695,7 @@ exports[`RoomView for a local room in state NEW that is encrypted should match t
                   data-testid="basicmessagecomposer"
                   dir="auto"
                   role="textbox"
-                  style="--placeholder: 'Send a message…';"
+                  style="--placeholder: 'Send\\ a\\ message…';"
                   tabindex="0"
                   translate="no"
                 >
@@ -736,9 +744,11 @@ exports[`RoomView should show error view if failed to look up room alias 1`] = `
 <DocumentFragment>
   <div
     class="mx_RoomView"
+    data-room-header="legacy"
   >
     <div
-      class="mx_RoomPreviewBar dark-panel mx_RoomPreviewBar_RoomNotFound mx_RoomPreviewBar_dialog"
+      class="mx_RoomPreviewBar mx_RoomPreviewBar_RoomNotFound mx_RoomPreviewBar_dialog"
+      role="complementary"
     >
       <div
         class="mx_RoomPreviewBar_message"
