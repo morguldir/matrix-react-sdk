@@ -127,6 +127,7 @@ interface IProps extends MenuProps {
 
 interface IState {
     canRedact: boolean;
+    canViewRedacted: boolean;
     canPin: boolean;
     reactionPickerDisplayed: boolean;
 }
@@ -142,6 +143,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
 
         this.state = {
             canRedact: false,
+            canViewRedacted: false,
             canPin: false,
             reactionPickerDisplayed: false,
         };
@@ -180,11 +182,14 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
         let canPin =
             !!room?.currentState.mayClientSendStateEvent(EventType.RoomPinnedEvents, cli) &&
             canPinEvent(this.props.mxEvent);
+        // TODO check for server support first
+        // TODO allow if isSynapseAdmin too
+        const canViewRedacted = true;
 
         // HACK: Intentionally say we can't pin if the user doesn't want to use the functionality
         if (!SettingsStore.getValue("feature_pinning")) canPin = false;
 
-        this.setState({ canRedact, canPin });
+        this.setState({ canRedact, canViewRedacted, canPin });
     };
 
     private isPinned(): boolean {
@@ -208,6 +213,23 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
             Resend.resend(MatrixClientPeg.safeGet(), reaction);
         }
         this.closeMenu();
+    };
+
+    private onViewRedactedClick = (): void => {
+        MatrixClientPeg.get()
+            ?.unstableFetchRedactedRoomEventContent(this.props.mxEvent.getRoomId()!, this.props.mxEvent.getId()!)
+            .then(
+                (unredactedEvt) => {
+                    console.log("Fetched redacted event content:", unredactedEvt);
+                    this.closeMenu();
+                    if (Object.entries(unredactedEvt.content).length > 0) {
+                        this.props.mxEvent.showRedactedContent(unredactedEvt);
+                    }
+                },
+                (err) => {
+                    console.error("Failed to fetch redacted event content:", err);
+                },
+            );
     };
 
     private onJumpToRelatedEventClick = (relatedEventId: string): void => {
@@ -406,6 +428,18 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                     iconClassName="mx_MessageContextMenu_iconResend"
                     label={_t("timeline|context_menu|resent_unsent_reactions", { unsentCount: unsentReactionsCount })}
                     onClick={this.onResendReactionsClick}
+                />
+            );
+        }
+
+
+        let viewRedactedButton: JSX.Element | undefined;
+        if (mxEvent.isRedacted() && this.state.canViewRedacted) {
+            viewRedactedButton = (
+                <IconizedContextMenuOption
+                    iconClassName=""
+                    label={_t("View content")}
+                    onClick={this.onViewRedactedClick}
                 />
             );
         }
@@ -695,6 +729,7 @@ export default class MessageContextMenu extends React.Component<IProps, IState> 
                 {jumpToRelatedEventButton}
                 {unhidePreviewButton}
                 {viewSourceButton}
+                {viewRedactedButton}
                 {resendReactionsButton}
                 {collapseReplyChainButton}
             </IconizedContextMenuOptionList>

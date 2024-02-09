@@ -141,6 +141,10 @@ interface BaseContent {
      * Required if the file is unencrypted. The URL (typically mxc:// URI) to the file.
      */
     url?: string;
+
+    filename?: string;
+    format?: string;
+    formatted_body?: string;
 }
 
 /**
