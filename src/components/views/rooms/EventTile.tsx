@@ -123,6 +123,9 @@ export interface EventTileProps {
     // the MatrixEvent to show
     mxEvent: MatrixEvent;
 
+    // the previous MatrixEvent in the timeline
+    prevEvent?: MatrixEvent;
+
     // true if mxEvent is redacted. This is a prop because using mxEvent.isRedacted()
     // might not be enough when deciding shouldComponentUpdate - prevProps.mxEvent
     // references the same this.props.mxEvent.
@@ -724,6 +727,11 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         // the original
         const ev = this.props.mxEvent.replacingEvent() ?? this.props.mxEvent;
 
+        if (ev.viewingRedactedContent) {
+            // Not actually an e2ee thing, but we reuse the same slot in the UI.
+            return <E2ePadlock title={_t("This is a deleted message")} icon={E2ePadlockIcon.Redacted} />;
+        }
+
         // no icon for local rooms
         if (isLocalRoom(ev.getRoomId()!)) return null;
 
@@ -1181,7 +1189,7 @@ export class UnwrappedEventTile extends React.Component<EventTileProps, IState> 
         let replyChain: JSX.Element | undefined;
         if (
             haveRendererForEvent(this.props.mxEvent, MatrixClientPeg.safeGet(), this.context.showHiddenEvents) &&
-            shouldDisplayReply(this.props.mxEvent)
+            shouldDisplayReply(this.props.mxEvent, this.props.prevEvent)
         ) {
             replyChain = (
                 <ReplyChain
@@ -1486,6 +1494,8 @@ enum E2ePadlockIcon {
 
     /** red shield with (!) */
     Warning = "warning",
+
+    Redacted = "viewingRedacted",
 
     /** key in grey circle */
     DecryptionFailure = "decryption_failure",

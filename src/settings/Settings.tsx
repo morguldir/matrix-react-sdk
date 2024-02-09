@@ -330,6 +330,13 @@ export const SETTINGS: { [setting: string]: ISetting } = {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         default: false,
     },
+    "feature_show_shared_rooms": {
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
+        displayName: _td("Show rooms in common with another user in the member info panel"),
+        default: false,
+        isFeature: true,
+        labsGroup: LabGroup.Profile,
+    },
     "useOnlyCurrentProfiles": {
         supportedLevels: LEVELS_ACCOUNT_SETTINGS,
         displayName: _td("settings|disable_historical_profile"),
@@ -960,7 +967,7 @@ export const SETTINGS: { [setting: string]: ISetting } = {
     },
     "showHiddenEventsInTimeline": {
         displayName: _td("devtools|show_hidden_events"),
-        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
+        supportedLevels: [SettingLevel.DEVICE, SettingLevel.ROOM_ACCOUNT, SettingLevel.ACCOUNT],
         default: false,
     },
     "lowBandwidth": {

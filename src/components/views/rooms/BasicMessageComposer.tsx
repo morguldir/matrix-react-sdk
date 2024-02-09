@@ -549,10 +549,12 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                     handled = true;
                     break;
                 case KeyBindingAction.PrevSelectionInAutocomplete:
+                case KeyBindingAction.CompleteOrPrevSelectionAutocomplete:
                     autoComplete.selectPreviousSelection();
                     handled = true;
                     break;
                 case KeyBindingAction.NextSelectionInAutocomplete:
+                case KeyBindingAction.CompleteOrNextSelectionAutocomplete:
                     autoComplete.selectNextSelection();
                     handled = true;
                     break;
@@ -561,7 +563,11 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
                     handled = true;
                     break;
             }
-        } else if (autocompleteAction === KeyBindingAction.ForceCompleteAutocomplete && !this.state.showVisualBell) {
+        } else if (
+            (autocompleteAction === KeyBindingAction.ForceCompleteAutocomplete ||
+                autocompleteAction === KeyBindingAction.CompleteOrNextSelectionAutocomplete) &&
+            !this.state.showVisualBell
+        ) {
             // there is no current autocomplete window, try to open it
             this.tabCompleteName();
             handled = true;
@@ -689,8 +695,9 @@ export default class BasicMessageEditor extends React.Component<IProps, IState> 
         this.props.model.autoComplete?.onComponentConfirm(completion);
     };
 
-    private onAutoCompleteSelectionChange = (completionIndex: number): void => {
+    private onAutoCompleteSelectionChange = (completion: ICompletion, completionIndex: number): void => {
         this.modifiedFlag = true;
+        this.props.model.autoComplete?.onComponentSelectionChange(completion);
         this.setState({ completionIndex });
     };
 

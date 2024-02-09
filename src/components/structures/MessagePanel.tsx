@@ -48,7 +48,7 @@ import EditorStateTransfer from "../../utils/EditorStateTransfer";
 import { Action } from "../../dispatcher/actions";
 import { getEventDisplayInfo } from "../../utils/EventRenderingUtils";
 import { IReadReceiptInfo } from "../views/rooms/ReadReceiptMarker";
-import { haveRendererForEvent } from "../../events/EventTileFactory";
+import { haveRendererForEvent, hideableSenders } from "../../events/EventTileFactory";
 import { editorRoomKey } from "../../Editing";
 import { hasThreadSummary } from "../../utils/EventUtils";
 import { BaseGrouper } from "./grouper/BaseGrouper";
@@ -275,7 +275,7 @@ export default class MessagePanel extends React.Component<IProps, IState> {
         // Cache these settings on mount since Settings is expensive to query,
         // and we check this in a hot code path. This is also cached in our
         // RoomContext, however we still need a fallback for roomless MessagePanels.
-        this._showHiddenEvents = SettingsStore.getValue("showHiddenEventsInTimeline");
+        this._showHiddenEvents = SettingsStore.getValue("showHiddenEventsInTimeline", props.room?.roomId);
 
         this.showTypingNotificationsWatcherRef = SettingsStore.watchSetting(
             "showTypingNotifications",
@@ -470,7 +470,7 @@ export default class MessagePanel extends React.Component<IProps, IState> {
             return false; // ignored = no show (only happens if the ignore happens after an event was received)
         }
 
-        if (this.showHiddenEvents && !forceHideEvents) {
+        if (this.showHiddenEvents && !forceHideEvents && !hideableSenders.has(mxEv.getSender() ?? "")) {
             return true;
         }
 
@@ -797,6 +797,7 @@ export default class MessagePanel extends React.Component<IProps, IState> {
                 ref={this.collectEventTile.bind(this, eventId)}
                 alwaysShowTimestamps={this.props.alwaysShowTimestamps}
                 mxEvent={mxEv}
+                prevEvent={prevEvent ?? undefined}
                 continuation={continuation}
                 isRedacted={mxEv.isRedacted()}
                 replacingEventId={mxEv.replacingEventId()}

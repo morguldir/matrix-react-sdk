@@ -41,6 +41,7 @@ import { _t, UserFriendlyError } from "../../../languageHandler";
 import DMRoomMap from "../../../utils/DMRoomMap";
 import AccessibleButton, { ButtonEvent } from "../elements/AccessibleButton";
 import SdkConfig from "../../../SdkConfig";
+import SettingsStore from "../../../settings/SettingsStore";
 import MultiInviter from "../../../utils/MultiInviter";
 import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import E2EIcon from "../rooms/E2EIcon";
@@ -52,6 +53,7 @@ import EncryptionPanel from "./EncryptionPanel";
 import { useAsyncMemo } from "../../../hooks/useAsyncMemo";
 import { legacyVerifyUser, verifyDevice, verifyUser } from "../../../verification";
 import { Action } from "../../../dispatcher/actions";
+import UserInfoSharedRooms from "./UserInfoSharedRooms";
 import { useIsEncrypted } from "../../../hooks/useIsEncrypted";
 import BaseCard from "./BaseCard";
 import { E2EStatus } from "../../../utils/ShieldUtils";
@@ -1478,6 +1480,8 @@ const BasicUserInfo: React.FC<{
         devices &&
         devices.length > 0;
 
+    const isSharedRoomsFeatureEnabled = SettingsStore.getValue("feature_show_shared_rooms");
+
     const setUpdating: SetUpdating = (updating) => {
         setPendingUpdateCount((count) => count + (updating ? 1 : -1));
     };
@@ -1556,6 +1560,9 @@ const BasicUserInfo: React.FC<{
             {memberDetails}
 
             {securitySection}
+            {isSharedRoomsFeatureEnabled && !isMe &&
+                // @ts-ignore
+                <UserInfoSharedRooms userId={member.userId} compact={false} />}
             <UserOptionsSection
                 canInvite={roomPermissions.canInvite}
                 isIgnored={isIgnored}
