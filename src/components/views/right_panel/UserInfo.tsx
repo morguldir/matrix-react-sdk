@@ -523,7 +523,8 @@ export const UserOptionsSection: React.FC<{
         </AccessibleButton>
     );
 
-    const directMessageButton = isMe ? null : <MessageButton member={member} />;
+    const directMessageButton =
+        isMe || !shouldShowComponent(UIComponent.CreateRooms) ? null : <MessageButton member={member} />;
 
     return (
         <div className="mx_UserInfo_container">
