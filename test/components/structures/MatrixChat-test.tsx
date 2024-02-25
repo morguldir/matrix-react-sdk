@@ -38,6 +38,7 @@ import {
     filterConsole,
     flushPromises,
     getMockClientWithEventEmitter,
+    mockClientMethodsServer,
     mockClientMethodsUser,
     MockClientWithEventEmitter,
     mockPlatformPeg,
@@ -73,6 +74,7 @@ describe("<MatrixChat />", () => {
     // reused in createClient mock below
     const getMockClientMethods = () => ({
         ...mockClientMethodsUser(userId),
+        ...mockClientMethodsServer(),
         getVersions: jest.fn().mockResolvedValue({ versions: SERVER_SUPPORTED_MATRIX_VERSIONS }),
         startClient: jest.fn(),
         stopClient: jest.fn(),
@@ -208,6 +210,11 @@ describe("<MatrixChat />", () => {
         fetchMock.get("https://test.com/_matrix/client/versions", {
             unstable_features: {},
             versions: SERVER_SUPPORTED_MATRIX_VERSIONS,
+        });
+        fetchMock.catch({
+            status: 404,
+            body: '{"errcode": "M_UNRECOGNIZED", "error": "Unrecognized request"}',
+            headers: { "content-type": "application/json" },
         });
 
         jest.spyOn(StorageManager, "idbLoad").mockReset();

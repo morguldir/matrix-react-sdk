@@ -1603,10 +1603,8 @@
         "help_about": {
             "access_token_detail": "Seu token de acesso dá acesso total à sua conta. Não o compartilhe com ninguém.",
             "brand_version": "versão do %(brand)s:",
-            "chat_bot": "Converse com o bot do %(brand)s",
             "clear_cache_reload": "Limpar cache e recarregar",
             "help_link": "Para obter ajuda com o uso do %(brand)s, clique <a>aqui</a>.",
-            "help_link_chat_bot": "Para obter ajuda com o uso do %(brand)s, clique <a>aqui</a> ou inicie um bate-papo com nosso bot usando o botão abaixo.",
             "title": "Ajuda e sobre",
             "versions": "Versões"
         }
@@ -1626,9 +1624,6 @@
             "custom_theme_success": "Tema adicionado!",
             "custom_theme_url": "Link do tema personalizado",
             "font_size": "Tamanho da fonte",
-            "font_size_limit": "O tamanho da fonte personalizada só pode estar entre %(min)s pt e %(max)s pt",
-            "font_size_nan": "O tamanho deve ser um número",
-            "font_size_valid": "Use entre %(min)s pt e %(max)s pt",
             "heading": "Personalize sua aparência",
             "image_size_default": "Padrão",
             "image_size_large": "Grande",
