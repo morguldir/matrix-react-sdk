@@ -1,6 +1,6 @@
 {
     "name": "matrix-react-sdk",
-    "version": "3.92.0",
+    "version": "3.93.0",
     "description": "SDK for matrix.org using React",
     "author": "matrix.org",
     "repository": {
@@ -128,7 +128,7 @@
         "react-transition-group": "^4.4.1",
         "rfc4648": "^1.4.0",
         "sanitize-filename": "^1.6.3",
-        "sanitize-html": "2.11.0",
+        "sanitize-html": "2.12.1",
         "tar-js": "^0.3.0",
         "ua-parser-js": "^1.0.2",
         "uuid": "^9.0.0",
@@ -212,7 +212,7 @@
         "jest-raw-loader": "^1.0.1",
         "jsqr": "^1.4.0",
         "mailhog": "^4.16.0",
-        "matrix-web-i18n": "^3.1.5",
+        "matrix-web-i18n": "^3.2.1",
         "mocha-junit-reporter": "^2.2.0",
         "node-fetch": "2",
         "postcss-scss": "^4.0.4",
